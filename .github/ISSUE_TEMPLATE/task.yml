@@ -1,0 +1,118 @@
+name: Task
+description: Create a scoped execution task linked to a spec milestone in the GitHub agentic delivery flow.
+title: "[Task]: "
+labels:
+  - type:feature
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for executable work items in the GitHub-based agentic delivery flow.
+
+        Before submitting:
+        - link the issue to the correct milestone
+        - keep the task small enough for one focused build-review loop
+        - include acceptance criteria and verification expectations
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome
+      description: Describe the exact result this task should produce.
+      placeholder: Implement the smallest change that achieves...
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: State what is in scope and out of scope for this task.
+      value: |
+        In scope:
+        - 
+
+        Out of scope:
+        - 
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Link the parent spec, milestone, docs, or blocking issues.
+      value: |
+        Spec:
+        - 
+
+        Milestone:
+        - 
+
+        Blocking issues or docs:
+        - 
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: Add observable conditions that make this task done.
+      value: |
+        - [ ] 
+        - [ ] 
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification
+      description: Describe the commands, checks, or evidence expected.
+      value: |
+        Commands / checks:
+        - 
+
+        Evidence expected:
+        - 
+    validations:
+      required: true
+  - type: dropdown
+    id: role_owner
+    attributes:
+      label: Current Role Owner
+      description: Which workflow role should take the next action?
+      options:
+        - strategist
+        - tech-lead
+        - builder
+        - validator
+    validations:
+      required: true
+  - type: dropdown
+    id: workflow_state
+    attributes:
+      label: Workflow State
+      description: Initial project state for this task.
+      options:
+        - Inbox
+        - Shaping
+        - Ready
+        - In Progress
+        - In Review
+        - Blocked
+        - Done
+    validations:
+      required: true
+  - type: textarea
+    id: links
+    attributes:
+      label: Links
+      description: Add related PRs, design docs, ADRs, screenshots, or notes.
+      value: |
+        PR:
+        - 
+
+        Related docs:
+        - 
+
+        Additional context:
+        - 
+    validations:
+      required: false

@@ -1,0 +1,23 @@
+{
+  "skill_name": "github-issues-projects-cli",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "i need the right gh command to list all open issues in this repo that are labelled blocked, and i want the output to include issue number, title, assignee, milestone, and url so i can paste it into a status update",
+      "expected_output": "Provides a gh issue list command using structured JSON output and an optional jq filter or formatting step to surface the requested fields clearly.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "using gh cli and jq, help me move issue 42 to In Review on our GitHub project board without guessing the project field ids or option ids",
+      "expected_output": "Provides a multi-step workflow that discovers project, item, field, and option IDs before performing a mutation and then verifies the updated state.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "show me how to find work on the GitHub project board that has no assignee, and return it in a compact readable format",
+      "expected_output": "Provides a gh project item-list based command sequence plus jq filtering to identify unassigned items and summarize them cleanly.",
+      "files": []
+    }
+  ]
+}
