@@ -80,6 +80,11 @@ Use when:
 - access, permission, or destructive action requires explicit human approval
 - a blocker cannot be resolved safely by agents alone
 
+Before escalating to founder from delivery execution, use `founder-escalation-preflight`.
+That preflight must re-check repo docs, GitHub issue or spec history, relevant role memory, and remaining safe internal next steps.
+Do not escalate to founder if the answer is already recoverable from repo evidence or if another safe internal delegation step still exists.
+Do not treat this as a gate on normal founder collaboration during shaping or planning.
+
 ## Defer Instead Of Thrash
 
 Create a defer decision when:

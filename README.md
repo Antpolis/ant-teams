@@ -2,6 +2,14 @@
 
 This repo contains the agentic delivery workflow for this company.
 
+The workflow is GitHub-first and GitHub-only for task execution:
+
+- repository docs hold the canonical spec and architecture guidance
+- GitHub Milestones hold spec-level tracking
+- GitHub Issues are the canonical task records
+- GitHub Project status is the canonical workflow board
+- GitHub issue comments and PR comments are the canonical handoff and review log
+
 ## Start Here
 
 1. Sync company config with `scripts/sync-company.sh`.
@@ -58,7 +66,7 @@ opencode create-spec "<new request>"
 
 - `create-spec` for a new spec
 - `deliver` for a new spec plus the full downstream workflow
-- `do-task` for continuing an existing approved task or finishing the remaining work
+- `do-tasks` for continuing an existing approved task or finishing the remaining work
 - `fix-bug` for a regression, defect, or unexpected failure
 - `migrate` for converting legacy specs into the current project-management format
 
@@ -66,11 +74,11 @@ Defaults:
 
 - `/create-spec` -> `product-owner`
 - `/deliver` -> `product-owner`
-- `/do-task` -> `developer`
+- `/do-tasks` -> `developer`
 - `/fix-bug` -> `developer`
 - `/migrate` -> `delivery-manager`
 
-These are also available in the TUI as `/create-spec`, `/deliver`, `/do-task`, `/fix-bug`, and `/migrate`.
+These are also available in the TUI as `/create-spec`, `/deliver`, `/do-tasks`, `/fix-bug`, and `/migrate`.
 
 ### Scripts By Role
 
@@ -85,7 +93,7 @@ Examples:
 
 ```text
 opencode create-spec "add user activity reporting"
-opencode do-task "TASK-014"
+opencode do-tasks "TASK-014"
 opencode fix-bug "login fails after deploy"
 ```
 
@@ -93,25 +101,26 @@ opencode fix-bug "login fails after deploy"
 
 Use this when the spec already exists and the work is already split into tasks.
 
-- Open the task file under `docs/proj-management/tasks/`
+- Open the GitHub issue for the task
+- Read the linked spec, relevant docs, issue comments, and PR discussion
 - Continue on the existing task branch
-- Update the task status and communication log as you work
+- Update the GitHub Project status and GitHub handoff notes as you work
 
 ### 3. Continue A Task
 
 Use this when you already started work and need to keep going on the same task.
 
 - Stay on the same task branch
-- Keep the task status updated
-- Add new notes to the communication log
+- Keep the GitHub Project status updated
+- Add new notes to the GitHub issue or PR
 
 ### 4. Bug Found
 
 Use this when you find a regression or defect.
 
-- If it belongs to the current approved spec, add it to the existing task if it is in scope
-- If it changes scope or needs separate handling, create a new bug spec/task
-- If it blocks the current work, record it as a blocker
+- If it belongs to the current approved spec, add it to the existing GitHub task issue if it is in scope
+- If it changes scope or needs separate handling, create a new bug spec and GitHub task issue
+- If it blocks the current work, record it as a blocker in GitHub
 
 ## Where The Workflow Lives
 
@@ -127,13 +136,12 @@ Use this when you find a regression or defect.
 
 - `docs/DOCUMENT_INDEX.md` - document index
 - `docs/arch/ARCH-001-skill-delegation.md` - skill delegation policy
-- `docs/proj-management/board.md` - project board
-- `docs/proj-management/tasks/` - task files
-- `docs/proj-management/communication/` - per-spec communication logs
+- `.github-project.json` - repository GitHub Project metadata used by the workflow
+- `docs/` - canonical specs, architecture, ADRs, GOV docs, and related repository guidance linked from GitHub workflow artifacts
 
 ## Working Rule
 
-Use the workflow scripts instead of manually editing project-management files when a script exists.
+Use GitHub issues, milestones, project status, and PR comments as the operational workflow surface. Use repository docs for canonical specs and guidance, not as the task board or handoff log.
 
 ## First Useful Commands
 

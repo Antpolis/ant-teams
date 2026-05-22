@@ -1,13 +1,13 @@
 ---
 name: github-agentic-delivery-flow
-description: Use whenever work should move from idea or spec to shipped product through a multi-agent loop using GitHub Milestones as specs, GitHub Issues as tasks, GitHub Projects as the kanban board, and role-based handoffs between strategist, tech-lead, builder, and validator. This is the top-level GitHub delivery workflow skill. Trigger on requests to design, run, improve, or govern the continuous delivery flow, especially when the user mentions delegation, agent handoffs, review loops, GitHub workflow, milestones, issues, project boards, blockers, approvals, or spec-to-release execution.
+description: Use whenever work should move from idea or spec to shipped product through a multi-agent loop using GitHub Milestones as specs, GitHub Issues as tasks, GitHub Projects as the kanban board, and role-based delegation between strategist, tech-lead, builder, and validator. This is the top-level GitHub delivery workflow skill. Trigger on requests to design, run, improve, or govern the continuous delivery flow, especially when the user mentions delegation, agent collaboration, review loops, GitHub workflow, milestones, issues, project boards, blockers, approvals, or spec-to-release execution.
 ---
 
 # GitHub Agentic Delivery Flow
 
 Use this skill when the user wants a continuous multi-agent workflow that starts from a spec and ends with validated product delivery.
 
-This skill defines the top-level operating model. It does not replace lower-level skills such as `agentic-flow-terms`, `agent-communication-log`, `role-memory`, `task-development`, `task-completion`, `github-conventions`, `state-transitions`, or `approval-and-escalation`. Use those for the detailed mechanics they already own.
+This skill defines the top-level operating model. It does not replace lower-level skills such as `agentic-flow-terms`, `agent-communication-log`, `role-memory`, `do-task`, `task-development`, `task-completion`, `github-conventions`, `state-transitions`, or `approval-and-escalation`. Use those for the detailed mechanics they already own.
 
 ## Purpose
 
@@ -33,7 +33,7 @@ Use this GitHub mapping consistently:
 | Task | GitHub Issue |
 | Workflow State | GitHub Project item status |
 | Implementation branch / PR | GitHub Branch + Pull Request |
-| Durable handoff / findings / approvals | GitHub issue comments and PR comments |
+| Durable delegation / findings / approvals | GitHub issue comments and PR comments |
 | Canonical implementation detail | Repository docs linked from the milestone or issue |
 
 Do not rely on GitHub milestone text alone as the full spec. Keep the canonical spec in the repository and link it from the milestone.
@@ -44,6 +44,8 @@ Do not rely on GitHub milestone text alone as the full spec. Keep the canonical 
 - The GitHub milestone is the tracking container for that spec.
 - GitHub issues are the canonical task records for execution state and task-local discussion.
 - GitHub Projects is the canonical workflow board for state visualization.
+- GitHub issue comments and PR comments are the canonical execution delegation and review record.
+- Local markdown task files, local workflow boards, and local communication logs are legacy artifacts and not part of the active execution flow.
 - If GitHub and repo docs disagree, reconcile them instead of silently choosing one.
 
 ## Agent Roles
@@ -93,16 +95,17 @@ Use specialized skills beneath these roles when the task needs domain-specific h
 
 - After task creation, assign the next responsible role for each issue.
 - Move executable tasks to `Ready`.
-- If a specific builder is known, assign the issue directly to that builder. If not, set `Current role: builder` in the issue body and leave a durable handoff comment.
+- If a specific builder is known, assign the issue directly to that builder. If not, set `Current role: builder` in the issue body and leave a durable delegation comment.
 - If no task is actually ready, leave the work in `Shaping` or `Blocked` with an explicit reason. Do not pretend the flow has advanced.
 
 ### 5. Run the build-review loop
 
-- `builder` takes a ready issue, reads the spec, guardrails, prior handoffs, and relevant memory, then implements the smallest correct change.
-- `builder` records evidence and returns the issue for validation without merging.
-- `validator` reviews findings first, then checks lightweight smoke health.
-- If findings remain, return the issue to `builder` on the same branch or follow-up branch according to repo policy.
-- Repeat until the work is approved, blocked, or escalated.
+- Use the `do-task` skill as the canonical execution loop.
+- `tech-lead` starts execution by reading the project queue, grouping issues by spec, and prioritizing the next executable issue set.
+- `tech-lead` should work one spec group at a time unless a dependency, blocker, or required human intervention makes that impossible.
+- `tech-lead` delegates technically clear issues to `builder`, then requires `validator` review before any issue is treated as done.
+- If findings remain, return the issue to `builder` and continue the loop until approved, blocked, or escalated.
+- An apparently empty executable queue is not the end of the pass by itself. `tech-lead` should next reconcile review-state work, triage open repo issues into the board when safe, or delegate `strategist` to clarify the next actionable spec path before returning to the user.
 
 ### 6. Close the work
 
@@ -137,6 +140,7 @@ Use them like this:
 Additional rule:
 
 - A spec-level milestone should not be treated as execution-ready until it has concrete child issues, and at least one non-blocked child issue is in `Ready` when execution can begin.
+- During execution, prioritize issues by spec group before jumping across specs. Break that rule only for explicit dependencies, blockers, or human-intervention waits.
 
 ## Required Issue Quality Bar
 
@@ -158,9 +162,9 @@ Avoid giant issues that require multiple major decisions at once.
 
 ## Handoff Rules
 
-Use durable handoffs whenever work moves between roles.
+Use durable delegation notes whenever work moves between roles.
 
-Every handoff should record:
+Every internal delegation should record:
 
 - current state
 - what changed
@@ -168,6 +172,12 @@ Every handoff should record:
 - verification already completed
 - open findings, blockers, or risks
 - exact next expected action
+
+When `tech-lead` asks `strategist` to clarify a spec or issue during execution:
+
+- record the clarification request and resolution in GitHub comments
+- keep the issue in the current spec group unless it is blocked
+- skip to another issue only when waiting on a real blocker or human input
 
 Comments alone are not sufficient when the next action is "implement". That next action must point to an actual task issue, not just a discussion thread.
 
@@ -194,6 +204,10 @@ Escalate when:
 - repeated loops show the task is underspecified or mis-scoped
 
 When escalating, say what is blocked, why it is blocked, who must decide, and what the smallest unblocking decision is.
+
+Before escalating to the founder from delivery execution, run `founder-escalation-preflight`.
+Founder escalation should happen only after checking repo docs, GitHub collaboration history, relevant role memory, and remaining safe internal delegation paths.
+Do not use that preflight as a gate on normal strategist-founder planning, spec review, or sprint discussion.
 
 ## Approval Rules
 

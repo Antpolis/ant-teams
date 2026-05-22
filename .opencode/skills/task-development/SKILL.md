@@ -20,7 +20,7 @@ Use role-memory for local durable lessons after GitHub collaboration is updated.
 - Start development from the current production base branch.
 - Create a new working branch before editing code.
 - Do not merge the working branch back to the production base branch until both architect-reviewer and qa-smoke approve.
-- Update the GitHub issue/project state to `in-progress` when starting if editing is allowed.
+- Update the GitHub issue/project state to `In Progress` when starting if editing is allowed.
 - Implement only the assigned task scope.
 - Do not implement out-of-scope items unless required to complete the task and clearly report why.
 - Run the issue's verification commands and acceptance tests when available.
@@ -69,6 +69,12 @@ Before editing, identify:
 - Acceptance tests
 
 If the issue is too vague to implement safely, stop and ask for clarification or request task refinement with `how-to-create-task`.
+
+## GitHub-Only Rule
+
+- Treat the GitHub issue, project status, issue comments, and PR comments as the operational task record.
+- Do not rely on local markdown task files, local boards, or local communication logs as the primary execution surface.
+- Use repository docs only for canonical specs, architecture guidance, ADRs, and related implementation context.
 
 ## Completion Notes Template
 

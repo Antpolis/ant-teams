@@ -11,6 +11,6 @@ Flow:
 1. Ask the strategist agent to research repository documents relevant to this request and turn the request plus findings into an implementation-ready spec. Search by topic, feature name, domain terms, paths, module names, and synonyms. Do not rely on document numbering.
 2. Ask the strategist agent to review product direction and spec correctness.
 3. Ask the tech-lead agent to review technical viability.
-4. If approved, create or update the communication log and hand the spec to architecture review and task planning.
+4. If approved, create or update the GitHub milestone summary and hand the spec to architecture review and task planning through GitHub.
 
 Do not start implementation.

@@ -88,6 +88,13 @@ Every task must also be builder-activatable:
 - if the issue is ready now, set the owner role to builder and move it to `Ready`
 - if it is not ready, say exactly what is missing and leave it in `Shaping` or `Blocked`
 
+## GitHub-Only Rule
+
+- GitHub issues are the only execution task records for this workflow.
+- GitHub Project status is the only canonical task board for workflow state.
+- GitHub issue comments and PR comments are the only canonical collaboration log for task execution.
+- Repository docs remain the canonical place for specs, architecture, ADRs, GOV docs, and other reusable guidance.
+
 ## Splitting Guidance
 
 Split tasks by ownership boundaries, not just chronology:

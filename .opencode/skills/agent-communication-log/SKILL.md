@@ -36,22 +36,24 @@ Use GitHub as the collaboration surface.
 Prefer:
 
 - milestone description for spec summary and canonical repo-doc links
-- GitHub issue comments for task collaboration, handoffs, blockers, and status discussion
+- GitHub issue comments for task collaboration, delegations, blockers, and status discussion
 - PR comments and review threads for code-review conversation
 - GitHub issue or PR links when referencing follow-up work or defer decisions
 
-Use local repo files only for durable memory and retrospective notes, not as the primary collaboration surface.
+Use local repo files only for canonical specs, architecture guidance, durable memory, and retrospective notes, not as the primary collaboration surface.
 
 ## Required Rule
 
-Every agent handoff must be recorded in the relevant GitHub issue or PR comment thread.
+Every agent delegation must be recorded in the relevant GitHub issue or PR comment thread.
+
+Use `handoff` only when returning control to the founder or escalating for a founder decision.
 
 Do not rely only on chat history for decisions, blockers, review comments, or QA results.
 
 ## Comment Structure
 
 ```md
-## Handoff
+## Delegation
 
 Role: <role>
 Target Role: <next role or reviewer>
@@ -121,9 +123,9 @@ A defer task must include:
 - Whether an ADR, GOV, ARCH update, or technical debt item is required
 - Conditions that would make the defer invalid
 
-## Handoff Entry Quality Bar
+## Delegation Entry Quality Bar
 
-Every handoff entry must be specific enough that the next agent can continue without chat context.
+Every delegation entry must be specific enough that the next agent can continue without chat context.
 
 Include:
 

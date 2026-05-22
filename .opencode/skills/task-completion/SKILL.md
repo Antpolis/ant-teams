@@ -45,12 +45,12 @@ A task can be marked `completed` only when all are true:
 
 ## Task Status Rules
 
-- Use `completed` only when the completion gate passes.
-- Use `blocked` when a dependency, missing access, unresolved decision, or failing required verification prevents completion.
-- Keep `in-progress` if implementation exists but verification or review is incomplete.
+- Use `Done` only when the completion gate passes.
+- Use `Blocked` when a dependency, missing access, unresolved decision, or failing required verification prevents completion.
+- Keep `In Progress` if implementation exists but verification or review is incomplete.
 - Do not mark complete based only on intent or partial implementation.
 - Do not approve merge until architect-reviewer and qa-smoke both approve.
-- If code review finds issues, keep the task `in-progress` and return it to development unless a stop condition is reached.
+- If code review finds issues, keep the task `In Progress` and return it to development unless a stop condition is reached.
 
 ## Review-Development Loop
 
@@ -107,7 +107,7 @@ Add or verify this checklist in the GitHub issue or PR summary when closing it:
 Report:
 
 - Issue ID and title
-- Completion decision: completed/blocked/in-progress
+- Completion decision: Done/Blocked/In Progress
 - Branch and base branch
 - Merge approval: approved/not approved
 - Review loop count
@@ -116,3 +116,9 @@ Report:
 - Verification result
 - Acceptance test result
 - Open risks or follow-up tasks
+
+## GitHub-Only Rule
+
+- Treat GitHub issue state, GitHub Project status, issue comments, PR comments, and PR review as the authoritative task workflow surface.
+- Do not close or validate work based on local task-file state alone.
+- Use repository docs for the canonical spec and architecture context that GitHub issues and milestones link back to.

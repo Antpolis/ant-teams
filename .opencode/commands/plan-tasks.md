@@ -16,6 +16,6 @@ Flow:
 6. Move executable issues to `Ready`. If a task is not executable yet, leave it `Shaping` or `Blocked` and record exactly why.
 7. Ensure at least one non-blocked issue is explicitly builder-ready when the spec is approved to proceed. Do not stop at comments alone.
 8. Add a durable handoff note that tells the builder the next issue to pick up and why it is ready.
-9. Recommend `do-task <issue>` as the next command once a builder-ready issue exists.
+9. Recommend `do-tasks <issue>` as the next command once a builder-ready issue exists.
 
 Do not stop after commentary if the spec is approved for execution. The expected outcome is milestone plus concrete GitHub task issues, not just planning notes.

@@ -95,7 +95,7 @@ Look for:
 - README files
 - `package.json`, `pnpm-lock.yaml`, `yarn.lock`, `pom.xml`, `build.gradle*`, `Cargo.toml`, `go.mod`, `pyproject.toml`, `requirements.txt`
 - Docker, Compose, Helm, Terraform, k8s, CI, and deployment files
-- `.opencode/opencode.json`, `.opencode/agents/`, and relevant workflow skills if present
+- `.opencode/opencode.json` and relevant workflow skills if present
 - `docs/adr/`, `docs/architecture/`, `docs/governance/`, `docs/arch/`, and related README guidance if present
 - governance docs that explain master-enterprise-architecture usage, mirroring rules, or local ADR/ARCH/GOV routing
 

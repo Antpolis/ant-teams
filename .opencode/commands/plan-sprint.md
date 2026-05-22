@@ -15,6 +15,7 @@ Flow:
 3. Use the github-issues-projects-cli skill, `gh`, `jq`, the repo GitHub wrapper, and `./.github-project.json` to review issues, milestone linkage, project-board status, dependencies, and missing execution metadata.
 4. Prioritize the active work:
    - identify the smallest high-value tasks that should move first
+   - group work by spec and keep execution focused within a spec unless dependencies or blockers force a switch
    - surface blockers and sequencing constraints
    - move only truly executable tasks to `Ready`
 5. Ensure the planning outcome is handoff-ready:
@@ -22,6 +23,6 @@ Flow:
    - the next issue to pick up should be named clearly
    - each ready issue should point to the right spec, milestone, and supporting docs
 6. Add a durable handoff note for the builder that says what to pick up next, why it is the priority, what guardrails apply, and what evidence or dependencies matter.
-7. Recommend `do-task <issue>` as the next command once the sprint plan results in a builder-ready issue.
+7. Recommend `do-tasks <issue>` as the next command once the sprint plan results in a builder-ready issue.
 
 Do not stop at commentary or reprioritization alone. The expected outcome is a prioritized execution batch with explicit builder-ready handoff.

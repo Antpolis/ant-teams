@@ -43,4 +43,4 @@ Required outcome for each provided spec or plan:
    - tasks created or updated
    - project statuses updated
    - blockers or shaping items if any
-   - next recommended command, usually `plan-sprint` or `do-task <issue>`
+   - next recommended command, usually `plan-sprint` or `do-tasks <issue>`
