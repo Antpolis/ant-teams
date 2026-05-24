@@ -53,6 +53,7 @@ Prefer JSON over env because GitHub project metadata often grows into structured
 - status name to option ID
 - field name to field ID
 - arrays of common workflow states
+- repo-level workflow defaults such as top-level `worktreeRoot`
 
 ## Common Actions To Support Explicitly
 

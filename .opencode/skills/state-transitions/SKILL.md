@@ -1,6 +1,6 @@
 ---
 name: state-transitions
-description: Use when the GitHub delivery flow is already in place and the agent needs the specific rules for moving work between project states such as inbox, shaping, ready, in progress, in review, blocked, and done. Prefer `github-agentic-delivery-flow` for the overall workflow model; use this skill for state-machine details.
+description: Use when the GitHub delivery flow is already in place and the agent needs the specific rules for moving work between project states such as inbox, shaping, need attentions, ready, in progress, in review, blocked, and done. Prefer `github-agentic-delivery-flow` for the overall workflow model; use this skill for state-machine details.
 ---
 
 # State Transitions
@@ -15,6 +15,7 @@ Use these default states unless the repository already has a well-established eq
 
 - `Inbox`
 - `Shaping`
+- `Need attentions`
 - `Ready`
 - `In Progress`
 - `In Review`
@@ -48,6 +49,40 @@ Typical owner:
 
 - strategist or tech-lead
 
+### `Any Active State` -> `Need attentions`
+
+Allowed when:
+
+- an agent has identified an issue that needs strategist or tech-lead intervention before safe execution can continue
+- the issue is not simply blocked on an external dependency
+- the agent can leave a durable GitHub comment explaining the attention needed, the risk, and the exact question to resolve
+
+Typical owner:
+
+- builder, reviewer, strategist, or tech-lead
+
+### `Need attentions` -> `Ready`
+
+Allowed when:
+
+- strategist or tech-lead has resolved the issue through a durable GitHub comment
+- the next executable path is clear again
+- the issue is builder-usable without hidden ambiguity
+
+Typical owner:
+
+- strategist or tech-lead
+
+### `Need attentions` -> `Blocked`
+
+Allowed when:
+
+- the required attention exposes a real dependency, approval, credential, or outside condition that agents cannot safely clear internally
+
+Typical owner:
+
+- strategist or tech-lead
+
 ### `Ready` -> `In Progress`
 
 Allowed when:
@@ -59,6 +94,8 @@ Allowed when:
 Typical owner:
 
 - builder
+
+Builder is responsible for making this transition when implementation starts; orchestrator should not do it on the builder's behalf during normal flow.
 
 ### `In Progress` -> `In Review`
 
@@ -72,16 +109,20 @@ Typical owner:
 
 - builder
 
+Builder is responsible for this transition only after the branch, PR, verification evidence, and durable handover note are in place.
+
 ### `In Review` -> `In Progress`
 
 Allowed when:
 
-- validator finds actionable issues
+- reviewer finds actionable issues
 - the issue is not blocked on outside input
 
 Typical owner:
 
-- validator
+- reviewer
+
+Reviewer should record durable findings and return the issue to builder on the same branch when rework is needed.
 
 ### `Any State` -> `Blocked`
 
@@ -108,18 +149,22 @@ Typical owner:
 
 Allowed when:
 
-- validator finds no blocking issues
+- reviewer finds no blocking issues
 - smoke verification is acceptable for the task
 - required approvals are recorded
 
 Typical owner:
 
-- validator
+- reviewer
+
+Reviewer should make this transition only after approval and review evidence are recorded.
 
 ## Rules Of Restraint
 
 - Do not move work to `Done` because it looks close.
 - Do not move work to `Ready` if the spec is still argument-shaped instead of execution-shaped.
+- Do not move work into `Need attentions` without a durable GitHub comment that explains what attention is needed and who should resolve it.
+- Do not leave work in `Need attentions` through sprint planning without first attempting strategist or tech-lead resolution.
 - Do not move a spec or milestone forward based only on comments if no builder-usable task issue exists yet.
 - Do not leave work in `Blocked` without saying what is needed to unblock it.
 - Do not bounce work between `In Progress` and `In Review` indefinitely; escalate recurring architectural rework.

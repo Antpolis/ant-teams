@@ -1,6 +1,6 @@
 ---
 name: security-review
-description: Use when reviewing authentication, authorization, secrets, permissions, infrastructure exposure, data handling, network access, supply chain, or privacy/security risks. Intended for developer, architect, architect-reviewer, or security-focused work; not for CPO, CTO, or product-owner drafting.
+description: Use when reviewing authentication, authorization, secrets, permissions, infrastructure exposure, data handling, network access, supply chain, or privacy/security risks. Intended for builder, tech-lead, reviewer, or security-focused work; not for CPO, CTO, or product-owner drafting.
 ---
 
 # Security Review

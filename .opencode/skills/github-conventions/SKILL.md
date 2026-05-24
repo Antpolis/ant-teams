@@ -79,7 +79,7 @@ Recommended labels:
 - `role:strategist`
 - `role:tech-lead`
 - `role:builder`
-- `role:validator`
+- `role:reviewer`
 - `type:feature`
 - `type:bug`
 - `type:debt`
@@ -94,6 +94,7 @@ Use labels to improve filtering and routing, not as a substitute for clear issue
 Use issue comments for:
 
 - agent handoffs
+- shaping discussion summaries and clarified decisions
 - findings
 - blocker notes
 - approval notes
@@ -101,10 +102,13 @@ Use issue comments for:
 
 Use PR comments for code-specific findings and review discussion.
 
+When strategist and tech-lead discuss a spec during shaping, they may do the live reasoning in-agent, but they must post the durable result of that discussion back to the milestone or shaping issue before handing work forward.
+
 ## Source Of Truth Rules
 
 - Keep the canonical implementation detail in the repository.
 - Link the canonical spec from the milestone.
+- Keep shaping and task-local execution discussion in GitHub comments when it affects future work.
 - Keep task-local execution discussion on the issue.
 - Keep code-specific review on the pull request.
 - Reconcile GitHub artifacts and repo docs if they drift.

@@ -30,7 +30,25 @@ The script creates the folders and adds `README.md` guidance in each folder expl
 
 The script also creates `agent.md` in the repository root to tell future agents which documentation root this repository uses. The docs root is not assumed; it should match the user-specified root passed into the setup step.
 
-The script also creates `.github-project.json` in the repository root if it does not exist. This file is meant to be committed and should store shared GitHub collaboration metadata such as owner, project number, project ID, field IDs, and common status option IDs. Use JSON so future metadata can be stored as nested objects and arrays without inventing more env variable names.
+The script also creates `.github-project.json` in the repository root if it does not exist. This file is meant to be committed and should store shared GitHub collaboration metadata such as owner, project number, project ID, field IDs, common status option IDs, and the issue-worktree root. Use JSON so future metadata can be stored as nested objects and arrays without inventing more env variable names.
+
+The project initialization flow should also ensure `.github-project.json` stores the default issue worktree root as top-level field `worktreeRoot`. Unless the user asks for something else, initialize it to `~/Projects/worktree/<repo name>`.
+
+Use `scripts/init_project_docs.sh [--project-dir PATH] [--docs-root docs] [--worktree-root PATH]` when the repo needs the full project-local workflow bootstrap, including copied docs, `.github-project.json`, and the default issue worktree root.
+
+That same initialization flow should also ensure the repository has an `opencode.jsonc` or `opencode.json` with:
+
+```json
+{
+  "permission": {
+    "external_directory": {
+      "<worktree root>/**": "allow"
+    }
+  }
+}
+```
+
+If a repo config already exists, inspect it first and add the external-directory permission only when it is missing.
 
 The skill also includes reference templates under `references/` for:
 
@@ -122,7 +140,8 @@ When editing repository artifacts, prefer:
 - product or enhancement spec under `docs/spec/` or the repo's existing convention
 - architecture or migration notes under `docs/architecture/`, `docs/arch/`, `docs/adr/`, or `docs/governance/` as appropriate for the repo
 - GitHub milestones, issues, project fields, and issue templates for collaboration artifacts
-- `.github-project.json` for repo-level GitHub collaboration defaults
+- `.github-project.json` for repo-level GitHub collaboration defaults, including top-level `worktreeRoot`
+- `opencode.json` or `opencode.jsonc` for repo-level runtime permissions including worktree access
 
 ## Mandatory Analysis Sections
 
@@ -196,7 +215,7 @@ Decide what workflow artifacts should exist or be updated, such as:
 - local governance reference to the master enterprise architecture if this repo depends on an external authoritative source
 - `agent.md` pointing agents to the correct docs root
 - GitHub milestone and issue conventions
-- `.github-project.json` with repo GitHub owner, project identifiers, and common field/option IDs
+- `.github-project.json` with repo GitHub owner, project identifiers, common field/option IDs, and top-level `worktreeRoot`
 - role or agent handoff guidance
 
 Read current agent definitions if they exist, but keep the workflow flexible enough that the agent roster can change.
@@ -230,7 +249,7 @@ Depending on the repo state, create or update some combination of:
 - ADR, architecture, and governance folder scaffolding with README guidance
 - local governance note or update confirming how the external master enterprise architecture applies to this repo when needed
 - `agent.md` documenting the repository docs root and document naming conventions
-- `.github-project.json` documenting GitHub owner, project number, project ID, and common status IDs
+- `.github-project.json` documenting GitHub owner, project number, project ID, common status IDs, and top-level `worktreeRoot`
 - first milestone/spec definition
 - first GitHub task breakdown
 - workflow setup notes for agents and handoffs

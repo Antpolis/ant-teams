@@ -1,11 +1,11 @@
 ---
 name: agent-communication-log
-description: Use when multiple agents collaborate on a spec, GitHub milestone, GitHub issue, pull request, code review, QA verification, blocker, defer decision, or review-development loop. Enforces GitHub issue comments and PR comments as the collaboration record, while keeping only durable memory and retrospective knowledge local.
+description: Use when multiple agents collaborate on a spec, GitHub milestone, GitHub issue, pull request, code review, reviewer verification, blocker, defer decision, or review-development loop. Enforces GitHub issue comments and PR comments as the collaboration record, while keeping only durable memory and retrospective knowledge local.
 ---
 
 # Agent Communication Log
 
-Use this skill whenever work moves between agents or enters a development-review-QA loop.
+Use this skill whenever work moves between agents or enters a builder-reviewer review loop.
 
 Use the agentic-flow-terms skill as the canonical glossary for custom workflow metadata terms referenced by this skill.
 Use the GitHub workflow skills for milestones, issues, project states, approvals, and escalation rules.
@@ -18,14 +18,14 @@ Keep all important collaboration between agents in GitHub so the workflow does n
 The GitHub collaboration record is the shared execution record for:
 
 - Product/spec decisions
-- Architect guardrails
+- Tech-lead guardrails
 - Task planning decisions
-- Developer implementation notes
+- Builder implementation notes
 - Code review findings
-- QA smoke results
+- Reviewer verification results
 - Review-development loop count
 - Hard blockers needing human intervention
-- Architect escalation decisions
+- Tech-lead escalation decisions
 - Defer tasks for architecture decisions or technical debt
 - Links to role-memory or retrospective updates when durable local memory is needed
 
@@ -48,7 +48,17 @@ Every agent delegation must be recorded in the relevant GitHub issue or PR comme
 
 Use `handoff` only when returning control to the founder or escalating for a founder decision.
 
-Do not rely only on chat history for decisions, blockers, review comments, or QA results.
+Within the build-review loop, expect the delegated agent to write its own durable note. `orchestrator` or another coordinating role may verify that the note exists, but should not impersonate builder or reviewer ownership by writing their execution handoff in place of them during normal flow.
+
+Do not rely only on chat history for decisions, blockers, review comments, or verification results.
+
+## Communication Rules
+
+- If a discussion changes scope, sequencing, guardrails, acceptance, blocker state, or ownership, summarize the outcome back to GitHub before another role is expected to act.
+- If agents reason together in chat, GitHub still needs the durable conclusion, not the full transcript.
+- Prefer concise decision summaries over long narrative comments, but include enough detail for the next role to continue without asking the same question again.
+- Keep one canonical thread per context when possible: issue comments for task-level decisions, PR comments for code-review discussion, milestone description or shaping issue comments for spec-level shaping.
+- Do not split one decision across scattered comments if one durable summary can carry the context more cleanly.
 
 ## Comment Structure
 
@@ -80,10 +90,11 @@ Next Action:
 
 ## Review Loop Rules
 
-- After development finishes, architect-reviewer starts code review.
-- If code review has findings, return to developer with actionable findings.
-- Developer fixes findings on the same task branch.
-- Repeat development-review until architect-reviewer clears the code or a stop condition is reached.
+- After development finishes, reviewer starts code review and lightweight smoke verification.
+- Builder should leave a detailed implementation handover note before reviewer starts.
+- If code review has findings, return to builder with actionable findings.
+- Builder fixes findings on the same task branch.
+- Repeat development-review until reviewer clears the code or a stop condition is reached.
 - The loop must run no more than 8 times.
 - Record each review-development cycle in GitHub issue comments or PR review threads so the loop history is visible in the collaboration surface.
 
@@ -91,7 +102,7 @@ Next Action:
 
 Stop the loop when one of these happens:
 
-- Architect-reviewer clears the development.
+- Reviewer clears the development.
 - A hard blocker requires human intervention.
 - The loop reaches 8 attempts and architecture issues still remain.
 
@@ -105,14 +116,14 @@ If there is a hard blocker:
 
 If 8 loops are reached and architecture issues remain:
 
-- Escalate to architect.
-- Architect must review the task, spec, docs, and guardrails for conflicts.
-- Architect may clear the stopper by creating a defer task.
+- Escalate to tech-lead.
+- Tech-lead must review the task, spec, docs, and guardrails for conflicts.
+- Tech-lead may clear the stopper by creating a defer task.
 - A defer task must say whether the issue will be resolved by an architecture decision update, a later task, or technical debt.
 
 ## Defer Task Rules
 
-Only architect or the designated approving role should create architecture defer decisions.
+Only tech-lead or the designated approving role should create architecture defer decisions.
 
 A defer task must include:
 
@@ -136,6 +147,8 @@ Include:
 - Next action
 - Stopper or blocker state
 
+If the next role is expected to decide something, state the exact question. If the next role is expected to execute, state the exact action.
+
 ## Comment Rules
 
 - Keep task collaboration in the GitHub issue.
@@ -145,7 +158,7 @@ Include:
 
 ## Role Memory Rules
 
-- After every task or review loop, developer, QA, and architect/architect-reviewer should review the GitHub collaboration record.
+- After every task or review loop, builder, reviewer, and tech-lead should review the GitHub collaboration record.
 - Each role must update its role memory with durable information relevant to that role, using the role-memory skill.
 - If there is no new durable information, record that in local role memory.
-- Architect must read architect memory before making loop-breaker, blocker, defer-task, or architecture conflict decisions.
+- Tech-lead must read architect memory before making loop-breaker, blocker, defer-task, or architecture conflict decisions.

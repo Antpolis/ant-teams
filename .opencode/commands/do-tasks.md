@@ -1,6 +1,6 @@
 ---
 description: Continue or finish existing approved tasks.
-agent: tech-lead
+agent: orchestrator
 ---
 
 Drive the next approved task work from the project issue queue for: $ARGUMENTS
@@ -12,9 +12,19 @@ Use `founder-escalation-preflight` before asking the founder for a decision.
 Run the `do-task` skill end to end for this request.
 
 Expected behavior:
-- tech-lead owns queue-driven execution
+- orchestrator owns queue-driven execution
 - reconcile active `In Progress` and `In Review` work first
-- delegate builder, validator, or strategist as needed
+- inspect and resolve `Need attentions` issues before pulling fresh `Ready` work when a safe internal role can clear them
+- always get the ordered issue list and execution priorities from tech-lead before starting fresh queue work
+- invoke tech-lead, builder, reviewer, or strategist as needed
+- treat `do-tasks` as continuation of an existing task, not as a branch-reset flow
+- builder should prefer one dedicated git worktree per active issue so tasks can run in parallel safely
+- builder should continue in the existing issue worktree when it already exists
+- builder should continue on the existing task branch and existing PR when they already exist
+- builder must not start a fresh worktree, fresh branch, or open a replacement PR during normal `do-tasks` execution unless the old worktree, branch, or PR is unusable and the recovery reason is recorded in GitHub
+- after merge or explicit issue completion, clean up the no-longer-needed issue worktree and local branch
+- do not rely on tech-lead to delegate onward if the orchestrator can invoke the next role directly
+- if builder, reviewer, or strategist can be invoked in this runtime, invoke them immediately instead of stopping at a status update or GitHub comment
 - use `handoff` wording only when returning control to the founder
 - do not return early while safe internal next steps remain
 - keep the response short when internal delegation is already active

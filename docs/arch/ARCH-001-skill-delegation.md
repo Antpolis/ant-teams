@@ -13,7 +13,7 @@ Metadata:
 | Keywords | skill delegation, global skills, role-targeted skills, agent scope, workflow policy |
 | Related Docs | agentic-flow-terms, github-agentic-delivery-flow, docs/DOCUMENT_INDEX.md |
 | Supersedes |  |
-| Last Updated | 2026-05-19 |
+| Last Updated | 2026-05-23 |
 
 ## Summary
 
@@ -30,20 +30,21 @@ This company adopts the following skill delegation table:
 | Skill | Scope | Primary roles |
 |---|---|---|
 | `agentic-flow-terms` | Global | All roles |
-| `github-agentic-delivery-flow` | Global | workflow-design roles, strategist, tech-lead, architect |
-| `github-conventions` | Global | workflow-design roles, delivery-manager, architect |
-| `state-transitions` | Global | delivery-manager, architect, validator |
-| `approval-and-escalation` | Global | architect, validator, tech-lead |
-| `agent-communication-log` | Global | architect, delivery-manager, developer, architect-reviewer, QA |
-| `role-memory` | Global | architect, developer, architect-reviewer, QA |
-| `pr-review-flow` | Global | developer, architect-reviewer |
-| `how-to-create-task` | Role-targeted | delivery-manager |
-| `task-development` | Role-targeted | developer |
-| `task-completion` | Role-targeted | architect-reviewer, QA |
-| `documentation-standard` | Role-targeted | architect |
-| `release-management` | Role-targeted | architect |
-| `security-review` | Role-targeted | developer, architect, architect-reviewer |
-| `platform-engineering` | Role-targeted | developer, architect |
+| `github-agentic-delivery-flow` | Global | orchestrator, strategist, tech-lead, builder, reviewer |
+| `github-conventions` | Global | orchestrator, strategist, tech-lead, builder, reviewer |
+| `state-transitions` | Global | orchestrator, tech-lead, builder, reviewer |
+| `approval-and-escalation` | Global | orchestrator, strategist, tech-lead, builder, reviewer |
+| `agent-communication-log` | Global | orchestrator, strategist, tech-lead, builder, reviewer |
+| `role-memory` | Global | orchestrator, tech-lead, builder, reviewer |
+| `pr-review-flow` | Global | builder, reviewer |
+| `how-to-create-task` | Role-targeted | strategist, tech-lead |
+| `task-development` | Role-targeted | builder |
+| `task-completion` | Role-targeted | reviewer |
+| `documentation-standard` | Role-targeted | orchestrator, strategist, tech-lead |
+| `development-hygiene` | Role-targeted | tech-lead, builder, reviewer |
+| `release-management` | Role-targeted | orchestrator, tech-lead |
+| `security-review` | Role-targeted | orchestrator, tech-lead, builder, reviewer |
+| `platform-engineering` | Role-targeted | tech-lead, builder |
 
 The company installation model is also split into two layers:
 
@@ -56,7 +57,9 @@ The company installation model is also split into two layers:
 
 - Global skills are available to all roles, but agents should still prefer the most specific allowed skill for the work.
 - Role-targeted skills should stay confined to the listed roles unless this decision is updated.
-- Governance roles must not drift into implementation-only skills.
+- Orchestrator may use only the workflow, reconciliation, escalation, and documentation skills needed to move a queue pass forward; it should not drift into general implementation work.
+- Builder and reviewer should remain the primary implementation and review roles even when orchestration is aggressive.
+- Release tags, GitHub releases, and milestone release references should be normalized through `release-management` so sprint reconciliation does not leave post-cleanup release fixes behind.
 
 ## Enforcement
 

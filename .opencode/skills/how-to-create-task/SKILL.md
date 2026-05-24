@@ -16,6 +16,7 @@ All tasks that belong to one spec should live as separate GitHub issues linked t
 
 Do not use local markdown task files as the primary collaboration surface.
 Do not stop at strategist or tech-lead comments if the intended next role is builder. Create the actual GitHub issues.
+If strategist and tech-lead refine scope or sequencing before task creation, write the resolved discussion back to the milestone or shaping issue as a durable GitHub comment before or alongside the task split.
 
 ## Required Inputs
 
@@ -75,7 +76,7 @@ Use this structure for each task issue:
 
 Every task must include:
 
-- Enough implementation detail for a developer to start without re-planning
+- Enough implementation detail for a builder to start without re-planning
 - Clear dependencies
 - Acceptance tests specific to the task
 - Verification expectations

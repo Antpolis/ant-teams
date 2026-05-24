@@ -1,13 +1,13 @@
 ---
 name: github-agentic-delivery-flow
-description: Use whenever work should move from idea or spec to shipped product through a multi-agent loop using GitHub Milestones as specs, GitHub Issues as tasks, GitHub Projects as the kanban board, and role-based delegation between strategist, tech-lead, builder, and validator. This is the top-level GitHub delivery workflow skill. Trigger on requests to design, run, improve, or govern the continuous delivery flow, especially when the user mentions delegation, agent collaboration, review loops, GitHub workflow, milestones, issues, project boards, blockers, approvals, or spec-to-release execution.
+description: Use whenever work should move from idea or spec to shipped product through a multi-agent loop using GitHub Milestones as specs, GitHub Issues as tasks, GitHub Projects as the kanban board, and orchestration across strategist, tech-lead, builder, and reviewer. This is the top-level GitHub delivery workflow skill. Trigger on requests to design, run, improve, or govern the continuous delivery flow, especially when the user mentions delegation, agent collaboration, orchestration, review loops, GitHub workflow, milestones, issues, project boards, blockers, approvals, or spec-to-release execution.
 ---
 
 # GitHub Agentic Delivery Flow
 
 Use this skill when the user wants a continuous multi-agent workflow that starts from a spec and ends with validated product delivery.
 
-This skill defines the top-level operating model. It does not replace lower-level skills such as `agentic-flow-terms`, `agent-communication-log`, `role-memory`, `do-task`, `task-development`, `task-completion`, `github-conventions`, `state-transitions`, or `approval-and-escalation`. Use those for the detailed mechanics they already own.
+This skill defines the top-level operating model. It does not replace lower-level skills such as `agentic-flow-terms`, `agent-communication-log`, `role-memory`, `do-task`, `task-completion`, `github-conventions`, `state-transitions`, or `approval-and-escalation`. Use those for the detailed mechanics they already own.
 
 ## Purpose
 
@@ -52,10 +52,11 @@ Do not rely on GitHub milestone text alone as the full spec. Keep the canonical 
 
 Default roles in this workflow:
 
+- `orchestrator`: owns queue-driven execution, gets the ordered issue list from tech-lead, invokes the next role directly, verifies that delegated roles left the expected GitHub artifacts, and keeps the loop moving until a real human decision is required
 - `strategist`: pressure-tests the idea, sharpens the MVP, and prepares a spec draft
 - `tech-lead`: verifies technical feasibility, architecture direction, sequencing, and guardrails
-- `builder`: implements approved scoped work with focused code changes and verification
-- `validator`: reviews implementation, checks scope alignment, and performs lightweight smoke verification
+- `builder`: implements approved scoped work with focused code changes and verification, owns branch and PR lifecycle for the delegated task, updates task state during implementation, and leaves a durable review handover note
+- `reviewer`: reviews builder output, checks scope and architecture alignment, flags unnecessary additions, performs lightweight smoke verification, and records clear findings or approval back into the GitHub workflow
 
 Use specialized skills beneath these roles when the task needs domain-specific handling. The orchestration roles should stay focused on flow ownership and decision quality.
 
@@ -101,11 +102,11 @@ Use specialized skills beneath these roles when the task needs domain-specific h
 ### 5. Run the build-review loop
 
 - Use the `do-task` skill as the canonical execution loop.
-- `tech-lead` starts execution by reading the project queue, grouping issues by spec, and prioritizing the next executable issue set.
-- `tech-lead` should work one spec group at a time unless a dependency, blocker, or required human intervention makes that impossible.
-- `tech-lead` delegates technically clear issues to `builder`, then requires `validator` review before any issue is treated as done.
+- `orchestrator` starts execution by reading the project queue, then invoking `tech-lead` to produce the ordered issue list, spec focus, sequencing rationale, and guardrails for the current pass.
+- `orchestrator` should work one spec group at a time unless a dependency, blocker, or required human intervention makes that impossible.
+- `orchestrator` uses the `tech-lead` ordered list as the execution plan, invokes `builder` for the next technically clear issue, checks that the builder-owned branch, PR, state transition, and handover artifacts exist, and then requires `reviewer` review before any issue is treated as done.
 - If findings remain, return the issue to `builder` and continue the loop until approved, blocked, or escalated.
-- An apparently empty executable queue is not the end of the pass by itself. `tech-lead` should next reconcile review-state work, triage open repo issues into the board when safe, or delegate `strategist` to clarify the next actionable spec path before returning to the user.
+- An apparently empty executable queue is not the end of the pass by itself. `orchestrator` should next reconcile review-state work, triage open repo issues into the board when safe, or invoke `strategist` to clarify the next actionable spec path before returning to the user.
 
 ### 6. Close the work
 
@@ -119,6 +120,7 @@ Use a small, explicit workflow state machine. Prefer these states unless the rep
 
 - `Inbox`
 - `Shaping`
+- `Need attentions`
 - `Ready`
 - `In Progress`
 - `In Review`
@@ -131,9 +133,10 @@ Use them like this:
 
 - `Inbox`: captured but not yet shaped
 - `Shaping`: being refined by strategist and/or founder
+- `Need attentions`: waiting for strategist or tech-lead resolution after an agent has raised an internal attention flag with a durable GitHub comment
 - `Ready`: approved for implementation with clear scope
 - `In Progress`: builder is actively executing
-- `In Review`: waiting for validator review or re-review
+- `In Review`: waiting for reviewer review or re-review
 - `Blocked`: cannot safely proceed without a dependency or decision
 - `Done`: validated and closed
 
@@ -141,6 +144,7 @@ Additional rule:
 
 - A spec-level milestone should not be treated as execution-ready until it has concrete child issues, and at least one non-blocked child issue is in `Ready` when execution can begin.
 - During execution, prioritize issues by spec group before jumping across specs. Break that rule only for explicit dependencies, blockers, or human-intervention waits.
+- During sprint planning, inspect issues in `Need attentions` before pulling fresh `Ready` work. Resolve them through strategist or tech-lead when safe, then move them back to `Ready` or escalate only if no safe internal path remains.
 
 ## Required Issue Quality Bar
 
@@ -173,6 +177,15 @@ Every internal delegation should record:
 - open findings, blockers, or risks
 - exact next expected action
 
+For builder-owned implementation handoffs, the delegated agent should also record the branch, PR, verification evidence, and review focus so the next role can continue from GitHub alone.
+
+When an agent moves an issue to `Need attentions`:
+
+- leave a durable GitHub comment first
+- explain what attention is needed
+- name whether strategist or tech-lead should resolve it first
+- state the smallest decision or clarification needed to move the issue back toward `Ready`
+
 When `tech-lead` asks `strategist` to clarify a spec or issue during execution:
 
 - record the clarification request and resolution in GitHub comments
@@ -185,11 +198,12 @@ Do not rely on chat memory alone for decisions that affect future work.
 
 ## Review Loop Rules
 
-- Validation findings are the primary output of the validator.
+- Validation findings are the primary output of the reviewer.
 - Findings should be specific enough for a builder to act on without guessing.
 - Rework should stay within the approved scope unless the user or tech-lead expands it.
 - Keep review loops bounded.
 - If the same architectural problem repeats across several loops, escalate instead of thrashing.
+- The reviewer checks builder output against the approved task and guardrails. The reviewer does not make new product or architecture decisions; when findings imply a deeper technical decision, escalate to `tech-lead`.
 
 Use the repository's `agentic-flow-terms` definitions for loop count, loop breaker, stopper, hard blocker, defer task, and approval semantics.
 
@@ -207,6 +221,8 @@ When escalating, say what is blocked, why it is blocked, who must decide, and wh
 
 Before escalating to the founder from delivery execution, run `founder-escalation-preflight`.
 Founder escalation should happen only after checking repo docs, GitHub collaboration history, relevant role memory, and remaining safe internal delegation paths.
+When the orchestrator owns the queue pass, the orchestrator is responsible for running that preflight and confirming there is no safe remaining role invocation before founder escalation on execution blockers.
+When the blocker is a true product, scope, prioritization, or business-direction question, `strategist` may run that preflight and decide that founder input is needed.
 Do not use that preflight as a gate on normal strategist-founder planning, spec review, or sprint discussion.
 
 ## Approval Rules
@@ -215,7 +231,7 @@ Do not use that preflight as a gate on normal strategist-founder planning, spec 
 - `tech-lead` determines technical go/no-go and guardrails.
 - `strategist` and `tech-lead` do not complete their phase by leaving advice in comments only. If the work should proceed, they must ensure task issues exist and the next builder-facing state is explicit.
 - `builder` does not self-approve implementation readiness.
-- `validator` decides whether the task is approved, returned for rework, or blocked.
+- `reviewer` decides whether builder output is approved for merge readiness, returned for rework, or blocked. If the review exposes a deeper technical decision, `tech-lead` decides what happens next.
 - Merge or completion should happen only after the defined approval gates pass.
 
 ## Usage Guidance

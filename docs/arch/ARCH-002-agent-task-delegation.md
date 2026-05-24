@@ -13,7 +13,7 @@ Metadata:
 | Keywords | task permissions, agent call graph, subagent delegation, workflow routing |
 | Related Docs | ARCH-001, agentic-flow-terms, docs/DOCUMENT_INDEX.md |
 | Supersedes |  |
-| Last Updated | 2026-05-19 |
+| Last Updated | 2026-05-23 |
 
 ## Summary
 
@@ -21,7 +21,7 @@ This document defines which agents may invoke which other agents through the Tas
 
 ## Context
 
-The company uses primary agents for all roles. Even so, task permissions should keep each role on its intended path and prevent product governance roles from directly invoking implementation or review roles.
+The company uses primary agents for all roles. Task permissions should keep each role on its intended path while still allowing the orchestrator to own queue-driven execution from start to stop.
 
 ## Decision
 
@@ -29,26 +29,23 @@ This company adopts the following agent task delegation table:
 
 | Agent | May Invoke | Must Not Invoke Directly |
 |---|---|---|
-| `product-owner` | `cpo`, `cto`, `architect` | developer, architect-reviewer, qa-smoke, delivery-manager |
-| `cpo` | `product-owner`, `cto`, `architect` | `developer`, `architect-reviewer`, `qa-smoke` |
-| `cto` | `product-owner`, `cpo`, `architect` | `developer`, `architect-reviewer`, `qa-smoke` |
-| `delivery-manager` | none | developer, architect-reviewer, qa-smoke |
-| `architect` | `product-owner`, `cpo`, `cto`, `delivery-manager`, `developer`, `architect-reviewer`, `qa-smoke` | none |
-| `developer` | `architect`, `architect-reviewer`, `qa-smoke` | cpo, cto |
-| `architect-reviewer` | `architect`, `developer`, `qa-smoke` | cpo, cto |
-| `qa-smoke` | `architect`, `developer`, `architect-reviewer` | cpo, cto |
+| `orchestrator` | `strategist`, `tech-lead`, `builder`, `reviewer` | none |
+| `strategist` | `tech-lead`, `builder`, `reviewer` | `orchestrator` |
+| `tech-lead` | `strategist`, `builder`, `reviewer` | `orchestrator` |
+| `builder` | `strategist`, `tech-lead`, `reviewer` | `orchestrator` |
+| `reviewer` | `strategist`, `tech-lead`, `builder` | `orchestrator` |
 
 ## Consequences
 
-- Product governance roles go through `architect` instead of calling delivery or review roles directly.
-- Implementation and review roles can escalate to `architect` and hand work directly between each other.
-- The workflow stays centrally coordinated while allowing the worker loop to proceed without governance handoff friction.
+- The orchestrator is the only role that owns a queue pass from start to stop.
+- Strategist, tech-lead, builder, and reviewer may still hand work between each other when the runtime allows it, but they do not replace orchestrator ownership of the overall pass.
+- The workflow stays centrally coordinated while still allowing the implementation and review loop to proceed without unnecessary founder interruptions.
 
 ## Enforcement
 
-- Keep `permission.task` in agent frontmatter aligned with this table.
+- Keep `permission.task` in `.opencode/opencode.json` aligned with this table.
 - Update this document before changing call paths.
-- Do not add direct calls from `cpo` or `cto` to `developer` or `architect-reviewer` without updating this policy.
+- Do not shift queue ownership away from `orchestrator` without updating this policy and the command layer.
 
 ## Related Documents
 

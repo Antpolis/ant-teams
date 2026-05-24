@@ -25,12 +25,15 @@ The workflow is GitHub-first and GitHub-only for task execution:
 - The global install at `~/.config/opencode` includes `tools/`, `skills/`, `plugins/`, `scripts/`, `docs/`, and `opencode.json`.
 - `scripts/init-project.sh` copies the company docs into a project repo and uses the global config.
 - `scripts/init-project-docs.sh` is the underlying project docs initializer.
+- `scripts/init-project-docs.sh` also ensures `.github-project.json` stores the default issue-worktree root.
+- `scripts/init-project-docs.sh` also ensures `opencode.json` or `opencode.jsonc` allows access to the issue-worktree root through `permission.external_directory`.
 - `scripts/update-company.sh` refreshes the installed company config from this source tree.
 - `.opencode/commands/` holds the slash commands and is copied to `~/.config/opencode/commands`.
 - Project docs are local overrides for repo-specific architecture and workflow state.
 - Global docs act as enterprise defaults.
 - Project docs override global architecture guidance when both exist.
 - When using the global workflow scripts for a project, run them from the project repo and set `DOC_ROOT=docs` (or `DOC_ROOT=.docs`) so they target the local project tree.
+- Project initialization sets the default issue-worktree root to `~/Projects/worktree/<repo name>`.
 
 Example:
 
@@ -84,7 +87,7 @@ These are also available in the TUI as `/create-spec`, `/deliver`, `/do-tasks`, 
 
 - `product-owner`: `scripts/create-spec.sh`, `scripts/create-spec-tasks.sh`
 - `delivery-manager`: `scripts/create-task.sh`, `scripts/create-task-branch.sh`, `scripts/list-tasks.sh`, `scripts/update-task-status.sh`
-- `developer`: `scripts/create-task-branch.sh`, `scripts/record-pr.sh`, `scripts/record-review-result.sh`
+- `developer`: `scripts/create-task-branch.sh`, `scripts/cleanup-task-worktree.sh`, `scripts/record-pr.sh`, `scripts/record-review-result.sh`
 - `architect`: `scripts/record-loop-breaker.sh`, `scripts/create-defer-task.sh`, `scripts/close-task.sh`
 - `qa-smoke`: `scripts/record-qa-smoke.sh`
 - `workflow roles`: `scripts/update-document-index.sh`, `scripts/update-task-owner.sh`, `scripts/add-task-dependency.sh`, `scripts/record-merge.sh`, `scripts/record-pr-comment.sh`
@@ -103,7 +106,7 @@ Use this when the spec already exists and the work is already split into tasks.
 
 - Open the GitHub issue for the task
 - Read the linked spec, relevant docs, issue comments, and PR discussion
-- Continue on the existing task branch
+- Continue in the existing issue worktree and on the existing task branch
 - Update the GitHub Project status and GitHub handoff notes as you work
 
 ### 3. Continue A Task
@@ -111,8 +114,15 @@ Use this when the spec already exists and the work is already split into tasks.
 Use this when you already started work and need to keep going on the same task.
 
 - Stay on the same task branch
+- Stay in the same issue worktree
 - Keep the GitHub Project status updated
 - Add new notes to the GitHub issue or PR
+
+### Worktree Rule
+
+- Prefer one dedicated git worktree per active issue so multiple tasks can run in parallel safely.
+- Reuse the existing issue worktree for normal continuation work.
+- After the issue PR is merged or the task is explicitly abandoned, run `scripts/cleanup-task-worktree.sh` to remove the no-longer-needed worktree and local branch.
 
 ### 4. Bug Found
 

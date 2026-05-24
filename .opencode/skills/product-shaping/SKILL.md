@@ -33,6 +33,8 @@ Produce:
 - rollout or validation notes
 - handoff notes for tech-lead or builder
 
+If shaping is happening inside the GitHub delivery workflow, also produce a durable GitHub-ready summary of the shaping discussion so the next role can continue without chat context.
+
 ## Scope Rules
 
 - prefer one thin vertical slice over a broad multi-part system
@@ -54,3 +56,5 @@ Escalate for more user input when:
 - optimize for speed to learning and practical delivery
 - do not write production code
 - do not add speculative scope to make the idea look impressive
+- if strategist and tech-lead discuss scope, tradeoffs, risks, or sequencing in-agent, write the resolved outcome back to the GitHub milestone or shaping issue as a concise durable comment
+- do not let meaningful shaping decisions live only in transient chat if the work will continue in GitHub

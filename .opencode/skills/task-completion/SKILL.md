@@ -24,10 +24,9 @@ A task can be marked `completed` only when all are true:
 - Architecture guardrails were followed.
 - No known severe review findings remain open.
 - The implementation is on a working branch created from the production base branch.
-- Architect-reviewer has approved the code review.
-- QA smoke has confirmed the app can still run.
-- The relevant GitHub issue or PR records the development handoff, review findings, QA result, and approval state.
-- Developer, QA, and architect role memories have been reviewed and updated after the task or explicitly marked as having no new durable memory.
+- Reviewer has approved the code review and smoke verification outcome.
+- The relevant GitHub issue or PR records the builder handoff, reviewer findings, verification result, and approval state.
+- Builder, reviewer, and architect role memories have been reviewed and updated after the task or explicitly marked as having no new durable memory.
 
 ## Required Review Steps
 
@@ -38,9 +37,9 @@ A task can be marked `completed` only when all are true:
 5. Inspect changed files.
 6. Compare implementation against scope, definition of done, and acceptance tests.
 7. Run or verify evidence for required commands.
-8. Confirm the implementation branch has not been merged back without architect-reviewer and qa-smoke approval.
-9. Append review, QA, approval, blocker, or defer-task notes to the GitHub issue or PR.
-10. Use role-memory to update developer, QA, and architect memory from the GitHub collaboration record, or record that there is no new durable memory for a role.
+8. Confirm the implementation branch has not been merged back without reviewer approval.
+9. Append review, verification, approval, blocker, or defer-task notes to the GitHub issue or PR.
+10. Use role-memory to update builder, reviewer, and architect memory from the GitHub collaboration record, or record that there is no new durable memory for a role.
 11. Update the GitHub issue state and completion notes if editing is allowed.
 
 ## Task Status Rules
@@ -49,30 +48,30 @@ A task can be marked `completed` only when all are true:
 - Use `Blocked` when a dependency, missing access, unresolved decision, or failing required verification prevents completion.
 - Keep `In Progress` if implementation exists but verification or review is incomplete.
 - Do not mark complete based only on intent or partial implementation.
-- Do not approve merge until architect-reviewer and qa-smoke both approve.
+- Do not approve merge until reviewer has approved the issue for completion.
 - If code review finds issues, keep the task `In Progress` and return it to development unless a stop condition is reached.
 
 ## Review-Development Loop
 
-- After development finishes, architect-reviewer performs code review.
-- If review finds issues, developer fixes them on the same task branch.
-- Repeat the loop until architect-reviewer clears the development, a hard blocker is found, or the loop reaches 8 iterations.
+- After development finishes, reviewer performs code review and lightweight smoke verification.
+- If review finds issues, builder fixes them on the same task branch.
+- Repeat the loop until reviewer clears the development, a hard blocker is found, or the loop reaches 8 iterations.
 - Track each loop in the GitHub issue or PR discussion.
 - Do not exceed 8 review-development loops.
-- If 8 loops are reached and architecture issues remain, escalate to architect.
+- If 8 loops are reached and architecture issues remain, escalate to tech-lead.
 - If a hard blocker appears at any time, stop and request human intervention with a precise blocker entry in GitHub.
-- After each loop, developer, QA, and architect/architect-reviewer must review the GitHub collaboration record and update role memory before the next loop starts.
+- After each loop, builder, reviewer, and tech-lead or architect memory owner must review the GitHub collaboration record and update role memory before the next loop starts.
 
-Use the GitHub workflow skills to record review results, QA outcomes, defer decisions, blocker state, and completion decisions.
+Use the GitHub workflow skills to record review results, verification outcomes, defer decisions, blocker state, and completion decisions.
 
-## Architect Escalation
+## Tech-Lead Escalation
 
 When escalated after 8 loops or persistent architecture conflict:
 
-- Architect reviews the task, spec, docs, guardrails, review findings, and GitHub collaboration record.
-- Architect reads architect memory before deciding how to break the loop.
-- Architect determines whether the task/spec conflict is real, the architecture guidance is incomplete, or the implementation direction is wrong.
-- Architect may unblock by creating a defer decision in GitHub and linking any follow-up issue.
+- Tech-lead reviews the task, spec, docs, guardrails, review findings, and GitHub collaboration record.
+- Tech-lead reads architect memory before deciding how to break the loop.
+- Tech-lead determines whether the task/spec conflict is real, the architecture guidance is incomplete, or the implementation direction is wrong.
+- Tech-lead may unblock by creating a defer decision in GitHub and linking any follow-up issue.
 - A defer task may target an ADR, GOV, ARCH update, future implementation task, or technical debt cleanup.
 - Defer tasks must include risk, why deferral is acceptable, and conditions that would invalidate the deferral.
 
@@ -92,12 +91,11 @@ Add or verify this checklist in the GitHub issue or PR summary when closing it:
 - [ ] Architecture guardrails satisfied
 - [ ] Review findings resolved or documented
 - [ ] Working branch created from production base
-- [ ] Architect-reviewer approved
-- [ ] QA smoke approved
+- [ ] Reviewer approved
 - [ ] Branch not merged before approval
 - [ ] GitHub collaboration record updated
-- [ ] Developer memory reviewed/updated
-- [ ] QA memory reviewed/updated
+- [ ] Builder memory reviewed/updated
+- [ ] Reviewer memory reviewed/updated
 - [ ] Architect memory reviewed/updated
 - [ ] Review loop count is 8 or less
 ```

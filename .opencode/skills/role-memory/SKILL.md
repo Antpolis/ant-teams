@@ -1,11 +1,11 @@
 ---
 name: role-memory
-description: Use after each task, review loop, QA verification, architecture escalation, or blocker to extract durable role-specific memory for developer, QA, and architect agents from the GitHub collaboration record.
+description: Use after each task, review loop, reviewer verification, architecture escalation, or blocker to extract durable role-specific memory for builder, reviewer, and architect roles from the GitHub collaboration record.
 ---
 
 # Role Memory
 
-Use this skill whenever a task finishes a development, review, QA, blocker, escalation, or defer-task step.
+Use this skill whenever a task finishes a development, review, reviewer verification, blocker, escalation, or defer-task step.
 
 Use the agentic-flow-terms skill as the canonical glossary for custom workflow metadata terms referenced by role memory.
 
@@ -15,32 +15,32 @@ Role memory is durable, repo-local knowledge that agents must read before future
 
 It is extracted from the GitHub collaboration record and stores important information relevant to each role:
 
-- Developer implementation lessons
-- QA runtime and verification lessons
+- Builder implementation lessons
+- Reviewer runtime and verification lessons
 - Architect constraints, decisions, risks, and loop-breaker context
 
-This memory helps future agents continue without relying on chat context and helps architect make loop-breaker decisions.
+This memory helps future agents continue without relying on chat context and helps tech-lead make loop-breaker decisions.
 
 ## File Locations
 
 Prefer these files:
 
-- `docs/memory/developer-memory.md`
-- `docs/memory/qa-memory.md`
+- `docs/memory/builder-memory.md`
+- `docs/memory/reviewer-memory.md`
 - `docs/memory/architect-memory.md`
 
 If the repository uses `.docs/`, prefer:
 
-- `.docs/memory/developer-memory.md`
-- `.docs/memory/qa-memory.md`
+- `.docs/memory/builder-memory.md`
+- `.docs/memory/reviewer-memory.md`
 - `.docs/memory/architect-memory.md`
 
 If neither docs root exists, create `docs/memory/` unless the user or repo convention says otherwise.
 
 ## Required Behavior
 
-- After every task, developer, QA, and architect/architect-reviewer must review the relevant GitHub issue, PR discussion, and linked GitHub evidence.
-- Each role must update its role memory with information that will matter for future tasks, reviews, QA, or architecture decisions.
+- After every task, builder, reviewer, and tech-lead must review the relevant GitHub issue, PR discussion, and linked GitHub evidence.
+- Each role must update its role memory with information that will matter for future tasks, reviews, reviewer work, or architecture decisions.
 - Do not copy the full GitHub collaboration record into memory.
 - Store only durable, reusable, role-relevant information.
 - Prefer concise bullets with links to spec IDs, task IDs, branches, docs, files, and decisions.
@@ -58,7 +58,7 @@ Only store information that is likely to be useful later:
 - Verification commands that proved useful
 - Test gaps or smoke-test limitations
 - Deferred architecture decisions
-- Technical debt accepted by architect
+- Technical debt accepted by tech-lead
 - Integration assumptions
 - Human decisions or blocker resolutions
 
@@ -70,29 +70,29 @@ Do not store:
 - One-off command output unless it changes future behavior
 - Duplicate entries already captured
 
-## Developer Memory Template
+## Builder Memory Template
 
 ```md
-# Developer Memory
+# Builder Memory
 
 ## Active Lessons
 
 ### <YYYY-MM-DD> - <SPEC-ID> / <TASK-ID>
 
 - Context: <short context>
-- Implementation Lesson: <what future developers should know>
+- Implementation Lesson: <what future builders should know>
 - Files/Modules: `<path>`, `<module>`
 - Verification: `<command>`
 - Avoid: <pitfall or none>
 - Related Docs: <doc IDs or paths>
 ```
 
-Developer memory should capture implementation constraints, file/module patterns, pitfalls, verification commands, and useful coding decisions.
+Builder memory should capture implementation constraints, file/module patterns, pitfalls, verification commands, and useful coding decisions.
 
-## QA Memory Template
+## Reviewer Memory Template
 
 ```md
-# QA Memory
+# Reviewer Memory
 
 ## Active Lessons
 
@@ -106,7 +106,7 @@ Developer memory should capture implementation constraints, file/module patterns
 - Related Docs: <doc IDs or paths>
 ```
 
-QA memory should capture app startup requirements, smoke-test commands, runtime dependencies, known verification gaps, and recurring failures.
+Reviewer memory should capture app startup requirements, smoke-test commands, runtime dependencies, known verification gaps, and recurring failures.
 
 ## Architect Memory Template
 
@@ -122,7 +122,7 @@ QA memory should capture app startup requirements, smoke-test commands, runtime 
 - Accepted Tradeoff: <tradeoff or none>
 - Deferred Work: <defer task ID or none>
 - Risk: <risk and impact>
-- Loop Breaker Notes: <why architect allowed, blocked, or deferred>
+- Loop Breaker Notes: <why tech-lead allowed, blocked, or deferred>
 - Related Docs: <ADR/GOV/ARCH/spec/task paths>
 ```
 
@@ -141,8 +141,8 @@ Architect memory should capture constraints, accepted tradeoffs, defer tasks, te
 
 Before future work, agents must read the relevant role memory:
 
-- Developer reads developer memory before implementation.
-- QA reads QA memory before smoke verification.
-- Architect and architect-reviewer read architect memory before review, escalation, defer-task creation, or loop-breaker decisions.
+- Builder reads builder memory before implementation.
+- Reviewer reads reviewer memory before review and lightweight smoke verification.
+- Tech-lead reads architect memory before escalation, defer-task creation, or loop-breaker decisions.
 
 Role memory complements repository docs. It does not replace ADR, GOV, ARCH, spec, milestone, issue, or PR records.
