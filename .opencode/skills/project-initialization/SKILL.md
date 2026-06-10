@@ -319,7 +319,7 @@ Use these when relevant:
 - `github-agentic-delivery-flow` for top-level GitHub workflow structure
 - `github-conventions` for milestone, issue, and comment mapping
 - `state-transitions` for workflow states
-- `approval-and-escalation` for review and escalation rules
+- `approval-or-escalation` for review and escalation rules
 - `agentic-flow-terms` for shared workflow vocabulary
 - `docs/gov/GOV-002-master-enterprise-architecture-reference-and-local-application.md` or the repo's equivalent local governance rule for how external enterprise architecture is applied here
 

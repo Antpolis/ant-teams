@@ -13,8 +13,9 @@ Run the `do-task` skill end to end for this request.
 
 Expected behavior:
 - orchestrator owns queue-driven execution
-- reconcile active `In Progress` and `In Review` work first
-- inspect and resolve `Need attentions` issues before pulling fresh `Ready` work when a safe internal role can clear them
+- reconcile `Ready to Merge` issues first — route to tech-lead for final spec-alignment check and merge before pulling fresh work
+- reconcile active `In Progress` and `In Review` work next
+- route all `Need attentions` issues to tech-lead first; tech-lead resolves or communicates with strategist, then moves back to `Ready`; escalate to founder only if tech-lead and strategist cannot resolve
 - always get the ordered issue list and execution priorities from tech-lead before starting fresh queue work
 - invoke tech-lead, builder, reviewer, or strategist as needed
 - treat `do-tasks` as continuation of an existing task, not as a branch-reset flow

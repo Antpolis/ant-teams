@@ -13,7 +13,7 @@ Do not use this skill to police normal founder collaboration during shaping or p
 
 Use the agentic-flow-terms skill as the canonical glossary for workflow terms.
 Use github-agentic-delivery-flow for the overall operating model.
-Use approval-and-escalation for the approval gate and escalation rules.
+Use approval-or-escalation for the approval gate and escalation rules.
 Use agent-communication-log for GitHub handoff and discussion expectations.
 Use role-memory for durable repo-local memory before deciding the founder is needed.
 

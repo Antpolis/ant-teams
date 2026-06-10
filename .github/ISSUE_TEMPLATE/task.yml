@@ -1,5 +1,5 @@
 name: Task
-description: Create a scoped execution task linked to a spec milestone in the GitHub agentic delivery flow.
+description: Create a scoped execution task linked to a spec milestone. Tech-lead creates and owns this issue — do not open manually outside of the how-to-create-task flow.
 title: "[Task]: "
 labels:
   - type:feature
@@ -7,112 +7,182 @@ body:
   - type: markdown
     attributes:
       value: |
-        Use this template for executable work items in the GitHub-based agentic delivery flow.
+        **This template is used by tech-lead when creating execution tasks from an approved spec.**
 
         Before submitting:
-        - link the issue to the correct milestone
-        - keep the task small enough for one focused build-review loop
-        - include acceptance criteria and verification expectations
+        - The parent spec must be implementation-ready (all business and technical sections complete)
+        - This issue must be linked to the correct milestone
+        - Tech-lead guardrails must be filled in before builder picks this up
+        - No issue should move to `Ready` before the full sequence and coverage gate passes
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: One sentence linking this task to the spec's business problem. Reference the spec's problem statement.
+      placeholder: "This task contributes to [spec problem statement] by..."
+    validations:
+      required: true
+
   - type: textarea
     id: outcome
     attributes:
       label: Outcome
-      description: Describe the exact result this task should produce.
+      description: The specific result this issue must produce when done.
       placeholder: Implement the smallest change that achieves...
     validations:
       required: true
+
   - type: textarea
     id: scope
     attributes:
       label: Scope
-      description: State what is in scope and out of scope for this task.
       value: |
         In scope:
-        - 
+        -
 
         Out of scope:
-        - 
+        -
     validations:
       required: true
+
   - type: textarea
     id: dependencies
     attributes:
       label: Dependencies
-      description: Link the parent spec, milestone, docs, or blocking issues.
       value: |
-        Spec:
-        - 
+        Spec / milestone:
+        -
 
-        Milestone:
-        - 
+        Blocking issues:
+        -
 
-        Blocking issues or docs:
-        - 
+        Architecture docs (cite the docs that govern placement and patterns for this task):
+        -
     validations:
       required: true
+
+  - type: textarea
+    id: guardrails
+    attributes:
+      label: Tech-Lead Guardrails
+      description: Set by tech-lead. Builder must follow these exactly. Reviewer and tech-lead check compliance at review and merge gate.
+      value: |
+        Architecture constraints for this issue:
+        -
+
+        Folder / package / namespace rules (cite the architecture doc):
+        -
+
+        Patterns to follow:
+        -
+
+        Patterns to avoid:
+        -
+
+        Known risks or sequencing notes:
+        -
+    validations:
+      required: true
+
   - type: textarea
     id: acceptance
     attributes:
       label: Acceptance Criteria
-      description: Add observable conditions that make this task done.
+      description: Observable conditions that make this task done. Each criterion must trace to a spec acceptance criterion — note which one.
       value: |
-        - [ ] 
-        - [ ] 
+        - [ ] (spec AC ref: )
+        - [ ] (spec AC ref: )
     validations:
       required: true
+
   - type: textarea
     id: verification
     attributes:
       label: Verification
-      description: Describe the commands, checks, or evidence expected.
       value: |
         Commands / checks:
-        - 
+        -
 
         Evidence expected:
-        - 
+        -
     validations:
       required: true
+
+  - type: checkboxes
+    id: definition_of_done
+    attributes:
+      label: Definition of Done
+      description: All boxes must be checked before the issue can move to Done.
+      options:
+        - label: All acceptance criteria above are passing
+          required: true
+        - label: Verification commands pass
+          required: true
+        - label: No KISS, separation of concerns, or folder/package/namespace violations (per architecture docs cited above)
+          required: true
+        - label: PR created with builder handover note
+          required: true
+        - label: Reviewer approved and posted approval comment — issue moved to Ready to Merge
+          required: true
+        - label: Tech-lead final check passed and PR merged
+          required: true
+
   - type: dropdown
     id: role_owner
     attributes:
       label: Current Role Owner
       description: Which workflow role should take the next action?
       options:
-        - strategist
         - tech-lead
         - builder
-        - validator
+        - reviewer
+        - strategist
+        - orchestrator
     validations:
       required: true
+
+  - type: input
+    id: sequence_position
+    attributes:
+      label: Sequence Position
+      description: "Position in the tech-lead ordered sequence for this milestone (e.g. 1, 2, 3). Set by tech-lead."
+      placeholder: "1"
+    validations:
+      required: true
+
   - type: dropdown
     id: workflow_state
     attributes:
       label: Workflow State
-      description: Initial project state for this task.
+      description: Current project board state for this issue.
       options:
-        - Inbox
         - Shaping
         - Ready
         - In Progress
         - In Review
+        - Ready to Merge
+        - Need attentions
         - Blocked
         - Done
     validations:
       required: true
+
   - type: textarea
     id: links
     attributes:
       label: Links
-      description: Add related PRs, design docs, ADRs, screenshots, or notes.
       value: |
+        Spec:
+        -
+
         PR:
-        - 
+        -
+
+        Architecture docs:
+        -
 
         Related docs:
-        - 
-
-        Additional context:
-        - 
+        -
     validations:
       required: false

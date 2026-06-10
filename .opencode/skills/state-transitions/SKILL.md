@@ -1,6 +1,6 @@
 ---
 name: state-transitions
-description: Use when the GitHub delivery flow is already in place and the agent needs the specific rules for moving work between project states such as inbox, shaping, need attentions, ready, in progress, in review, blocked, and done. Prefer `github-agentic-delivery-flow` for the overall workflow model; use this skill for state-machine details.
+description: Use when the GitHub delivery flow is already in place and the agent needs the specific rules for moving work between project states such as inbox, shaping, need attentions, ready, in progress, in review, ready to merge, blocked, and done. Prefer `github-agentic-delivery-flow` for the overall workflow model; use this skill for state-machine details.
 ---
 
 # State Transitions
@@ -19,6 +19,7 @@ Use these default states unless the repository already has a well-established eq
 - `Ready`
 - `In Progress`
 - `In Review`
+- `Ready to Merge`
 - `Blocked`
 - `Done`
 
@@ -49,7 +50,7 @@ Typical owner:
 
 - strategist or tech-lead
 
-### `Any Active State` -> `Need attentions`
+### `Any Active State` -> `Need attentions` (internal)
 
 Allowed when:
 
@@ -145,26 +146,52 @@ Typical owner:
 
 - the role that clears the blocker or receives the clarified next step
 
-### `In Review` -> `Done`
+### `In Review` -> `Ready to Merge`
 
 Allowed when:
 
 - reviewer finds no blocking issues
+- all mandatory review criteria are satisfied (KISS, separation of concerns, correct folder/package/namespace per architecture docs)
 - smoke verification is acceptable for the task
-- required approvals are recorded
+- reviewer posts an explicit approval comment on the PR stating the issue is clear with no blockers
 
 Typical owner:
 
 - reviewer
 
-Reviewer should make this transition only after approval and review evidence are recorded.
+Reviewer must post the approval comment on the PR before making this transition. The comment must state that no blockers remain and the PR is ready to merge.
+
+### `Ready to Merge` -> `Done`
+
+Allowed when:
+
+- tech-lead has performed the final spec-alignment check and it passed
+- the PR has been merged by tech-lead
+- the merge commit is on the production base branch
+- tech-lead has posted a merge confirmation comment on the PR
+
+Typical owner:
+
+- tech-lead only; no other role may make this transition without an explicit recovery exception recorded in GitHub
+
+### `Any Active State` -> `Need attentions`
+
+Allowed when (founder-facing):
+
+- a PR or issue requires a founder decision before it can safely proceed or merge
+- the question cannot be resolved by strategist, tech-lead, builder, or reviewer alone
+- the agent leaves a durable GitHub comment explaining what the founder needs to decide and why internal resolution is not sufficient
+
+This use of `Need attentions` is distinct from the internal strategist/tech-lead intervention use. Label the comment clearly so the founder knows the attention is directed at them.
 
 ## Rules Of Restraint
 
 - Do not move work to `Done` because it looks close.
+- Do not move work to `Done` directly from `In Review`; it must pass through `Ready to Merge` after reviewer approval.
+- Do not move work to `Ready to Merge` without a reviewer approval comment on the PR explicitly stating no blockers remain.
 - Do not move work to `Ready` if the spec is still argument-shaped instead of execution-shaped.
-- Do not move work into `Need attentions` without a durable GitHub comment that explains what attention is needed and who should resolve it.
-- Do not leave work in `Need attentions` through sprint planning without first attempting strategist or tech-lead resolution.
+- Do not move work into `Need attentions` without a durable GitHub comment that explains what attention is needed and who should resolve it (internal role or founder).
+- Do not leave work in `Need attentions` through sprint planning without first attempting strategist or tech-lead resolution for internal questions; escalate to founder only after internal paths are exhausted.
 - Do not move a spec or milestone forward based only on comments if no builder-usable task issue exists yet.
 - Do not leave work in `Blocked` without saying what is needed to unblock it.
 - Do not bounce work between `In Progress` and `In Review` indefinitely; escalate recurring architectural rework.

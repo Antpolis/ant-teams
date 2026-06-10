@@ -7,6 +7,8 @@ description: Use when implementing, refactoring, reviewing, or planning code cha
 
 Use this skill whenever code work should be kept simple, consistent, and aligned with the architecture patterns that already exist in the repository.
 
+This skill applies to both builder and reviewer. Builder uses it to write clean implementations. Reviewer uses it to evaluate whether the implementation is acceptably simple, well-separated, and correctly placed — and to raise mandatory findings when it is not.
+
 This skill is not for inventing a new architecture style. It is for helping the model fit new work into the repo cleanly, with minimal moving parts and minimal surprise for future maintainers.
 
 ## Goals
@@ -156,7 +158,7 @@ If the requested change conflicts with those docs:
 
 ## KISS Review Pass
 
-Before finalizing a change, do a quick KISS pass:
+**Builder self-check** — before finalizing a change:
 
 1. Is there a smaller version of this change that still solves the problem?
 2. Did I introduce a new abstraction that only has one caller or one use case?
@@ -166,6 +168,17 @@ Before finalizing a change, do a quick KISS pass:
 6. If I touched architecture, is that because the task required it or because I preferred it?
 
 If the answer exposes unnecessary complexity, simplify before finishing.
+
+**Reviewer check** — on every review pass:
+
+1. Is the implementation more complex than the simplest solution that would work?
+2. Are there new abstractions with only one caller or one current use?
+3. Is there indirection that obscures rather than clarifies?
+4. Does the code live in the correct folder, package, or namespace as defined by the repository architecture documents? Read `docs/arch/` before judging placement — do not apply generic language conventions when a project-specific architecture document defines the expected structure.
+5. Are any two concerns mixed in a single file, class, or function that should be separated?
+6. Was architecture or cleanup bundled into a feature change without being explicitly called out?
+
+If yes to any of these, raise it as a finding — not a suggestion. Leniency on these principles is a reviewer failure.
 
 ## Refactor Guidance
 

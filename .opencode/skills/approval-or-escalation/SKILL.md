@@ -1,5 +1,5 @@
 ---
-name: approval-and-escalation
+name: approval-or-escalation
 description: Use when the GitHub delivery flow is already in place and the agent needs the specific approval, rework, blocker, defer, or escalation rules across strategist, tech-lead, builder, and reviewer. Prefer `github-agentic-delivery-flow` for the overall workflow model; use this skill for decision and escalation mechanics.
 ---
 
@@ -15,10 +15,11 @@ Treat these as the minimum workflow approvals:
 
 1. Product direction approved by founder
 2. Technical direction approved by tech-lead
-3. Implementation reviewed by reviewer
+3. Implementation reviewed by reviewer — all mandatory criteria satisfied (KISS, separation of concerns, correct folder/package/namespace per architecture docs)
 4. Lightweight smoke verification accepted by reviewer
+5. Reviewer posts an explicit approval comment on the PR stating the issue is clear with no blockers, then moves the issue to `Ready to Merge`
 
-The builder does not self-approve final readiness.
+The builder does not self-approve final readiness. The issue does not move to `Done` until the PR is merged; `Ready to Merge` is the state between reviewer approval and confirmed merge.
 
 ## Rework Loop Rules
 
@@ -133,15 +134,27 @@ Every blocker should say:
 
 ## Need Attentions Rule
 
-Use `Need attentions` when an issue needs strategist or tech-lead intervention before safe execution can continue, but the issue is not yet a true external blocker.
+`Need attentions` covers two distinct cases. Always label the GitHub comment clearly so the recipient knows which case applies.
 
-When using `Need attentions`:
+### Internal — strategist or tech-lead intervention needed
+
+Use when an issue needs strategist or tech-lead resolution before safe execution can continue, but is not yet a true external blocker.
 
 - leave a durable GitHub comment before moving the issue
-- explain the question to resolve and which role should take it first
+- name the question to resolve and which role should take it (strategist for product/scope, tech-lead for technical/architecture)
 - attempt strategist or tech-lead resolution before escalating to the founder
 - move the issue back to `Ready` once the resolution is recorded and the next executable step is clear
 - move the issue to `Blocked` instead when the remaining problem is truly external or approval-bound
+
+### Founder-facing — founder decision needed
+
+Use when a PR or issue requires a founder decision before it can safely proceed or merge, and internal roles cannot resolve it.
+
+- leave a durable GitHub comment addressed to the founder before moving the issue
+- explain what decision is needed, what was already attempted internally, and what the smallest unblocking answer looks like
+- run `founder-escalation-preflight` before making this transition to confirm internal paths are exhausted
+- move the issue back to `In Review` or `Ready` once the founder decision is recorded
+- move the issue to `Blocked` if the founder decision depends on an external condition outside anyone's control
 
 ## Usage Guidance
 

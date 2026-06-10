@@ -145,14 +145,32 @@ Metadata:
 
 ## Type-Specific Additions
 
-For `spec` documents, include:
+For `spec` documents, include all of the following. A spec missing any business section is not implementation-ready.
 
-- Goals
-- Non-goals
-- Functional requirements
-- Technical requirements
-- Acceptance criteria
-- Rollout or migration plan if applicable
+Business sections (owned by strategist — must be complete enough to answer future business questions without re-interviewing the founder):
+
+- Problem statement: what problem this solves, for whom, and why it matters now
+- Business value: the measurable or observable outcome for the founder or users if this succeeds
+- Success metrics: how we know this worked — specific, observable, and time-bounded where possible
+- Goals: what this spec is trying to achieve
+- Non-goals: what is explicitly out of scope and why
+- Stakeholders: who is affected, who must approve, who is the primary user
+- Constraints: time, budget, team size, dependencies, or non-negotiable technical limits
+
+Technical sections (owned by tech-lead — each section must be present or explicitly marked "not applicable" with a reason):
+
+- Functional requirements: what the system must do, written as specific behavioural statements
+- Technical requirements: performance targets, scalability expectations, reliability requirements, SLA or SLO targets
+- Data model changes: new or modified tables, collections, fields, indexes, constraints; migrations required; seed data
+- API changes: new or modified endpoints or interfaces; request/response contracts; breaking changes; versioning strategy
+- Security considerations: authentication and authorisation changes; data sensitivity classification; threat model notes; secrets or credential handling
+- Integration points: external services, internal services, or queues this change touches; contract and failure behaviour for each
+- Observability requirements: logging expectations, metrics to emit, alerting thresholds, tracing needs
+- Error handling: how errors are surfaced to users or callers; retry or fallback behaviour; failure modes
+- Testing strategy: what must be tested (unit, integration, end-to-end, smoke); who writes the tests; coverage expectations
+- Architecture notes: relevant decisions or guardrails from `docs/arch/` that apply to this spec; any new ADR or ARCH doc needed
+- Acceptance criteria at the spec level: the conditions that prove the spec is fully delivered; each criterion must be traceable to at least one implementation task; criteria should be verifiable, not subjective
+- Rollout and rollback plan: phasing, feature flags, migration steps, rollback procedure, and who is responsible for each step
 
 For `arch` documents, include:
 

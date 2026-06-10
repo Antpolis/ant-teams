@@ -36,6 +36,7 @@ This company adopts the following skill delegation table:
 | `approval-and-escalation` | Global | orchestrator, strategist, tech-lead, builder, reviewer |
 | `agent-communication-log` | Global | orchestrator, strategist, tech-lead, builder, reviewer |
 | `role-memory` | Global | orchestrator, tech-lead, builder, reviewer |
+| `orchestrator-task-done` | Global | orchestrator |
 | `pr-review-flow` | Global | builder, reviewer |
 | `how-to-create-task` | Role-targeted | strategist, tech-lead |
 | `task-development` | Role-targeted | builder |

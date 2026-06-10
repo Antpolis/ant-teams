@@ -9,7 +9,8 @@ Use this skill whenever execution should start from the current GitHub project i
 
 Use the agentic-flow-terms skill as the canonical glossary for custom workflow metadata terms referenced by this skill.
 Use github-agentic-delivery-flow for the top-level GitHub operating model.
-Use github-conventions, state-transitions, approval-and-escalation, and agent-communication-log for GitHub workflow mechanics.
+Use github-conventions, state-transitions, approval-or-escalation, and agent-communication-log for GitHub workflow mechanics.
+Use orchestrator-task-done whenever one issue reaches done, blocked, or another local stopping point and the orchestrator needs to decide whether the queue pass continues.
 Use pr-review-flow when builder work is ready for reviewer review so the PR becomes the canonical review surface.
 Use role-memory for durable cross-loop continuity.
 Use founder-escalation-preflight before asking the founder for a decision.
@@ -21,6 +22,23 @@ Bundled helpers for issue-isolated development live in:
 
 Use these helpers instead of inventing ad hoc `git worktree` commands when the builder needs to start or clean up issue workspaces.
 These helpers read the default issue-worktree root from top-level `worktreeRoot` in `.github-project.json` when it is present.
+
+## Issue Done Definition
+
+An issue is done **only** when all of the following are true:
+
+1. Builder has implemented the approved scope on the task branch and left a durable handover note.
+2. Reviewer has reviewed, found no blockers, posted an explicit approval comment on the PR, and moved the issue to `Ready to Merge`.
+3. Tech-lead has performed the final spec-alignment check, confirmed KISS, separation of concerns, and folder/package/namespace placement against architecture docs, merged the PR, posted a merge confirmation comment, and moved the issue to `Done`.
+
+None of the following is sufficient on its own to treat an issue as done and move to the next:
+
+- builder says implementation is complete
+- code is pushed to the task branch
+- PR is open
+- reviewer approves and moves to `Ready to Merge`
+
+The orchestrator must verify all three conditions are met before treating an issue as settled and advancing the queue.
 
 ## Core Rule
 
@@ -35,31 +53,32 @@ Bring in `tech-lead` when technical interpretation, sequencing, guardrails, or l
 ## Queue-Driven Flow
 
 1. Start from the GitHub project issue queue.
-2. First inspect any issues already in `In Progress` or equivalent processing status.
-3. Also inspect any issues already in `In Review` before pulling fresh work so reviewer-gated work does not stall behind new execution.
-4. Inspect any issues already in `Need attentions` before pulling fresh `Ready` work so strategist- or tech-lead-resolvable issues do not linger across passes.
-5. Invoke `tech-lead` to produce the ordered issue list, current spec focus, sequencing rationale, and execution guardrails for this pass.
-6. Use the `tech-lead` ordered list as the execution plan unless a blocker, completed task, or new evidence requires refreshing the plan.
-7. For each active issue already in progress, review, or `Need attentions`:
-   - review with `builder` whether the implementation is actually done or still in flight
-   - if the work is done from the builder side, verify that `builder` left the required handover note and PR linkage, then delegate `reviewer` rather than moving the issue forward yourself
-   - if the work is already waiting on reviewer, delegate reviewer before considering fresh queue work
-   - if the work is in `Need attentions`, read the durable GitHub comment first and route it to `strategist` for product, scope, or acceptance clarification, or to `tech-lead` for technical, sequencing, feasibility, or guardrail clarification
-   - if a `Need attentions` issue is resolved safely, record the resolution in GitHub comments and move it back to `Ready`
-   - if a `Need attentions` issue cannot be resolved safely through available internal roles, run founder-escalation-preflight before escalating to the founder, or move it to `Blocked` if the remaining problem is an external dependency or approval
-   - if the work is not done, carry on to finish it before pulling fresh work
-   - if `builder` has questions about product intent, scope meaning, or execution meaning, invoke `strategist` only as needed and record that discussion in GitHub comments
+2. First inspect any issues in `Ready to Merge` and route them immediately to `tech-lead` for the final spec-alignment check and merge decision. Do not pull fresh `Ready` work while a `Ready to Merge` issue is waiting.
+3. Inspect any issues already in `In Progress`.
+4. Inspect any issues already in `In Review` before pulling fresh work so reviewer-gated work does not stall behind new execution.
+5. Inspect any issues in `Need attentions` before pulling fresh `Ready` work — route all of them to `tech-lead` first regardless of what caused the attention (see step 8 routing rules).
+6. Invoke `tech-lead` to produce the ordered issue list, current spec focus, sequencing rationale, and execution guardrails for this pass.
+7. Use the `tech-lead` ordered list as the execution plan unless a blocker, completed task, or new evidence requires refreshing the plan.
+8. For each active issue in `Ready to Merge`, `In Progress`, `In Review`, or `Need attentions`:
+   - if the issue is in `Ready to Merge`: route to `tech-lead` for final check and merge (see Tech-Lead Merge Gate)
+   - if the issue is `In Progress`: review with `builder` whether implementation is done or still in flight; if done, verify builder left the required handover note and PR linkage, then delegate `reviewer`
+   - if the issue is `In Review`: delegate `reviewer` before pulling fresh queue work
+   - if the issue is in `Need attentions`: route to `tech-lead` first regardless of the source of the attention flag; `tech-lead` reads the GitHub comment, attempts to resolve, and communicates with `strategist` if product or scope clarity is needed
+   - if `tech-lead` (with or without `strategist`) resolves the issue, record the resolution in a GitHub comment and move the issue back to `Ready` for builder to pick up
+   - if `tech-lead` and `strategist` cannot resolve the issue internally, run `founder-escalation-preflight` before escalating to the founder, or move to `Blocked` if the remaining problem is an external dependency or approval
+   - if `builder` has questions about product intent or scope, invoke `strategist` as needed and record the discussion in GitHub comments
    - if `builder` has questions about technical direction or guardrails, invoke `tech-lead` and continue the pass after the answer
    - if the issue is blocked for any reason, move it to `Blocked`, add a GitHub comment explaining the blocker, and notify the user
-8. After reconciling active issues, read the remaining issues in the project with their milestone/spec, status, dependencies, prior comments, and linked docs.
-9. Group issues by spec or milestone.
-10. Prioritize within the current spec group before moving to another spec, using the ordered list from `tech-lead`.
-11. Only switch away from the current spec group when:
+9. After reconciling active issues, read the remaining issues in the project with their milestone/spec, status, dependencies, prior comments, and linked docs.
+10. Group issues by spec or milestone.
+11. Prioritize within the current spec group before moving to another spec, using the ordered list from `tech-lead`.
+12. Only switch away from the current spec group when:
    - an issue is blocked by a real dependency
    - human intervention is required
    - there are no more executable issues in that spec group
-12. Process issues one by one according to the ordered list from `tech-lead`.
-13. If there are no executable issues after reconciliation:
+13. Process issues one by one according to the ordered list from `tech-lead`.
+14. Each time one issue reaches done, blocked, or another local stopping point, run `orchestrator-task-done` before deciding whether to end the pass, escalate, or move to the next issue.
+15. If there are no executable issues after reconciliation:
    - do not stop at queue reporting alone
    - inspect open repo issues that are not on the project board or are on the board in a non-executable state but may be ready for triage
    - check whether open repo issues or spec work exist outside the current executable queue that can be triaged into the project
@@ -73,12 +92,14 @@ Do not return control to the user merely because the current project queue looks
 
 Before ending a `do-task` pass, explicitly exhaust this checklist:
 
-1. reconcile any `In Progress` issues with `builder`
-2. reconcile any `In Review` issues with `reviewer`
-3. reconcile any `Need attentions` issues through `strategist` or `tech-lead`
-4. process any `Ready` issues in the current spec group
-5. inspect open repo issues or milestone work that may need project-board triage
-6. decide whether a missing executable task can be created or clarified safely through `tech-lead` or `strategist`
+1. route any `Ready to Merge` issues to `tech-lead` for final check and merge
+2. reconcile any `In Progress` issues with `builder`
+3. reconcile any `In Review` issues with `reviewer`
+4. reconcile any `Need attentions` issues through `strategist`, `tech-lead`, or founder escalation as appropriate
+5. process any `Ready` issues in the current spec group
+6. inspect open repo issues or milestone work that may need project-board triage
+7. decide whether a missing executable task can be created or clarified safely through `tech-lead` or `strategist`
+8. after each issue-level completion point, run `orchestrator-task-done` so the queue pass does not end early while safe internal work remains
 
 If any checklist item still has a safe internal next step, take that step before replying to the user.
 
@@ -114,10 +135,20 @@ For each issue:
 - after `builder` finishes implementation, `builder` must create or update the PR, move the issue into `In Review`, and leave a durable handover note in the issue or PR before `reviewer` review starts
 - builder-reviewer review discussion must happen in the PR comments or review threads
 - `orchestrator` should only check that the worktree, branch, PR, state change, and handover note exist before delegating `reviewer`
-- after the PR is ready, `reviewer` must review before the issue can be treated as done
+- after the PR is ready, `reviewer` must review before the issue advances
 - if `reviewer` finds issues, `reviewer` returns the issue to `builder` in the same worktree and on the same branch and continues the loop through durable review findings
-- builder completion is not final completion
-- an issue is only treated as done after reviewer approval, or otherwise blocked or escalated
+- if `reviewer` approves with no blockers, `reviewer` posts an explicit approval comment on the PR and moves the issue to `Ready to Merge`
+- builder completion is not final completion; reviewer approval is not final completion
+
+## Tech-Lead Merge Gate
+
+- every issue in `Ready to Merge` must be routed to `tech-lead` by `orchestrator` before it is considered done
+- `tech-lead` reads the linked spec, the GitHub issue, and the PR diff to verify that the implementation matches approved scope and satisfies architecture guardrails (KISS, separation of concerns, folder/package/namespace per `docs/arch/`)
+- if the check passes: `tech-lead` merges the PR, moves the issue to `Done`, and posts a merge confirmation comment on the PR
+- if the check fails: `tech-lead` posts specific findings as PR comments and moves the issue to `Need attentions` with a durable GitHub comment summarising the findings; in the next reconciliation pass, `tech-lead` reviews the `Need attentions` comment, confirms the findings are builder-actionable, and moves the issue back to `Ready`; builder then picks up from `Ready`, fixes the findings on the same branch, moves to `In Progress` then `In Review`, and the review loop continues
+- a tech-lead final check failure that results in builder rework counts as a continuation of the same review loop — the 8-loop cap applies across all review passes for the issue including those triggered by tech-lead findings; if the cap is hit, treat it as a loop-breaker and escalate to founder
+- `tech-lead` is the only role that merges; no other role may merge without an explicit recovery exception recorded in GitHub
+- an issue is `Done` only after `tech-lead` has merged the PR following a passed final check
 
 ## GitHub Audit Rules
 
@@ -138,9 +169,9 @@ For each issue:
 
 - `orchestrator` owns queue selection, cross-role coordination, and verification that required GitHub artifacts exist.
 - `strategist` owns product framing, scope clarity, success criteria, and product-level resolution of ambiguous work.
-- `tech-lead` owns technical interpretation, architecture guardrails, sequencing, and loop-breaker technical decisions.
+- `tech-lead` owns technical interpretation, architecture guardrails, sequencing, loop-breaker technical decisions, all `Need attentions` resolution (routing to `strategist` if needed), the final spec-alignment check, the merge decision, and the transition from `Ready to Merge` to `Done`.
 - `builder` owns the issue worktree, task branch, implementation, implementation-state transitions into active work and review, PR creation or update, and builder handover notes.
-- `reviewer` owns review findings, review approvals, return-to-builder decisions, reviewer verification notes, and transitions from review to done or back to rework.
+- `reviewer` owns review findings, review approvals, return-to-builder decisions, reviewer verification notes, and the transition from `In Review` to `Ready to Merge` on approval or back to `In Progress` on findings. Reviewer does not merge and does not move issues to `Done`.
 - A role should not perform another role's normal workflow mutation just because it has tool access. If recovery is necessary, record why the usual owner could not perform the action.
 
 ## Development Loop Ownership Rules
@@ -183,14 +214,25 @@ Every builder-to-reviewer handover should include:
 
 ## Orchestrator Verification Rule
 
-When checking work delegated to `builder`, verify these artifacts exist before involving `reviewer`:
+**Before involving `reviewer`** — verify these builder artifacts exist:
 
 - issue worktree path and task branch linked or named in the issue or PR
-- issue state moved to the correct active state by the delegated role
+- issue state moved to `In Review` by builder
 - PR opened or updated for the current implementation
 - durable builder handover note with enough detail for review to continue without chat context
 
-If any artifact is missing, send the issue back to `builder` to complete the workflow record. Do not silently complete those actions on the builder's behalf.
+**Before routing to `tech-lead` for merge** — verify these reviewer artifacts exist:
+
+- explicit reviewer approval comment on the PR stating no blockers remain
+- issue state moved to `Ready to Merge` by reviewer
+
+**Before treating an issue as `Done`** — verify these tech-lead artifacts exist:
+
+- tech-lead merge confirmation comment on the PR
+- PR merged to the production base branch
+- issue state moved to `Done` by tech-lead
+
+If any artifact is missing at any gate, do not advance. Send the issue back to the role that owns that artifact. Do not silently complete those actions on another role's behalf.
 
 During `do-tasks`, also verify continuity:
 
