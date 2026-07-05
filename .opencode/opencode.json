@@ -4,7 +4,7 @@
     "orchestrator": {
       "description": "Owns queue-driven execution orchestration by invoking strategist, tech-lead, builder, and reviewer directly until the next real human decision is required.",
       "mode": "primary",
-      "model": "gpt5-codex",
+      "model": "openai/gpt-5.4-mini",
       "permission": {
         "edit": {
           "docs/**": "allow",
@@ -29,7 +29,7 @@
     "strategist": {
       "description": "Challenges new ideas, sharpens them into practical MVPs, and prepares implementation-ready specs for the user, who remains the final decision maker.",
       "mode": "primary",
-      "model": "openai/gpt-5.5",
+      "model": "openai/gpt-5.4",
       "permission": {
         "edit": {
           "docs/**": "allow",
@@ -52,7 +52,7 @@
     "tech-lead": {
       "description": "Verifies technical feasibility, shapes architecture and sequencing, and sets implementation guardrails.",
       "mode": "primary",
-      "model": "gpt5-codex",
+      "model": "deepseek/deepseek-v4-pro",
       "permission": {
         "edit": {
           "docs/**": "allow",
@@ -75,7 +75,7 @@
     "builder": {
       "description": "Implements approved work with focused code changes and verification.",
       "mode": "primary",
-      "model": "glm5.1",
+      "model": "zai-coding-plan/glm-5.2",
       "permission": {
         "edit": "allow",
         "bash": "allow",
@@ -93,7 +93,7 @@
     "reviewer": {
       "description": "Reviews builder output for KISS violations, separation of concerns, wrong folder/package/namespace placement, architecture alignment, scope discipline, and lightweight smoke verification. Raises findings as blockers, not suggestions.",
       "mode": "primary",
-      "model": "gpt5-codex",
+      "model": "openai/gpt-5.4-mini",
       "permission": {
         "edit": "deny",
         "bash": "allow",
