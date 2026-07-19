@@ -124,10 +124,24 @@ function mkdtempRepo(prefix) {
 
 function runInit(projectDir) {
   const result = { stdout: '', stderr: '', status: 0 };
+  // T2 (issue #3) added noninteractive required-flag accounting (ERR-4.1 /
+  // AC-T2-002). This suite exercises the skills-copy code path, not mode
+  // detection, so we pass --noninteractive plus the three required identity
+  // flags to keep the focus on FR-7 / AC-T4-* behavior. Without these flags
+  // the script would now exit 1 with the missing-flag error, masking the
+  // real skills-copy assertions.
   try {
     result.stdout = execFileSync(
       'bash',
-      [INIT_SCRIPT, '--project-dir', projectDir, '--worktree-root', path.join(projectDir, 'wt')],
+      [
+        INIT_SCRIPT,
+        '--project-dir', projectDir,
+        '--worktree-root', path.join(projectDir, 'wt'),
+        '--noninteractive',
+        '--name', 'test',
+        '--github-owner', 'antpolis',
+        '--github-project-number', '9',
+      ],
       { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
     );
   } catch (err) {
