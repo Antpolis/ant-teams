@@ -1,25 +1,96 @@
 #!/usr/bin/env bash
+#
+# init_project_docs.sh — project-local initialization entrypoint (SPEC-001).
+#
+# T2 scope (issue #3): CLI flag expansion, env-var resolution, TTY-based mode
+# detection, and validation per CLI-2 / FR-4 / ERR-4. The actual AGENTS.md
+# generation (T3 / issue #4), .github-project.json schema extension (T5 /
+# issue #6), and OBS-2 dry-run + idempotency overhaul (T6 / issue #7) consume
+# the `opt_*` variables resolved below. T2's responsibility stops at parsing,
+# resolution, and validation — the existing skills-copy / config / docs flow
+# is unchanged.
+#
 set -euo pipefail
+
+# Bumped from 0.1.0 → 0.2.0 for the T2 CLI expansion. AGENTS.md generation
+# (T3) will stamp this into the `initMeta.version` field per ARCH-003 / DM-1.3.
+readonly INIT_PROJECT_VERSION="0.2.0"
+
+# CLI-2 / FR-4.1 --repo-role enum (per issue guardrails + ARCH-003 schema).
+readonly REPO_ROLE_VALID_VALUES="service library infra monorepo-root tool docs other"
 
 usage() {
   cat <<'USAGE'
 Usage:
-  ./.opencode/skills/project-initialization/scripts/init_project_docs.sh [--project-dir PATH] [--docs-root docs] [--worktree-root PATH]
+  ./.opencode/skills/project-initialization/scripts/init_project_docs.sh [options]
 
-Copy the company docs into a project repo and create the local workflow-state folder structure.
+Copy the company docs into a project repo and create the local workflow-state
+folder structure. T2 (issue #3) adds interactive/noninteractive mode selection,
+env-var resolution, and full CLI-2 flag surface. AGENTS.md generation (T3),
+.github-project.json extension (T5), and dry-run/idempotency (T6) are wired
+to the same flags and ship in later issues.
 
-This command copies the company docs into the project and creates the local
-workflow-state folder structure. It is meant for project-specific overrides
-that sit alongside the global company defaults.
+Mode (CLI-2.2):
+  --interactive       Force interactive mode (prompts for AGENTS.md shaping).
+  --noninteractive    Force noninteractive mode. Requires --name,
+                      --github-owner, --github-project-number (or their
+                      INIT_PROJECT_* env equivalents). Missing values exit 1
+                      per ERR-4.1.
+  (default)           If stdout is a TTY → interactive; otherwise noninteractive.
 
-Use project-local workflow state by running workflow scripts from the project
-repo with `DOC_ROOT=docs` (or `DOC_ROOT=.docs` if you chose the hidden docs tree).
+Repository identity (FR-4.1):
+  --name NAME                 Repo name (default: detected from --project-dir).
+  --description TEXT          One-sentence repo purpose.
+  --repo-role ROLE            Enum: service | library | infra | monorepo-root |
+                              tool | docs | other.
+  --related-repos TRIPLES     Comma-separated name:url:relationship triples.
+                              Stored as-is; never fetched (SEC-1.3).
+
+GitHub Project (FR-4.1):
+  --github-owner OWNER        GitHub owner for .github-project.json.
+  --github-project-number N   GitHub Project number.
+
+AGENTS.md shaping inputs (FR-4.1):
+  --conventions TEXT|@FILE    Working conventions (multiline or @/path/to/file).
+  --commands TEXT|@FILE       Build/test/run commands (multiline or @/path/to/file).
+  --scratch-dir PATH          Scratch/log dir (default: ./tmp/).
+
+Behavior modifiers (CLI-2):
+  --force                     Overwrite existing AGENTS.md / re-copy skills.
+                              (Full effect ships with T3/T6; parsed by T2.)
+  --merge                     Merge new content instead of overwriting.
+                              Default: interactive=on, noninteractive=off.
+  --migrate-agent-md          Migrate legacy agent.md content (noninteractive).
+  --skip-inspection           Skip repository inspection; use only provided
+                              inputs. (FR-2 / CLI-2.3.)
+  --dry-run                   Resolve and validate flags but suppress writes.
+                              (Full OBS-2 suppression ships with T6; parsed by T2.)
+
+Pre-existing flags (preserved verbatim per CLI-1):
+  --project-dir PATH          Target project directory (default: $PWD).
+  --docs-root PATH            Docs root inside the project (default: docs).
+  --worktree-root PATH        Issue worktree root (default:
+                              ~/Projects/worktree/<repo-name>).
+  -h, --help                  Show this help and exit.
+
+Environment variables (CLI-2.1): every flag has an INIT_PROJECT_* equivalent
+(uppercase, dashes → underscores). Resolution order is default < env < CLI
+flag, so explicit flags always win.
 
 Examples:
+  # TTY default → interactive
   ./.opencode/skills/project-initialization/scripts/init_project_docs.sh
-  ./.opencode/skills/project-initialization/scripts/init_project_docs.sh --project-dir ~/projects/my-app
-  ./.opencode/skills/project-initialization/scripts/init_project_docs.sh --project-dir ~/projects/my-app --docs-root .docs
-  ./.opencode/skills/project-initialization/scripts/init_project_docs.sh --project-dir ~/projects/my-app --worktree-root ~/Projects/worktree/my-app
+
+  # Noninteractive, fully specified (AC-T2-002)
+  ./.opencode/skills/project-initialization/scripts/init_project_docs.sh \
+      --noninteractive \
+      --name my-service --github-owner antpolis --github-project-number 9
+
+  # Env var provides default; CLI flag overrides (AC-T2-004)
+  INIT_PROJECT_GITHUB_OWNER=antpolis \
+      ./.opencode/skills/project-initialization/scripts/init_project_docs.sh \
+      --noninteractive --github-owner override \
+      --name t --github-project-number 1
 USAGE
 }
 
@@ -30,6 +101,88 @@ expand_path() {
     "~/"*) printf '%s/%s\n' "$HOME" "${path#~/}" ;;
     *) printf '%s\n' "$path" ;;
   esac
+}
+
+# --- T2 helpers (CLI-2 / FR-4 / ERR-4) ---------------------------------------
+# These functions implement parsing, env-var resolution, mode detection, and
+# validation only. The downstream AGENTS.md / config / dry-run behaviors that
+# hang off the same `opt_*` variables ship with T3/T5/T6 (issues #4/#6/#7).
+
+# validate_repo_role ROLE — exit 1 if ROLE is not in the CLI-2 enum
+# (issue guardrails + ARCH-003 schema). Empty input is "not provided" and
+# passes; noninteractive required-flag accounting is handled separately.
+validate_repo_role() {
+  local role="$1"
+  if [[ -z "$role" ]]; then
+    return 0
+  fi
+  if [[ " $REPO_ROLE_VALID_VALUES " != *" $role "* ]]; then
+    echo "[error] Invalid --repo-role value: '$role'" >&2
+    echo "[error] Valid values: $(printf '%s, ' $REPO_ROLE_VALID_VALUES | sed 's/, $//')" >&2
+    echo "[error] Or set INIT_PROJECT_ROLE to one of those values." >&2
+    return 1
+  fi
+  return 0
+}
+
+# validate_related_repos TRIPLES — exit 1 if TRIPLES is not a comma-separated
+# list of `name:url:relationship` triples. URLs may themselves contain colons
+# (e.g. https://...), so we only require at least two colons per triple.
+# Stored as-is per SEC-1.3; never fetched or resolved.
+validate_related_repos() {
+  local raw="$1"
+  if [[ -z "$raw" ]]; then
+    return 0
+  fi
+  local -a triples=()
+  local IFS=','
+  read -ra triples <<< "$raw"
+  local triple colons
+  for triple in "${triples[@]}"; do
+    # Skip wholly-empty entries (e.g. trailing comma) — those are not invalid,
+    # just ignorable. A non-empty entry must look like name:url:relationship.
+    [[ -z "${triple// }" ]] && continue
+    colons="${triple//[^:]}"
+    if [[ ${#colons} -lt 2 ]]; then
+      echo "[error] Invalid --related-repos entry: '$triple'" >&2
+      echo "[error] Expected 'name:url:relationship' (comma-separated triples)." >&2
+      echo "[error] Stored as-is; never fetched/resolved (SEC-1.3)." >&2
+      return 1
+    fi
+  done
+  return 0
+}
+
+# resolve_at_value RAW FLAG_NAME — if RAW starts with '@', replace it with the
+# contents of the referenced file; otherwise return RAW unchanged. Used for
+# --commands and --conventions per issue guardrails. File-not-found is a
+# hard error (exit 1) — silent fallback would mask operator intent.
+resolve_at_value() {
+  local raw="$1" flag="$2"
+  if [[ "$raw" == @* ]]; then
+    local fp="${raw#@}"
+    if [[ ! -f "$fp" ]]; then
+      echo "[error] --$flag: file not found: $fp" >&2
+      return 1
+    fi
+    cat "$fp"
+  else
+    printf '%s' "$raw"
+  fi
+}
+
+# die_missing_noninteractive_flags MISSING... — print the ERR-4.1 missing-flag
+# block to stderr and exit 1. Called only after mode is resolved noninteractive
+# and at least one required value is empty.
+die_missing_noninteractive_flags() {
+  local -a missing=("$@")
+  echo "[error] Noninteractive mode requires: --name, --github-owner, --github-project-number" >&2
+  local m
+  for m in "${missing[@]}"; do
+    echo "[error] Missing: $m" >&2
+  done
+  echo "[error] Run interactively (--interactive) or supply the values via INIT_PROJECT_* env vars." >&2
+  exit 1
 }
 
 ensure_opencode_config() {
@@ -297,31 +450,191 @@ project_dir="$(pwd)"
 docs_root="docs"
 worktree_root=""
 
+# --- Phase 1: env-var resolution (CLI-2.1: default < env < CLI flag) ---------
+# Pre-existing flags (CLI-1) are also env-overridable per FR-4.1. CLI flags
+# parsed in Phase 2 always win over these values.
+docs_root="${INIT_PROJECT_DOCS_ROOT:-$docs_root}"
+worktree_root="${INIT_PROJECT_WORKTREE_ROOT:-$worktree_root}"
+
+# New T2 string flags
+opt_name="${INIT_PROJECT_NAME:-}"
+opt_description="${INIT_PROJECT_DESCRIPTION:-}"
+opt_repo_role="${INIT_PROJECT_ROLE:-}"
+opt_related_repos="${INIT_PROJECT_RELATED_REPOS:-}"
+opt_github_owner="${INIT_PROJECT_GITHUB_OWNER:-}"
+opt_github_project_number="${INIT_PROJECT_GITHUB_PROJECT_NUMBER:-}"
+opt_conventions="${INIT_PROJECT_CONVENTIONS:-}"
+opt_commands="${INIT_PROJECT_COMMANDS:-}"
+opt_scratch_dir="${INIT_PROJECT_SCRATCH_DIR:-}"
+
+# New T2 boolean flags (0/1; empty / "0" / absent = off). Normalize absent → 0.
+opt_force="${INIT_PROJECT_FORCE:-0}"
+opt_migrate_agent_md="${INIT_PROJECT_MIGRATE_AGENT_MD:-0}"
+opt_skip_inspection="${INIT_PROJECT_SKIP_INSPECTION:-0}"
+opt_dry_run="${INIT_PROJECT_DRY_RUN:-0}"
+
+# --merge has a mode-dependent default (interactive=on, noninteractive=off per
+# CLI-2). Defer defaulting until after mode is resolved; only env vars set it
+# here so empty truly means "unset".
+opt_merge="${INIT_PROJECT_MERGE:-}"
+
+# Mode env vars (mutually exclusive; CLI flags override in Phase 2).
+mode_env_interactive="${INIT_PROJECT_INTERACTIVE:-0}"
+mode_env_noninteractive="${INIT_PROJECT_NONINTERACTIVE:-0}"
+
+# --- Phase 2: CLI flag parsing (overrides Phase 1 env values) ----------------
+# `mode_cli` tracks whether --interactive / --noninteractive was given on the
+# CLI so we can distinguish "TTY default" from "explicit interactive".
+mode_cli=""
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    # Mode selection (CLI-2.2)
+    --interactive)
+      mode_cli="interactive"
+      shift
+      ;;
+    --noninteractive)
+      mode_cli="noninteractive"
+      shift
+      ;;
+    # New string flags (FR-4.1 / CLI-2)
+    --name)
+      opt_name="${2:-}"; shift 2
+      ;;
+    --description)
+      opt_description="${2:-}"; shift 2
+      ;;
+    --repo-role)
+      opt_repo_role="${2:-}"; shift 2
+      ;;
+    --related-repos)
+      opt_related_repos="${2:-}"; shift 2
+      ;;
+    --github-owner)
+      opt_github_owner="${2:-}"; shift 2
+      ;;
+    --github-project-number)
+      opt_github_project_number="${2:-}"; shift 2
+      ;;
+    --conventions)
+      opt_conventions="${2:-}"; shift 2
+      ;;
+    --commands)
+      opt_commands="${2:-}"; shift 2
+      ;;
+    --scratch-dir)
+      opt_scratch_dir="${2:-}"; shift 2
+      ;;
+    # New boolean flags (CLI-2)
+    --force)
+      opt_force=1; shift
+      ;;
+    --merge)
+      opt_merge=1; shift
+      ;;
+    --migrate-agent-md)
+      opt_migrate_agent_md=1; shift
+      ;;
+    --skip-inspection)
+      opt_skip_inspection=1; shift
+      ;;
+    --dry-run)
+      opt_dry_run=1; shift
+      ;;
+    # Pre-existing flags preserved verbatim (CLI-1)
     --project-dir)
-      project_dir="${2:-}"
-      shift 2
+      project_dir="${2:-}"; shift 2
       ;;
     --docs-root)
-      docs_root="${2:-}"
-      shift 2
+      docs_root="${2:-}"; shift 2
       ;;
     --worktree-root)
-      worktree_root="${2:-}"
-      shift 2
+      worktree_root="${2:-}"; shift 2
       ;;
     -h|--help)
       usage
       exit 0
       ;;
     *)
-      echo "Unknown argument: $1" >&2
+      echo "[error] Unknown argument: $1" >&2
       usage >&2
       exit 1
       ;;
   esac
 done
+
+# --- Phase 3: mode resolution + validation (CLI-2.2 / ERR-4 / FR-4) ----------
+
+# Reject contradictory env signals first (FR-4 / guardrails).
+if [[ "$mode_env_interactive" == "1" && "$mode_env_noninteractive" == "1" && -z "$mode_cli" ]]; then
+  echo "[error] Both INIT_PROJECT_INTERACTIVE and INIT_PROJECT_NONINTERACTIVE are set; pick one." >&2
+  exit 1
+fi
+
+# Resolution order for mode: CLI flag → env var → TTY default (CLI-2.2).
+if [[ -n "$mode_cli" ]]; then
+  mode="$mode_cli"
+elif [[ "$mode_env_noninteractive" == "1" ]]; then
+  mode="noninteractive"
+elif [[ "$mode_env_interactive" == "1" ]]; then
+  mode="interactive"
+elif [[ -t 1 ]]; then
+  mode="interactive"
+else
+  mode="noninteractive"
+fi
+
+# --merge mode-dependent default (CLI-2). Only applied when neither env nor
+# CLI set it (empty == unset).
+if [[ -z "$opt_merge" ]]; then
+  if [[ "$mode" == "interactive" ]]; then
+    opt_merge=1
+  else
+    opt_merge=0
+  fi
+fi
+
+# --repo-role enum validation (guardrails / AC-T2-006).
+if ! validate_repo_role "$opt_repo_role"; then
+  exit 1
+fi
+
+# --related-repos format validation (guardrails / SEC-1.3).
+if ! validate_related_repos "$opt_related_repos"; then
+  exit 1
+fi
+
+# --commands / --conventions @file resolution (guardrails / AC-T2-007).
+if [[ -n "$opt_commands" ]]; then
+  if ! opt_commands="$(resolve_at_value "$opt_commands" commands)"; then
+    exit 1
+  fi
+fi
+if [[ -n "$opt_conventions" ]]; then
+  if ! opt_conventions="$(resolve_at_value "$opt_conventions" conventions)"; then
+    exit 1
+  fi
+fi
+
+# Noninteractive required-flags accounting (FR-4.3 / ERR-4.1 / AC-T2-003).
+# Interactive mode never requires any flag (FR-3.3); noninteractive requires
+# the three identity inputs that cannot be guessed without breaking
+# AC-SPEC-006's "no fabricated claims" rule.
+if [[ "$mode" == "noninteractive" ]]; then
+  missing=()
+  [[ -z "$opt_name" ]] && missing+=( "--name (or INIT_PROJECT_NAME)" )
+  [[ -z "$opt_github_owner" ]] && missing+=( "--github-owner (or INIT_PROJECT_GITHUB_OWNER)" )
+  [[ -z "$opt_github_project_number" ]] && missing+=( "--github-project-number (or INIT_PROJECT_GITHUB_PROJECT_NUMBER)" )
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    die_missing_noninteractive_flags "${missing[@]}"
+  fi
+fi
+
+# T2 stops here. The `opt_*` variables are now authoritative for every
+# downstream phase: AGENTS.md generation (T3 / issue #4), .github-project.json
+# extension (T5 / issue #6), and OBS-2 dry-run / idempotency (T6 / issue #7).
+# The existing skills-copy / config / docs flow below is unchanged.
 
 project_dir="$(mkdir -p "$project_dir" && cd "$project_dir" && pwd)"
 docs_root="${docs_root%/}"
