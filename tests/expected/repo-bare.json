@@ -10,8 +10,12 @@
     "inferred": []
   },
   "docs_root": {
-    "observed": "not detected",
-    "evidence": []
+    "observed": [
+      "docs"
+    ],
+    "evidence": [
+      "docs/"
+    ]
   },
   "agent_guidance": {
     "observed": [],

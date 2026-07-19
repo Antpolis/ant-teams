@@ -18,8 +18,9 @@
  * The runner also exercises:
  *   - AC-T1-006: traversal must skip node_modules, .git, target, build, dist,
  *     __pycache__.
- *   - AC-T1-002: bare repo reports all categories "not detected" / empty /
- *     false with no stderr.
+ *   - AC-T1-002: bare repo (TEST-1.2: README.md + docs/ + .git/) reports
+ *     docs_root detected and every other absent category as "not detected" /
+ *     empty / false with no stderr.
  *   - Error path: a non-existent --project-dir must exit 1 with stderr.
  *
  * No external npm dependencies. Uses only node:child_process, node:fs,
@@ -238,10 +239,14 @@ function testAcT1001NodeNpm() {
   });
 }
 
-// --- AC-T1-002: bare repo, all categories "not detected" ---------------------
+// --- AC-T1-002: bare repo, all other absent categories "not detected" --------
+// Per canonical SPEC-001 TEST-1.2, repo-bare contains README.md, docs/, and
+// .git/. docs_root is therefore detected; all other absent categories must
+// still be "not detected" / empty / false. See issue #2 comment for the
+// minimal AC-T1-002 wording reconciliation.
 
 function testAcT1002BareRepo() {
-  process.stdout.write('Suite: AC-T1-002 (repo-bare all not-detected)\n');
+  process.stdout.write('Suite: AC-T1-002 (repo-bare absent categories not detected)\n');
   const fixtureDir = path.join(FIXTURES_DIR, 'repo-bare');
   const result = runInspect(fixtureDir);
   check('AC-T1-002: exit status 0', () => {
@@ -251,10 +256,16 @@ function testAcT1002BareRepo() {
     assert.strictEqual(result.stderr, '', `stderr=${result.stderr}`);
   });
   const actual = JSON.parse(result.stdout);
+  check('AC-T1-002: docs_root.observed == ["docs"] (TEST-1.2 fixture)', () => {
+    assert.deepStrictEqual(
+      actual.docs_root.observed,
+      ['docs'],
+      `docs_root.observed=${JSON.stringify(actual.docs_root.observed)}`
+    );
+  });
   const emptyCategories = [
     'language',
     'package_manager',
-    'docs_root',
     'repo_origin',
   ];
   for (const c of emptyCategories) {
