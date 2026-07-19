@@ -1,0 +1,12 @@
+{
+  "name": "demo-node-app",
+  "version": "1.0.0",
+  "description": "Demo Node.js application for inspection fixture.",
+  "scripts": {
+    "test": "vitest run",
+    "build": "tsc -p ."
+  },
+  "devDependencies": {
+    "vitest": "^1.0.0"
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "language": {
+    "observed": [
+      "Node.js"
+    ],
+    "evidence": [
+      "package.json"
+    ],
+    "inferred": []
+  },
+  "package_manager": {
+    "observed": [
+      "npm"
+    ],
+    "evidence": [
+      "package-lock.json"
+    ],
+    "inferred": []
+  },
+  "docs_root": {
+    "observed": [
+      "docs"
+    ],
+    "evidence": [
+      "docs/"
+    ]
+  },
+  "agent_guidance": {
+    "observed": [],
+    "evidence": []
+  },
+  "test_infrastructure": {
+    "observed": [
+      "test",
+      "vitest"
+    ],
+    "evidence": [
+      "test/",
+      "vitest.config.ts",
+      "package.json:scripts.test"
+    ]
+  },
+  "cicd": {
+    "observed": [],
+    "evidence": []
+  },
+  "opencode_config": {
+    "observed": [],
+    "evidence": []
+  },
+  "github_project_config": {
+    "observed": false,
+    "evidence": []
+  },
+  "repo_origin": {
+    "observed": "not detected",
+    "evidence": []
+  },
+  "app_boundaries": {
+    "observed": [],
+    "evidence": []
+  },
+  "ambiguities": []
+}

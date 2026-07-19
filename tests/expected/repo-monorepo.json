@@ -1,0 +1,63 @@
+{
+  "language": {
+    "observed": [
+      "Node.js"
+    ],
+    "evidence": [
+      "package.json"
+    ],
+    "inferred": []
+  },
+  "package_manager": {
+    "observed": "not detected",
+    "evidence": [],
+    "inferred": [
+      "npm"
+    ]
+  },
+  "docs_root": {
+    "observed": "not detected",
+    "evidence": []
+  },
+  "agent_guidance": {
+    "observed": [],
+    "evidence": []
+  },
+  "test_infrastructure": {
+    "observed": [],
+    "evidence": []
+  },
+  "cicd": {
+    "observed": [],
+    "evidence": []
+  },
+  "opencode_config": {
+    "observed": [],
+    "evidence": []
+  },
+  "github_project_config": {
+    "observed": false,
+    "evidence": []
+  },
+  "repo_origin": {
+    "observed": "not detected",
+    "evidence": []
+  },
+  "app_boundaries": {
+    "observed": [
+      {
+        "path": "apps/web",
+        "manifest": "apps/web/package.json"
+      },
+      {
+        "path": "packages/shared",
+        "manifest": "packages/shared/package.json"
+      }
+    ],
+    "evidence": [
+      "apps/web/package.json",
+      "packages/shared/package.json"
+    ]
+  },
+  "ambiguities": []
+}
