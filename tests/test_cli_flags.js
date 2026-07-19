@@ -105,7 +105,13 @@ function runInit(argv, env) {
 // Runs the init script under a pseudo-TTY allocated by `script -qec`. Used to
 // exercise the [[ -t 1 ]] branch of mode resolution. Returns null if `script`
 // is unavailable on the host so the caller can skip the test cleanly.
-function runInitUnderPty(argv, env) {
+//
+// T3 compatibility (issue #4): interactive mode now prompts the operator.
+// Under a pty with no input, the prompts would block indefinitely. We feed
+// an `input` string of newlines so every prompt accepts its default (FR-3.3
+// blank = use default) and the confirm defaults to "y" (FR-3.4). Callers
+// that need custom responses can pass an `input` override.
+function runInitUnderPty(argv, env, input) {
   if (!scriptPath) return null;
   // `script -qec "<cmd>" <devnull|/dev/null>`:
   //   -q quiet (no header)
@@ -115,12 +121,17 @@ function runInitUnderPty(argv, env) {
   // Use a portable invocation: `script -qec "<cmd>" /dev/null` works on Linux;
   // macOS omits the trailing file arg. Detect via `script --version` output.
   const cmd = `bash ${INIT_SCRIPT} ${argv.map((a) => `'${a.replace(/'/g, `'\\''`)}'`).join(' ')}`;
+  // Default input: enough empty lines for every interactive prompt + the
+  // final confirm. 8 prompts at T3 scope (6 FR-3.2 + GitHub number + confirm).
+  const stdinInput = input != null ? input : '\n'.repeat(12);
   const result = { stdout: '', stderr: '', status: 0 };
   try {
     // Try Linux form first (util-linux): `script -qec CMD FILE`
     const r = spawnSync(scriptPath, ['-qec', cmd, '/dev/null'], {
       encoding: 'utf8',
       env: { ...process.env, ...(env || {}) },
+      input: stdinInput,
+      timeout: 30000,
     });
     result.stdout = r.stdout || '';
     result.stderr = r.stderr || '';
