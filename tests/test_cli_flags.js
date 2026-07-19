@@ -607,6 +607,143 @@ check('guardrail: INIT_PROJECT_SKIP_INSPECTION=1 + INIT_PROJECT_DRY_RUN=1 accept
   assert.strictEqual(r.status, 0);
 });
 
+// --- Regression: --github-project-number must be a positive integer ----------
+// Reviewer finding (PR #14 review loop 2): the CLI-2 table types this flag as
+// `Integer`, but `--github-project-number nope` was accepted and would poison
+// .github-project.json downstream. These tests assert the strict positive-
+// integer contract before any file is written.
+
+process.stdout.write('Suite: regression --github-project-number positive integer\n');
+
+// Helper: minimal noninteractive argv with an explicit --github-project-number,
+// so we can inject invalid values without relying on the default suite value.
+function withProjectNumber(value) {
+  return [
+    '--noninteractive',
+    '--name', 'test',
+    '--github-owner', 'antpolis',
+    '--github-project-number', value,
+  ];
+}
+
+for (const bad of ['nope', '0', '-1', '1.5', '1e10', '0x10', ' 9', '9 ', 'abc123', '123abc', '07']) {
+  check(`regression: --github-project-number '${bad}' rejected (exit 1)`, () => {
+    const tmp = mkdtempRepo(`reg-gpn-${bad.replace(/[^a-z0-9]/gi, '_')}`);
+    const r = runInit(
+      [
+        '--project-dir', tmp,
+        '--worktree-root', path.join(tmp, 'wt'),
+        ...withProjectNumber(bad),
+      ],
+    );
+    assert.strictEqual(r.status, 1, `expected exit 1 for '${bad}', got ${r.status}\nstderr:\n${r.stderr}`);
+    assert.ok(
+      /Invalid --github-project-number/.test(r.stderr),
+      `expected 'Invalid --github-project-number' on stderr for '${bad}':\n${r.stderr}`,
+    );
+  });
+}
+
+for (const good of ['1', '9', '42', '123456', '9999999']) {
+  check(`regression: --github-project-number '${good}' accepted (exit 0)`, () => {
+    const tmp = mkdtempRepo(`reg-gpn-good-${good}`);
+    const r = runInit(
+      [
+        '--project-dir', tmp,
+        '--worktree-root', path.join(tmp, 'wt'),
+        ...withProjectNumber(good),
+      ],
+    );
+    assert.strictEqual(r.status, 0, `expected exit 0 for '${good}', got ${r.status}\nstderr:\n${r.stderr}`);
+  });
+}
+
+check('regression: INIT_PROJECT_GITHUB_PROJECT_NUMBER=nope rejected via env', () => {
+  const tmp = mkdtempRepo('reg-gpn-env-bad');
+  const r = runInit(
+    [
+      '--project-dir', tmp,
+      '--worktree-root', path.join(tmp, 'wt'),
+      '--noninteractive', '--name', 'test', '--github-owner', 'antpolis',
+    ],
+    { INIT_PROJECT_GITHUB_PROJECT_NUMBER: 'nope' },
+  );
+  assert.strictEqual(r.status, 1, `expected exit 1, got ${r.status}\nstderr:\n${r.stderr}`);
+  assert.ok(/Invalid --github-project-number/.test(r.stderr));
+});
+
+// --- Regression: --related-repos strict name:url:relationship contract -------
+// Reviewer finding (PR #14 review loop 2): the previous check only required
+// "at least two colons", so values like `a:https://github.com/o/a:parent:extra`
+// (5 colon-separated parts) were accepted. The documented contract is exactly
+// `name:url:relationship` — name and relationship are single tokens (no colons)
+// and the url field carries at most one scheme colon (e.g. `https:`).
+
+process.stdout.write('Suite: regression --related-repos strict contract\n');
+
+check('regression: extra-colon triple a:https://.../a:parent:extra rejected', () => {
+  const tmp = mkdtempRepo('reg-rr-extra-colon');
+  const r = runInit(
+    [
+      '--project-dir', tmp,
+      '--worktree-root', path.join(tmp, 'wt'),
+      ...noninteractiveRequired(),
+      '--related-repos', 'a:https://github.com/o/a:parent:extra',
+    ],
+  );
+  assert.strictEqual(r.status, 1, `expected exit 1, got ${r.status}\nstderr:\n${r.stderr}`);
+  assert.ok(
+    /Invalid --related-repos entry/.test(r.stderr),
+    `expected 'Invalid --related-repos entry' on stderr:\n${r.stderr}`,
+  );
+});
+
+for (const bad of [
+  'a:b:c:d:e',         // 4 colons → url='b:c:d' has 2 colons — ambiguous
+  'a:b:c:d:e:f:g',     // way too many colons
+  'name::relationship', // empty url
+  ':https://github.com/o/a:parent', // empty name
+  'a:https://github.com/o/a:',       // empty relationship
+  'a:b',                // only 2 parts (1 colon)
+]) {
+  check(`regression: --related-repos '${bad}' rejected`, () => {
+    const tmp = mkdtempRepo(`reg-rr-bad-${bad.length}-${Math.abs(bad.split(':').length)}`);
+    const r = runInit(
+      [
+        '--project-dir', tmp,
+        '--worktree-root', path.join(tmp, 'wt'),
+        ...noninteractiveRequired(),
+        '--related-repos', bad,
+      ],
+    );
+    assert.strictEqual(r.status, 1, `expected exit 1 for '${bad}', got ${r.status}\nstderr:\n${r.stderr}`);
+    assert.ok(/Invalid --related-repos entry/.test(r.stderr));
+  });
+}
+
+for (const good of [
+  'sibling:https://github.com/org/sibling:sibling', // spec example (https URL)
+  'a:github.com/o/a:parent',                        // no-scheme url/path
+  'a:git@github.com:o/a:parent',                    // SSH/SCP url (1 colon in url)
+  'a:b:c',                                          // minimal 3-part triple
+  'a:b:c:d',                                        // SCP-style url='b:c' (1 colon)
+  'a:./local/path:child',                           // relative path url
+  'a:https://github.com/o/a:sibling,b:https://github.com/o/b:parent', // multi-triple
+]) {
+  check(`regression: --related-repos '${good}' accepted (valid name:url:relationship)`, () => {
+    const tmp = mkdtempRepo(`reg-rr-good-${good.length}`);
+    const r = runInit(
+      [
+        '--project-dir', tmp,
+        '--worktree-root', path.join(tmp, 'wt'),
+        ...noninteractiveRequired(),
+        '--related-repos', good,
+      ],
+    );
+    assert.strictEqual(r.status, 0, `expected exit 0 for '${good}', got ${r.status}\nstderr:\n${r.stderr}`);
+  });
+}
+
 // --- Summary ----------------------------------------------------------------
 
 process.stdout.write(`\n${pass} passed, ${fail} failed\n`);

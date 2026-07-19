@@ -44,11 +44,13 @@ Repository identity (FR-4.1):
   --repo-role ROLE            Enum: service | library | infra | monorepo-root |
                               tool | docs | other.
   --related-repos TRIPLES     Comma-separated name:url:relationship triples.
+                              name and relationship are single tokens (no
+                              colons); url may carry one scheme colon (https:).
                               Stored as-is; never fetched (SEC-1.3).
 
 GitHub Project (FR-4.1):
   --github-owner OWNER        GitHub owner for .github-project.json.
-  --github-project-number N   GitHub Project number.
+  --github-project-number N   GitHub Project number (positive integer; e.g. 9).
 
 AGENTS.md shaping inputs (FR-4.1):
   --conventions TEXT|@FILE    Working conventions (multiline or @/path/to/file).
@@ -126,8 +128,26 @@ validate_repo_role() {
 }
 
 # validate_related_repos TRIPLES — exit 1 if TRIPLES is not a comma-separated
-# list of `name:url:relationship` triples. URLs may themselves contain colons
-# (e.g. https://...), so we only require at least two colons per triple.
+# list of `name:url:relationship` triples per CLI-2 / FR-4.1 / SEC-1.3.
+#
+# Contract: each triple is parsed as
+#   <name>:<url>:<relationship>
+# where name and relationship are single tokens (no colons) and the url field
+# is opaque per SEC-1.3 but carries at most one colon (so standard https://
+# URLs and SCP-style `user@host:path` URLs are accepted). Triples with more
+# colons are ambiguous and rejected.
+#
+# Accepted examples:
+#   name:https://github.com/org/repo:relationship   (1 url colon: scheme)
+#   name:github.com/org/repo:relationship           (0 url colons)
+#   name:git@github.com:org/repo:relationship       (1 url colon: SCP)
+#   name:./local/path:relationship                  (0 url colons)
+# Rejected examples:
+#   a:https://github.com/o/a:parent:extra           (2 url colons — ambiguous)
+#   a:b:c:d:e                                       (2 url colons — ambiguous)
+#   name::relationship                              (empty url)
+#   :url:relationship                               (empty name)
+#   a:url:                                          (empty relationship)
 # Stored as-is per SEC-1.3; never fetched or resolved.
 validate_related_repos() {
   local raw="$1"
@@ -137,19 +157,65 @@ validate_related_repos() {
   local -a triples=()
   local IFS=','
   read -ra triples <<< "$raw"
-  local triple colons
+  local triple
   for triple in "${triples[@]}"; do
     # Skip wholly-empty entries (e.g. trailing comma) — those are not invalid,
     # just ignorable. A non-empty entry must look like name:url:relationship.
     [[ -z "${triple// }" ]] && continue
-    colons="${triple//[^:]}"
-    if [[ ${#colons} -lt 2 ]]; then
+
+    # Need at least two colons so name + url + relationship can each be
+    # non-empty. This catches single-token entries like `just-a-name`.
+    local colons="${triple//[^:]}"
+    if (( ${#colons} < 2 )); then
       echo "[error] Invalid --related-repos entry: '$triple'" >&2
       echo "[error] Expected 'name:url:relationship' (comma-separated triples)." >&2
-      echo "[error] Stored as-is; never fetched/resolved (SEC-1.3)." >&2
+      echo "[error] name and relationship must be single tokens (no colons);" >&2
+      echo "[error] url may carry one scheme colon (e.g. https:). Stored as-is;" >&2
+      echo "[error] never fetched/resolved (SEC-1.3)." >&2
+      return 1
+    fi
+
+    # Extract via parameter expansion so we observe trailing empty fields
+    # (`a:url:` and `:url:rel` cases) that `read -ra` would silently drop.
+    local name="${triple%%:*}"
+    local relationship="${triple##*:}"
+    local url="${triple#*:}"   # strip "<name>:"
+    url="${url%:*}"            # strip ":<relationship>"
+
+    # The url field may carry at most one colon (scheme or SCP-style). More
+    # than one means the triple has too many fields and is ambiguous.
+    local url_colons="${url//[^:]}"
+
+    if [[ -z "$name" || -z "$url" || -z "$relationship" || ${#url_colons} -gt 1 ]]; then
+      echo "[error] Invalid --related-repos entry: '$triple'" >&2
+      echo "[error] Expected 'name:url:relationship' (comma-separated triples)." >&2
+      echo "[error] name and relationship must be single tokens (no colons);" >&2
+      echo "[error] url may carry one scheme colon (e.g. https:). Stored as-is;" >&2
+      echo "[error] never fetched/resolved (SEC-1.3)." >&2
       return 1
     fi
   done
+  return 0
+}
+
+# validate_github_project_number NUM — exit 1 if NUM is set but not a positive
+# integer (CLI-2 types --github-project-number as `Integer`; GitHub Project
+# numbers are positive). Empty input is "not provided" and passes; the
+# noninteractive required-flag accounting handles the missing case.
+validate_github_project_number() {
+  local num="$1"
+  if [[ -z "$num" ]]; then
+    return 0
+  fi
+  # Positive integer with no leading zero, no sign, no decimal point, no
+  # exponent. Rejects: '', '0', '-1', '1.5', '1e10', '0x10', '07', ' 9',
+  # '9 ', 'nope', '123abc'. Bash regex (ERE subset) under `set -u` is safe
+  # here because the regex is a literal.
+  if [[ ! "$num" =~ ^[1-9][0-9]*$ ]]; then
+    echo "[error] Invalid --github-project-number value: '$num' (must be a positive integer)" >&2
+    echo "[error] Or set INIT_PROJECT_GITHUB_PROJECT_NUMBER to a positive integer." >&2
+    return 1
+  fi
   return 0
 }
 
@@ -602,6 +668,11 @@ fi
 
 # --related-repos format validation (guardrails / SEC-1.3).
 if ! validate_related_repos "$opt_related_repos"; then
+  exit 1
+fi
+
+# --github-project-number positive-integer validation (CLI-2 type: Integer).
+if ! validate_github_project_number "$opt_github_project_number"; then
   exit 1
 fi
 
