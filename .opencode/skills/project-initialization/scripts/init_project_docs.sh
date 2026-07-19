@@ -14,6 +14,8 @@ set -euo pipefail
 
 # Bumped from 0.1.0 → 0.2.0 for the T2 CLI expansion. AGENTS.md generation
 # (T3) will stamp this into the `initMeta.version` field per ARCH-003 / DM-1.3.
+# T5 (issue #6) consumes it directly: `ensure_github_project_config` writes
+# `initMeta.version = INIT_PROJECT_VERSION` on first init / material merge.
 readonly INIT_PROJECT_VERSION="0.2.0"
 
 # CLI-2 / FR-4.1 --repo-role enum (per issue guardrails + ARCH-003 schema).
@@ -265,13 +267,25 @@ die_missing_noninteractive_flags() {
   exit 1
 }
 
+# SPEC-001 T5 / ARCH-003 Artifact 4: detection covers BOTH the canonical
+# `.opencode/` location AND the legacy repo-root location. Detection order
+# is `.opencode/` first (ARCH-003 canonical), then repo root (backward
+# compat with prior init output). The default creation target stays at the
+# repo root so existing adopters see no behavior change on fresh init; only
+# detection is widened so a pre-existing `.opencode/opencode.json` (e.g.
+# the legacy-init fixture) is updated in place instead of being shadowed
+# by a newly-created repo-root file (AC-T5-003).
 ensure_opencode_config() {
   local project_dir="$1"
   local worktree_root="$2"
   local external_pattern="${worktree_root%/}/**"
   local config_path=""
 
-  if [[ -f "$project_dir/opencode.jsonc" ]]; then
+  if [[ -f "$project_dir/.opencode/opencode.json" ]]; then
+    config_path="$project_dir/.opencode/opencode.json"
+  elif [[ -f "$project_dir/.opencode/opencode.jsonc" ]]; then
+    config_path="$project_dir/.opencode/opencode.jsonc"
+  elif [[ -f "$project_dir/opencode.jsonc" ]]; then
     config_path="$project_dir/opencode.jsonc"
   elif [[ -f "$project_dir/opencode.json" ]]; then
     config_path="$project_dir/opencode.json"
@@ -478,50 +492,212 @@ copy_required_skills() {
   echo "[writing] .opencode/skills/ (${#required_skills[@]} required skills, $total_copied copied, $total_merged merged)"
 }
 
+# SPEC-001 T5 / ARCH-003 DM-1: extend `.github-project.json` to the canonical
+# schema (worktreeRoot, identity, boundaries, initMeta) additively. Existing
+# fields are NEVER removed or overwritten (FR-6.3, SEC-2.1, ARCH-003
+# guarantee 2: "strictly additive — new fields may be added but existing
+# required fields are never removed by the initializer").
+#
+# The merge is computed in `node` as a single read-modify-write that writes
+# ONLY when the desired state differs structurally from the current state.
+# This is what makes AC-T5-005 / TR-2.1 (idempotent rerun produces no
+# changes) work: a no-op rerun leaves the file byte-for-byte identical,
+# including the `initMeta.generatedAt` timestamp from the prior write.
+#
+# Identity/boundaries value resolution (issue guardrails + FR-8.5):
+#   - identity.name: opt_name (--name) → detected repo_name (basename) fallback
+#   - identity.description: opt_description, "" when not provided (T3 prompts
+#     will populate interactively; empty string is schema-valid per ARCH-003)
+#   - identity.role: opt_repo_role → "other" fallback (most generic enum value)
+#   - boundaries.owns: "" when not provided (T3 will populate via prompts)
+#   - boundaries.depends_on: ALWAYS [] at T5 scope — no --depends-on flag exists
+#     yet (CLI-2 / FR-4.1); all operator-provided triples route to related_repos
+#   - boundaries.related_repos: parsed from opt_related_repos triples, or []
+#
+# Parameter contract:
+#   $1 project_dir       — target project root (already canonicalized)
+#   $2 worktree_root     — canonical absolute worktree root path
+#   $3 repo_name         — detected repo name (basename of project_dir); used
+#                          as identity.name fallback per FR-8.5 / guardrails
+#   $4 opt_name          — --name override (empty → fall back to detected)
+#   $5 opt_description   — --description override (empty → "")
+#   $6 opt_role          — --repo-role override (empty → "other")
+#   $7 opt_related_repos — --related-repos raw triples (empty → [])
+#   $8 version           — INIT_PROJECT_VERSION (for initMeta.version)
 ensure_github_project_config() {
   local project_dir="$1"
   local worktree_root="$2"
+  local repo_name="$3"
+  local opt_name="$4"
+  local opt_description="$5"
+  local opt_role="$6"
+  local opt_related_repos="$7"
+  local version="$8"
   local config_path="$project_dir/.github-project.json"
 
-  if [[ ! -f "$config_path" ]]; then
-    cat > "$config_path" <<EOF
-{
-  "owner": "your-github-owner",
-  "owner_type": "org",
-  "repo": "your-github-owner/your-repo",
-  "project": {
-    "number": 1,
-    "id": "PVT_kwDOEXAMPLE"
-  },
-  "fields": {
-    "status": "PVTSSF_EXAMPLE"
-  },
-  "status_options": {
-    "todo": "todo-option-id",
-    "in-progress": "in-progress-option-id",
-    "in-review": "in-review-option-id",
-    "done": "done-option-id"
-  },
-  "worktreeRoot": "$worktree_root"
-}
-EOF
-    echo "Created .github-project.json"
-    return 0
-  fi
+  local identity_name="${opt_name:-$repo_name}"
+  local identity_role="${opt_role:-other}"
 
-  node - "$config_path" "$worktree_root" <<'NODE'
+  node - \
+    "$config_path" \
+    "$worktree_root" \
+    "$identity_name" \
+    "$opt_description" \
+    "$identity_role" \
+    "$opt_related_repos" \
+    "$version" <<'NODE'
 const fs = require("fs");
 
-const [configPath, worktreeRoot] = process.argv.slice(2);
-const parsed = JSON.parse(fs.readFileSync(configPath, "utf8"));
+const [
+  configPath,
+  worktreeRoot,
+  identityName,
+  identityDescription,
+  identityRole,
+  relatedReposRaw,
+  version,
+] = process.argv.slice(2);
 
-if (!parsed.worktreeRoot) {
-  parsed.worktreeRoot = worktreeRoot;
-  fs.writeFileSync(configPath, JSON.stringify(parsed, null, 2) + "\n");
+// Parse `name:url:relationship,name:url:relationship,...` into the
+// boundaries.related_repos array. The first colon splits name from url; the
+// last colon splits url from relationship; everything in between is the url
+// field, stored opaque per SEC-1.3 (never fetched). Mirror the bash
+// validator's first/last-colon rule so node and bash agree on shape.
+function parseRelatedRepos(raw) {
+  if (!raw) return [];
+  const out = [];
+  for (const entry of raw.split(",")) {
+    if (!entry.trim()) continue;
+    const firstColon = entry.indexOf(":");
+    const lastColon = entry.lastIndexOf(":");
+    if (firstColon === -1 || lastColon === -1 || firstColon === lastColon) continue;
+    const name = entry.slice(0, firstColon);
+    const url = entry.slice(firstColon + 1, lastColon);
+    const relationship = entry.slice(lastColon + 1);
+    if (!name || !url || !relationship) continue;
+    out.push({ name, url, relationship });
+  }
+  return out;
+}
+
+const relatedRepos = parseRelatedRepos(relatedReposRaw);
+
+let parsed;
+let isNew = false;
+if (fs.existsSync(configPath)) {
+  parsed = JSON.parse(fs.readFileSync(configPath, "utf8"));
+} else {
+  // Fresh repo: seed the operator-editable baseline fields (owner/project/
+  // fields/status_options) with placeholder values, exactly as the pre-T5
+  // implementation did. The new DM-1 fields (worktreeRoot/identity/
+  // boundaries/initMeta) are then added by the additive merge below, so a
+  // fresh-init file is complete on first write. The placeholders must be
+  // operator-replaced — they cannot be auto-detected without network access
+  // (ARCH-003 guarantee: init must not require network access).
+  parsed = {
+    owner: "your-github-owner",
+    owner_type: "org",
+    repo: "your-github-owner/your-repo",
+    project: { number: 1, id: "PVT_kwDOEXAMPLE" },
+    fields: { status: "PVTSSF_EXAMPLE" },
+    status_options: {
+      todo: "todo-option-id",
+      "in-progress": "in-progress-option-id",
+      "in-review": "in-review-option-id",
+      done: "done-option-id",
+    },
+  };
+  isNew = true;
+}
+
+// Deep-clone the current state so we never mutate the parsed input. The
+// desired state is built field-by-field against this clone; existing fields
+// are preserved verbatim (ARCH-003 guarantee 2 / SEC-2.1).
+const desired = JSON.parse(JSON.stringify(parsed));
+
+// worktreeRoot: required per DM-1; do NOT overwrite pre-existing explicit
+// value (FR-6.3: "The worktreeRoot default must not overwrite a pre-existing
+// explicit value").
+if (!desired.worktreeRoot) {
+  desired.worktreeRoot = worktreeRoot;
+}
+
+// identity block: required per DM-1; each field is additive-only.
+if (!desired.identity || typeof desired.identity !== "object" || Array.isArray(desired.identity)) {
+  desired.identity = {};
+}
+if (!desired.identity.name) {
+  desired.identity.name = identityName;
+}
+if (!desired.identity.description) {
+  desired.identity.description = identityDescription || "";
+}
+if (!desired.identity.role) {
+  desired.identity.role = identityRole;
+}
+
+// boundaries block: required per DM-1; each field is additive-only.
+// depends_on and related_repos MUST be [] when empty (FR-8.5 / AC-T5-007),
+// never absent — this lets agents distinguish "no relationships" from
+// "field missing/legacy file".
+if (!desired.boundaries || typeof desired.boundaries !== "object" || Array.isArray(desired.boundaries)) {
+  desired.boundaries = {};
+}
+if (!desired.boundaries.owns) {
+  desired.boundaries.owns = "";
+}
+if (!Array.isArray(desired.boundaries.depends_on)) {
+  desired.boundaries.depends_on = [];
+}
+if (!Array.isArray(desired.boundaries.related_repos)) {
+  // First init with operator-provided related-repos populates the array.
+  // Subsequent runs preserve whatever is already there (additive-only),
+  // so a re-run with different --related-repos does NOT overwrite.
+  desired.boundaries.related_repos = relatedRepos;
+}
+
+// initMeta block: required per DM-1; additive-only. generatedAt is a
+// write-time stamp set ONLY when the file is actually being written — see
+// the idempotency check below (AC-T5-005 / TR-2.1).
+if (!desired.initMeta || typeof desired.initMeta !== "object" || Array.isArray(desired.initMeta)) {
+  desired.initMeta = {};
+}
+if (!desired.initMeta.version) {
+  desired.initMeta.version = version;
+}
+
+// Idempotency: write ONLY when the structural state changed. Compare
+// parsed vs desired with the volatile generatedAt field stripped from
+// both sides, so a true no-op rerun leaves the file (including its
+// existing generatedAt) byte-for-byte identical (AC-T5-005 / TR-2.1).
+const stripGeneratedAt = (obj) => {
+  const c = JSON.parse(JSON.stringify(obj));
+  if (c.initMeta && Object.prototype.hasOwnProperty.call(c.initMeta, "generatedAt")) {
+    delete c.initMeta.generatedAt;
+  }
+  return c;
+};
+
+const currentStructural = JSON.stringify(stripGeneratedAt(parsed), null, 2);
+const desiredStructural = JSON.stringify(stripGeneratedAt(desired), null, 2);
+
+if (!isNew && currentStructural === desiredStructural) {
+  // No structural change — preserve the existing file untouched.
+  console.log("No changes needed in .github-project.json");
+  process.exit(0);
+}
+
+// Material change (or first creation). Stamp/refresh generatedAt as the
+// last field before write so it represents "last material init write".
+desired.initMeta.generatedAt = new Date().toISOString();
+fs.writeFileSync(configPath, JSON.stringify(desired, null, 2) + "\n");
+
+if (isNew) {
+  console.log("Created .github-project.json");
+} else {
+  console.log("Updated .github-project.json (additive merge)");
 }
 NODE
-
-  echo "Ensured worktreeRoot in .github-project.json"
 }
 
 skill_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -732,7 +908,15 @@ fi
 worktree_root="$(expand_path "$worktree_root")"
 
 mkdir -p "$worktree_root"
-ensure_github_project_config "$project_dir" "$worktree_root"
+ensure_github_project_config \
+  "$project_dir" \
+  "$worktree_root" \
+  "$repo_name" \
+  "$opt_name" \
+  "$opt_description" \
+  "$opt_repo_role" \
+  "$opt_related_repos" \
+  "$INIT_PROJECT_VERSION"
 ensure_opencode_config "$project_dir" "$worktree_root"
 copy_required_skills "$project_dir" "$repo_root"
 
