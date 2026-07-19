@@ -1,0 +1,55 @@
+{
+  "language": {
+    "observed": "not detected",
+    "evidence": [],
+    "inferred": []
+  },
+  "package_manager": {
+    "observed": "not detected",
+    "evidence": [],
+    "inferred": []
+  },
+  "docs_root": {
+    "observed": "not detected",
+    "evidence": []
+  },
+  "agent_guidance": {
+    "observed": [
+      "agent.md"
+    ],
+    "evidence": [
+      "agent.md"
+    ]
+  },
+  "test_infrastructure": {
+    "observed": [],
+    "evidence": []
+  },
+  "cicd": {
+    "observed": [],
+    "evidence": []
+  },
+  "opencode_config": {
+    "observed": [
+      ".opencode/opencode.json"
+    ],
+    "evidence": [
+      ".opencode/opencode.json"
+    ]
+  },
+  "github_project_config": {
+    "observed": true,
+    "evidence": [
+      ".github-project.json"
+    ]
+  },
+  "repo_origin": {
+    "observed": "not detected",
+    "evidence": []
+  },
+  "app_boundaries": {
+    "observed": [],
+    "evidence": []
+  },
+  "ambiguities": []
+}

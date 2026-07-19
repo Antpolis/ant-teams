@@ -1,0 +1,74 @@
+{
+  "language": {
+    "observed": [
+      "Node.js",
+      "Go"
+    ],
+    "evidence": [
+      "package.json",
+      "go.mod"
+    ],
+    "inferred": []
+  },
+  "package_manager": {
+    "observed": [
+      "go modules"
+    ],
+    "evidence": [
+      "go.mod"
+    ],
+    "inferred": [
+      "npm"
+    ]
+  },
+  "docs_root": {
+    "observed": "not detected",
+    "evidence": []
+  },
+  "agent_guidance": {
+    "observed": [],
+    "evidence": []
+  },
+  "test_infrastructure": {
+    "observed": [],
+    "evidence": []
+  },
+  "cicd": {
+    "observed": [],
+    "evidence": []
+  },
+  "opencode_config": {
+    "observed": [],
+    "evidence": []
+  },
+  "github_project_config": {
+    "observed": false,
+    "evidence": []
+  },
+  "repo_origin": {
+    "observed": "not detected",
+    "evidence": []
+  },
+  "app_boundaries": {
+    "observed": [],
+    "evidence": []
+  },
+  "ambiguities": [
+    {
+      "category": "language",
+      "message": "Both go.mod and package.json detected at the repository root; primary language cannot be inferred automatically.",
+      "signals": [
+        "go.mod",
+        "package.json"
+      ]
+    },
+    {
+      "category": "package_manager",
+      "message": "Multiple root-level package ecosystems detected (go modules and npm); primary package manager cannot be inferred automatically.",
+      "signals": [
+        "go.mod",
+        "package.json"
+      ]
+    }
+  ]
+}

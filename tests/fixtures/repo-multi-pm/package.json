@@ -1,0 +1,8 @@
+{
+  "name": "demo-multi-pm",
+  "version": "1.0.0",
+  "description": "Fixture with both go.mod and package.json at the repo root to exercise stack-detection ambiguity.",
+  "scripts": {
+    "build": "echo build"
+  }
+}

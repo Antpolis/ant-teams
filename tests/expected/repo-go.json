@@ -1,0 +1,58 @@
+{
+  "language": {
+    "observed": [
+      "Go"
+    ],
+    "evidence": [
+      "go.mod"
+    ],
+    "inferred": []
+  },
+  "package_manager": {
+    "observed": [
+      "go modules"
+    ],
+    "evidence": [
+      "go.mod",
+      "go.sum"
+    ],
+    "inferred": []
+  },
+  "docs_root": {
+    "observed": "not detected",
+    "evidence": []
+  },
+  "agent_guidance": {
+    "observed": [],
+    "evidence": []
+  },
+  "test_infrastructure": {
+    "observed": [
+      "make-test"
+    ],
+    "evidence": [
+      "Makefile:test target"
+    ]
+  },
+  "cicd": {
+    "observed": [],
+    "evidence": []
+  },
+  "opencode_config": {
+    "observed": [],
+    "evidence": []
+  },
+  "github_project_config": {
+    "observed": false,
+    "evidence": []
+  },
+  "repo_origin": {
+    "observed": "not detected",
+    "evidence": []
+  },
+  "app_boundaries": {
+    "observed": [],
+    "evidence": []
+  },
+  "ambiguities": []
+}

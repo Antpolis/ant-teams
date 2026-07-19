@@ -1,0 +1,6 @@
+{
+  "permission": {
+    "external_directory": {}
+  },
+  "agent": "builder"
+}
