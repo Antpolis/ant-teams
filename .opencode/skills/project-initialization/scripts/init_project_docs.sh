@@ -140,6 +140,100 @@ NODE
   echo "Ensured external directory permission in $config_path"
 }
 
+# FR-7.4 / AC-T4-006: ensure `.opencode/.gitignore` exists with a `node_modules`
+# entry so generated dependencies are never committed accidentally. Existing
+# entries are preserved verbatim; only the missing `node_modules` line is added.
+ensure_opencode_gitignore() {
+  local opencode_dir="$1"
+  local gitignore_path="$opencode_dir/.gitignore"
+  local required_entry="node_modules"
+
+  mkdir -p "$opencode_dir"
+
+  if [[ ! -f "$gitignore_path" ]]; then
+    printf '%s\n' "$required_entry" > "$gitignore_path"
+    echo "[writing] .opencode/.gitignore"
+    return 0
+  fi
+
+  if ! grep -Fxq "$required_entry" "$gitignore_path" 2>/dev/null; then
+    printf '%s\n' "$required_entry" >> "$gitignore_path"
+    echo "[writing] .opencode/.gitignore (node_modules entry added)"
+  fi
+}
+
+# FR-7.1 / FR-7.2 / FR-7.3 / SEC-3.2: copy the three required script-bearing
+# skills (github-issues-projects-cli, do-task, project-initialization) from the
+# source repo into the project-local `.opencode/skills/` directory. Copy is a
+# per-file merge: every regular source file is copied when absent at target and
+# preserved when already present (this is what protects project-customized
+# SKILL.md files). Execute bits travel with the source via `cp -p`. No other
+# skill is ever copied.
+copy_required_skills() {
+  local project_dir="$1"
+  local repo_root="$2"
+  local source_skills_dir="$repo_root/.opencode/skills"
+  local target_skills_dir="$project_dir/.opencode/skills"
+  local -a required_skills=(
+    "github-issues-projects-cli"
+    "do-task"
+    "project-initialization"
+  )
+  local -a excluded_skills=(
+    "skill-creator"
+    "webapp-testing"
+    "doc-coauthoring"
+    "frontend-design"
+  )
+
+  mkdir -p "$target_skills_dir"
+  ensure_opencode_gitignore "$project_dir/.opencode"
+
+  local total_copied=0
+  local total_merged=0
+
+  for skill_name in "${required_skills[@]}"; do
+    local src_skill_dir="$source_skills_dir/$skill_name"
+    local tgt_skill_dir="$target_skills_dir/$skill_name"
+
+    if [[ ! -d "$src_skill_dir" ]]; then
+      echo "[warning] Required skill source not found: $src_skill_dir" >&2
+      continue
+    fi
+
+    mkdir -p "$tgt_skill_dir"
+
+    while IFS= read -r -d '' src_file; do
+      local rel="${src_file#"$src_skill_dir"/}"
+      local tgt_file="$tgt_skill_dir/$rel"
+
+      if [[ -e "$tgt_file" ]]; then
+        # FR-7.3: merge, do not overwrite. Protects customized SKILL.md and
+        # any other project-local override.
+        total_merged=$((total_merged + 1))
+        continue
+      fi
+
+      mkdir -p "$(dirname "$tgt_file")"
+      # SEC-3.2: `cp -p` preserves the source execute bit.
+      cp -p "$src_file" "$tgt_file"
+      echo "[writing] .opencode/skills/$skill_name/$rel"
+      total_copied=$((total_copied + 1))
+    done < <(find "$src_skill_dir" -type f -print0)
+  done
+
+  # FR-7.2: defensive check that no excluded skill directory is present at
+  # target. We never write them; this only catches pre-existing stray dirs
+  # that would otherwise masquerade as initializer output.
+  for excluded in "${excluded_skills[@]}"; do
+    if [[ -d "$target_skills_dir/$excluded" ]]; then
+      echo "[warning] Excluded skill already present in target: .opencode/skills/$excluded" >&2
+    fi
+  done
+
+  echo "[writing] .opencode/skills/ (${#required_skills[@]} required skills, $total_copied copied, $total_merged merged)"
+}
+
 ensure_github_project_config() {
   local project_dir="$1"
   local worktree_root="$2"
@@ -231,6 +325,7 @@ worktree_root="$(expand_path "$worktree_root")"
 mkdir -p "$worktree_root"
 ensure_github_project_config "$project_dir" "$worktree_root"
 ensure_opencode_config "$project_dir" "$worktree_root"
+copy_required_skills "$project_dir" "$repo_root"
 
 mkdir -p "$project_dir/$docs_root"
 if [[ -d "$repo_root/docs" ]]; then
