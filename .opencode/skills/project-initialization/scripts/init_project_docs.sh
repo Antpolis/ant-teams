@@ -270,11 +270,15 @@ die_missing_noninteractive_flags() {
 # SPEC-001 T5 / ARCH-003 Artifact 4: detection covers BOTH the canonical
 # `.opencode/` location AND the legacy repo-root location. Detection order
 # is `.opencode/` first (ARCH-003 canonical), then repo root (backward
-# compat with prior init output). The default creation target stays at the
-# repo root so existing adopters see no behavior change on fresh init; only
-# detection is widened so a pre-existing `.opencode/opencode.json` (e.g.
-# the legacy-init fixture) is updated in place instead of being shadowed
-# by a newly-created repo-root file (AC-T5-003).
+# compat with prior init output). The default creation target is the
+# canonical `.opencode/opencode.json` (ARCH-003 Artifact 4 location
+# contract; SPEC-001 migration states: "Fresh repo → upgraded init:
+# Creates: ... .opencode/opencode.json (minimal)"). A pre-existing config
+# in ANY supported location is detected and updated in place — it is NEVER
+# relocated, NEVER rewritten to the other extension (ARCH-003 Artifact 4
+# guarantee 3). The legacy repo-root `opencode.jsonc` / `opencode.json`
+# fall-backs exist only to keep already-initialized repos working; fresh
+# inits land at the canonical location.
 ensure_opencode_config() {
   local project_dir="$1"
   local worktree_root="$2"
@@ -290,7 +294,12 @@ ensure_opencode_config() {
   elif [[ -f "$project_dir/opencode.json" ]]; then
     config_path="$project_dir/opencode.json"
   else
-    config_path="$project_dir/opencode.jsonc"
+    # Fresh repo: create at the canonical ARCH-003 Artifact 4 location.
+    # `.opencode/` may not exist yet on a true fresh init, so create it
+    # before writing. mkdir -p is idempotent and never complains if the
+    # directory already exists (SEC-3.1: mkdir -p is an allowed primitive).
+    mkdir -p "$project_dir/.opencode"
+    config_path="$project_dir/.opencode/opencode.json"
     cat > "$config_path" <<'EOF'
 {
   "permission": {
@@ -585,7 +594,28 @@ const relatedRepos = parseRelatedRepos(relatedReposRaw);
 let parsed;
 let isNew = false;
 if (fs.existsSync(configPath)) {
-  parsed = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  // SEC-2.1 / ERR-2.1 spirit: abort cleanly BEFORE any mutation if the
+  // existing file is malformed. The bash contract for every validation
+  // failure in this script is a controlled `[error]`-prefixed stderr
+  // message + exit 1 (see validate_repo_role / validate_related_repos /
+  // die_missing_noninteractive_flags). Mirror that here so the operator
+  // sees the same UX instead of a leaked Node SyntaxError stack trace.
+  // No write happens before this point, so the file is preserved
+  // byte-for-byte on abort.
+  let raw;
+  try {
+    raw = fs.readFileSync(configPath, "utf8");
+  } catch (readErr) {
+    console.error(`[error] Failed to read ${configPath}: ${readErr.message}`);
+    process.exit(1);
+  }
+  try {
+    parsed = JSON.parse(raw);
+  } catch (parseErr) {
+    console.error(`[error] Malformed ${configPath}: ${parseErr.message}`);
+    console.error("[error] Fix the JSON manually and re-run; init will not overwrite a broken file.");
+    process.exit(1);
+  }
 } else {
   // Fresh repo: seed the operator-editable baseline fields (owner/project/
   // fields/status_options) with placeholder values, exactly as the pre-T5

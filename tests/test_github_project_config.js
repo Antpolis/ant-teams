@@ -662,6 +662,209 @@ check('schema: malformed existing .github-project.json fails loudly (not silent 
   assert.strictEqual(after, '{ not valid json');
 });
 
+// --- PR15 review findings (regression) --------------------------------------
+// These tests pin the two findings raised by the reviewer on PR #15:
+//
+//   Finding 1 (High) — Fresh init must create the canonical
+//   `.opencode/opencode.json` (ARCH-003 Artifact 4 location contract), NOT
+//   the legacy repo-root `opencode.jsonc`. Existing supported config in any
+//   supported location must still be detected and updated in place without
+//   being relocated.
+//
+//   Finding 2 (Medium) — Malformed `.github-project.json` must abort before
+//   mutation with a concise controlled `[error]` message on stderr and NO
+//   Node.js stack trace.
+//
+// Order of operations: these tests were added BEFORE the fix and used to
+// demonstrate the failures. They now serve as the regression boundary.
+
+process.stdout.write('Suite: PR15 review finding 1 — canonical .opencode/opencode.json on fresh init\n');
+
+check('PR15-1: fresh init creates .opencode/opencode.json (canonical ARCH-003 location)', () => {
+  const tmp = mkdtempRepo('pr15-1-fresh');
+  const r = runInit(tmp);
+  assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
+  assert.ok(
+    fs.existsSync(path.join(tmp, '.opencode', 'opencode.json')),
+    'fresh init must create canonical .opencode/opencode.json'
+  );
+});
+
+check('PR15-1: fresh init does NOT create legacy repo-root opencode.jsonc', () => {
+  const tmp = mkdtempRepo('pr15-1-no-root-jsonc');
+  const r = runInit(tmp);
+  assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
+  assert.ok(
+    !fs.existsSync(path.join(tmp, 'opencode.jsonc')),
+    'fresh init must not create legacy repo-root opencode.jsonc'
+  );
+});
+
+check('PR15-1: fresh init does NOT create legacy repo-root opencode.json', () => {
+  const tmp = mkdtempRepo('pr15-1-no-root-json');
+  const r = runInit(tmp);
+  assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
+  assert.ok(
+    !fs.existsSync(path.join(tmp, 'opencode.json')),
+    'fresh init must not create legacy repo-root opencode.json'
+  );
+});
+
+check('PR15-1: fresh init canonical config has the worktree external_directory entry', () => {
+  const tmp = mkdtempRepo('pr15-1-content');
+  runInit(tmp);
+  const cfg = readJson(path.join(tmp, '.opencode', 'opencode.json'));
+  assert.ok(cfg.permission && cfg.permission.external_directory, 'permission.external_directory must exist');
+  const keys = Object.keys(cfg.permission.external_directory);
+  assert.ok(keys.some((k) => k.endsWith('/**')), `expected worktree pattern, got ${keys}`);
+  assert.ok(
+    keys.some((k) => cfg.permission.external_directory[k] === 'allow'),
+    'worktree entry must be allow'
+  );
+});
+
+check('PR15-1: pre-existing repo-root opencode.jsonc is NOT relocated to .opencode/', () => {
+  // ARCH-003 Artifact 4 guarantee 3: init never changes the file extension
+  // or location of an existing config. A repo that already has the legacy
+  // repo-root file must keep it there; init must NOT create a second,
+  // shadowing `.opencode/opencode.json`.
+  const tmp = mkdtempRepo('pr15-1-keep-root-jsonc');
+  fs.writeFileSync(
+    path.join(tmp, 'opencode.jsonc'),
+    JSON.stringify({ permission: { external_directory: {} }, agent: 'builder' }, null, 2)
+  );
+  const r = runInit(tmp);
+  assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
+
+  // Existing root jsonc file preserved and updated in place.
+  assert.ok(fs.existsSync(path.join(tmp, 'opencode.jsonc')), 'existing root opencode.jsonc must NOT be relocated');
+  const raw = fs.readFileSync(path.join(tmp, 'opencode.jsonc'), 'utf8');
+  assert.ok(raw.includes('"agent": "builder"'), 'existing entries in root jsonc must be preserved');
+  assert.ok(raw.includes('/**'), 'worktree entry must be added to existing root jsonc');
+
+  // Canonical location NOT created (no shadow / no relocation).
+  assert.ok(
+    !fs.existsSync(path.join(tmp, '.opencode', 'opencode.json')),
+    'init must not create canonical .opencode/opencode.json when root config exists'
+  );
+  assert.ok(
+    !fs.existsSync(path.join(tmp, '.opencode', 'opencode.jsonc')),
+    'init must not create canonical .opencode/opencode.jsonc when root config exists'
+  );
+});
+
+check('PR15-1: pre-existing repo-root opencode.json is NOT relocated to .opencode/', () => {
+  // Mirror of the jsonc test above but for the .json extension. Guarantee 3
+  // applies symmetrically to both supported extensions at any supported
+  // location.
+  const tmp = mkdtempRepo('pr15-1-keep-root-json');
+  fs.writeFileSync(
+    path.join(tmp, 'opencode.json'),
+    JSON.stringify({ permission: { external_directory: {} }, agent: 'builder' }, null, 2)
+  );
+  const r = runInit(tmp);
+  assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
+  assert.ok(fs.existsSync(path.join(tmp, 'opencode.json')), 'existing root opencode.json must NOT be relocated');
+  assert.ok(
+    !fs.existsSync(path.join(tmp, '.opencode', 'opencode.json')),
+    'init must not create canonical .opencode/opencode.json when root opencode.json exists'
+  );
+  const raw = fs.readFileSync(path.join(tmp, 'opencode.json'), 'utf8');
+  assert.ok(raw.includes('"agent": "builder"'), 'existing entries must be preserved');
+  assert.ok(raw.includes('/**'), 'worktree entry must be added');
+});
+
+check('PR15-1: pre-existing .opencode/opencode.jsonc is NOT converted to .json (extension preserved)', () => {
+  // ARCH-003 Artifact 4 guarantee 3: init never changes the file extension.
+  // A repo with a canonical-location jsonc file must keep it as jsonc.
+  const tmp = mkdtempRepo('pr15-1-keep-jsonc-ext');
+  fs.mkdirSync(path.join(tmp, '.opencode'), { recursive: true });
+  fs.writeFileSync(
+    path.join(tmp, '.opencode', 'opencode.jsonc'),
+    JSON.stringify({ permission: { external_directory: {} }, agent: 'builder' }, null, 2)
+  );
+  const r = runInit(tmp);
+  assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
+  assert.ok(
+    fs.existsSync(path.join(tmp, '.opencode', 'opencode.jsonc')),
+    'canonical jsonc must keep its extension'
+  );
+  assert.ok(
+    !fs.existsSync(path.join(tmp, '.opencode', 'opencode.json')),
+    'init must not convert jsonc → json'
+  );
+});
+
+process.stdout.write('Suite: PR15 review finding 2 — malformed .github-project.json controlled error\n');
+
+check('PR15-2: malformed .github-project.json emits controlled [error] marker on stderr', () => {
+  const tmp = mkdtempRepo('pr15-2-err-marker');
+  fs.writeFileSync(path.join(tmp, '.github-project.json'), '{ not valid json');
+  const r = runInit(tmp);
+  assert.strictEqual(r.status, 1, `expected exit 1, got ${r.status}`);
+  // The contract: a controlled message must use the [error] prefix used
+  // everywhere else in the script (T2 validate_* helpers, die_missing_*).
+  assert.ok(
+    /\[error\]/.test(r.stderr),
+    `stderr must contain a controlled [error] marker; got:\n${r.stderr}`
+  );
+});
+
+check('PR15-2: malformed .github-project.json error mentions the file path', () => {
+  const tmp = mkdtempRepo('pr15-2-err-path');
+  fs.writeFileSync(path.join(tmp, '.github-project.json'), '{ not valid json');
+  const r = runInit(tmp);
+  assert.strictEqual(r.status, 1);
+  assert.ok(
+    /\.github-project\.json/.test(r.stderr),
+    `stderr must identify .github-project.json as the failing file; got:\n${r.stderr}`
+  );
+});
+
+check('PR15-2: malformed .github-project.json error does NOT emit a Node stack trace', () => {
+  const tmp = mkdtempRepo('pr15-2-no-stack');
+  fs.writeFileSync(path.join(tmp, '.github-project.json'), '{ not valid json');
+  const r = runInit(tmp);
+  assert.strictEqual(r.status, 1);
+  // No node stack-trace artifacts may leak through. Stack traces are
+  // operator-confusing and inconsistent with the rest of the script's
+  // controlled [error] UX.
+  const stackMarkers = ['SyntaxError', 'at JSON.parse', 'at Object.<anonymous>', 'Node.js v'];
+  for (const marker of stackMarkers) {
+    assert.ok(
+      !r.stderr.includes(marker) && !r.stdout.includes(marker),
+      `must not leak stack-trace marker '${marker}'; stderr:\n${r.stderr}\nstdout:\n${r.stdout}`
+    );
+  }
+});
+
+check('PR15-2: malformed .github-project.json aborts BEFORE mutation (file byte-for-byte preserved)', () => {
+  const tmp = mkdtempRepo('pr15-2-no-mutation');
+  const malformed = '{ not valid json\n  "owner": "partial",\n}';
+  fs.writeFileSync(path.join(tmp, '.github-project.json'), malformed);
+  const r = runInit(tmp);
+  assert.strictEqual(r.status, 1);
+  const after = fs.readFileSync(path.join(tmp, '.github-project.json'), 'utf8');
+  assert.strictEqual(after, malformed, 'malformed file must be byte-for-byte preserved');
+});
+
+check('PR15-2: malformed .github-project.json does NOT touch .opencode/opencode.json', () => {
+  // The abort must happen in ensure_github_project_config (which runs FIRST),
+  // before ensure_opencode_config. Otherwise a half-initialized repo is left
+  // behind with a broken .github-project.json + fresh opencode config that
+  // masks the failure.
+  const tmp = mkdtempRepo('pr15-2-abort-order');
+  fs.writeFileSync(path.join(tmp, '.github-project.json'), '{ broken');
+  // Seed an existing canonical opencode.json so we can detect any mutation.
+  fs.mkdirSync(path.join(tmp, '.opencode'), { recursive: true });
+  const before = JSON.stringify({ permission: { external_directory: {} }, agent: 'builder' }, null, 2);
+  fs.writeFileSync(path.join(tmp, '.opencode', 'opencode.json'), before);
+  const r = runInit(tmp);
+  assert.strictEqual(r.status, 1);
+  const after = fs.readFileSync(path.join(tmp, '.opencode', 'opencode.json'), 'utf8');
+  assert.strictEqual(after, before, 'opencode.json must be untouched when .github-project.json is malformed');
+});
+
 // --- Summary ----------------------------------------------------------------
 
 process.stdout.write(`\n${pass} passed, ${fail} failed\n`);
