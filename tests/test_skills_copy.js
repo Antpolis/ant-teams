@@ -11,15 +11,23 @@
  *   - AC-T4-001: github-issues-projects-cli/scripts/gh_project_helper.sh
  *                exists with execute permission.
  *   - AC-T4-002: do-task/scripts/create_task_worktree.sh and
- *                cleanup_task_worktree.sh exist.
- *   - AC-T4-003: project-initialization/scripts/init_project_docs.sh exists.
+ *                cleanup_task_worktree.sh exist WITH execute permission.
+ *   - AC-T4-003: project-initialization/scripts/init_project_docs.sh (and
+ *                setup_project_docs.sh per AC-SPEC-007) exist WITH execute
+ *                permission.
  *   - AC-T4-004: skill-creator/, webapp-testing/, doc-coauthoring/,
  *                frontend-design/ are NOT copied.
  *   - AC-T4-005: a project-customized SKILL.md is preserved verbatim
  *                (merge, not overwrite).
  *   - AC-T4-006: .opencode/.gitignore exists with a node_modules entry.
  *
- * Plus idempotency (TR-2.1) and execute-bit preservation (SEC-3.2).
+ * Plus idempotency (TR-2.1) and ARCH-003 guarantee 4 / SEC-3.2: every shell
+ * script under `.opencode/skills/<skill>/scripts/` carries the execute bit at
+ * source AND at target after init. The positive iteration over every copied
+ * `.sh` is what reconciles the reviewer finding on PR #13 — equality-only
+ * checks against an already-executable script could not detect the original
+ * failure mode (do-task scripts landing at mode 664 from a non-executable
+ * source).
  *
  * Tests use the real source skill tree from the worktree's `.opencode/skills/`
  * so the assertion reflects what production init would actually emit. No
@@ -51,6 +59,43 @@ const EXCLUDED_SKILLS = [
   'doc-coauthoring',
   'frontend-design',
 ];
+
+// Every shell script that ARCH-003 (Artifact 3, "Required scripts" table) and
+// AC-SPEC-007 require to land in the target's `.opencode/skills/<skill>/scripts/`.
+// This is the positive invariant — each entry MUST be executable at source AND
+// at target after init (ARCH-003 guarantee 4: "Shell scripts under `scripts/`
+// have execute permission").
+const REQUIRED_SCRIPT_PATHS = [
+  'github-issues-projects-cli/scripts/gh_project_helper.sh',
+  'do-task/scripts/create_task_worktree.sh',
+  'do-task/scripts/cleanup_task_worktree.sh',
+  'project-initialization/scripts/init_project_docs.sh',
+  'project-initialization/scripts/setup_project_docs.sh',
+];
+
+// Lists every `.sh` file under `<rootDir>/.opencode/skills/<required-skill>/scripts/`.
+// Used for positive exec-bit assertions that iterate over the full set instead
+// of cherry-picking one script — this is what catches the original failure
+// (do-task scripts landing at mode 664) where the previous equality-only check
+// on `gh_project_helper.sh` could not.
+function listShellScriptsInRequiredSkillDirs(rootDir) {
+  const out = [];
+  for (const skill of REQUIRED_SKILLS) {
+    const scriptsDir = path.join(rootDir, '.opencode', 'skills', skill, 'scripts');
+    let entries;
+    try {
+      entries = fs.readdirSync(scriptsDir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const e of entries) {
+      if (e.isFile() && e.name.endsWith('.sh')) {
+        out.push(path.join(scriptsDir, e.name));
+      }
+    }
+  }
+  return out.sort();
+}
 
 let pass = 0;
 let fail = 0;
@@ -131,24 +176,35 @@ function testSourcePreflight() {
       assert.ok(fs.existsSync(path.join(SOURCE_SKILLS_DIR, s, 'SKILL.md')), `missing source skill ${s}`);
     });
   }
-  check('source: gh_project_helper.sh is executable', () => {
-    assertExecutable(
-      path.join(SOURCE_SKILLS_DIR, 'github-issues-projects-cli/scripts/gh_project_helper.sh'),
-      'source gh_project_helper.sh'
-    );
-  });
-  check('source: init_project_docs.sh is executable', () => {
-    assertExecutable(
-      path.join(SOURCE_SKILLS_DIR, 'project-initialization/scripts/init_project_docs.sh'),
-      'source init_project_docs.sh'
-    );
+
+  // ARCH-003 guarantee 4 / SEC-3.2 source invariant: every required shell
+  // script under source `.opencode/skills/<skill>/scripts/` carries the execute bit.
+  // `cp -p` only preserves what already exists — if a source script loses its
+  // exec bit, every downstream target silently inherits a non-runnable script.
+  // Asserting here makes the source the single point of truth for executability
+  // and catches regressions before any init runs.
+  for (const rel of REQUIRED_SCRIPT_PATHS) {
+    check(`source required script is executable: ${rel}`, () => {
+      assertExecutable(path.join(SOURCE_SKILLS_DIR, rel), `source ${rel}`);
+    });
+  }
+
+  // Defensive sweep: walk every `.sh` under source required-skill scripts/
+  // dirs (not only the known required paths) so a newly-added shell script
+  // cannot silently ship without an execute bit.
+  check('source sweep: every .sh under required-skill scripts/ is executable', () => {
+    const scripts = listShellScriptsInRequiredSkillDirs(REPO_ROOT);
+    assert.ok(scripts.length >= REQUIRED_SCRIPT_PATHS.length, `unexpected source script count ${scripts.length}`);
+    for (const p of scripts) {
+      assertExecutable(p, `source sweep ${path.relative(REPO_ROOT, p)}`);
+    }
   });
 }
 
-// --- AC-T4-001 / AC-T4-002 / AC-T4-003: required scripts exist ---------------
+// --- AC-T4-001 / AC-T4-002 / AC-T4-003: required scripts exist & executable --
 
 function testRequiredScriptsPresent(projectDir) {
-  process.stdout.write('Suite: AC-T4-001/002/003 required scripts exist\n');
+  process.stdout.write('Suite: AC-T4-001/002/003 required scripts exist & executable\n');
 
   check('AC-T4-001: github-issues-projects-cli/scripts/gh_project_helper.sh exists', () => {
     const p = path.join(projectDir, '.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh');
@@ -173,10 +229,22 @@ function testRequiredScriptsPresent(projectDir) {
       'missing do-task/scripts/create_task_worktree.sh'
     );
   });
+  check('AC-T4-002: create_task_worktree.sh has execute permission', () => {
+    assertExecutable(
+      path.join(projectDir, '.opencode/skills/do-task/scripts/create_task_worktree.sh'),
+      'AC-T4-002 create_task_worktree.sh'
+    );
+  });
   check('AC-T4-002: do-task/scripts/cleanup_task_worktree.sh exists', () => {
     assert.ok(
       fs.existsSync(path.join(projectDir, '.opencode/skills/do-task/scripts/cleanup_task_worktree.sh')),
       'missing do-task/scripts/cleanup_task_worktree.sh'
+    );
+  });
+  check('AC-T4-002: cleanup_task_worktree.sh has execute permission', () => {
+    assertExecutable(
+      path.join(projectDir, '.opencode/skills/do-task/scripts/cleanup_task_worktree.sh'),
+      'AC-T4-002 cleanup_task_worktree.sh'
     );
   });
 
@@ -184,6 +252,24 @@ function testRequiredScriptsPresent(projectDir) {
     assert.ok(
       fs.existsSync(path.join(projectDir, '.opencode/skills/project-initialization/scripts/init_project_docs.sh')),
       'missing project-initialization/scripts/init_project_docs.sh'
+    );
+  });
+  check('AC-T4-003: init_project_docs.sh has execute permission', () => {
+    assertExecutable(
+      path.join(projectDir, '.opencode/skills/project-initialization/scripts/init_project_docs.sh'),
+      'AC-T4-003 init_project_docs.sh'
+    );
+  });
+  check('AC-T4-003 / AC-SPEC-007: project-initialization/scripts/setup_project_docs.sh exists', () => {
+    assert.ok(
+      fs.existsSync(path.join(projectDir, '.opencode/skills/project-initialization/scripts/setup_project_docs.sh')),
+      'missing project-initialization/scripts/setup_project_docs.sh'
+    );
+  });
+  check('AC-T4-003 / AC-SPEC-007: setup_project_docs.sh has execute permission', () => {
+    assertExecutable(
+      path.join(projectDir, '.opencode/skills/project-initialization/scripts/setup_project_docs.sh'),
+      'AC-T4-003 setup_project_docs.sh'
     );
   });
   check('AC-T4-003: project-initialization/SKILL.md exists', () => {
@@ -297,27 +383,47 @@ function testIdempotency(projectDir) {
   });
 }
 
-// --- SEC-3.2: execute bits preserved from source -----------------------------
+// --- ARCH-003 guarantee 4 / SEC-3.2: every copied shell script is executable --
 
-function testExecuteBitsPreserved(projectDir) {
-  process.stdout.write('Suite: SEC-3.2 execute bit preservation\n');
-  const sourceScript = path.join(SOURCE_SKILLS_DIR, 'github-issues-projects-cli/scripts/gh_project_helper.sh');
-  const targetScript = path.join(projectDir, '.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh');
-  if (!fs.existsSync(sourceScript) || !fs.existsSync(targetScript)) {
-    check('SEC-3.2: gh_project_helper.sh exists on both sides', () => {
-      assert.ok(false, 'setup failure: source or target gh_project_helper.sh missing');
-    });
-    return;
-  }
-  const srcMode = fs.statSync(sourceScript).mode & 0o777;
-  const tgtMode = fs.statSync(targetScript).mode & 0o777;
-  check('SEC-3.2: target execute bits match source', () => {
-    assert.strictEqual(
-      tgtMode & 0o111,
-      srcMode & 0o111,
-      `execute bits differ: source=${srcMode.toString(8)} target=${tgtMode.toString(8)}`
+// Reconciles with the reviewer finding on PR #13: the previous test only
+// checked that `gh_project_helper.sh` (already 0755 at source) preserved its
+// bits, so it could not detect the original failure where `cp -p` faithfully
+// copied the do-task scripts at mode 0664 from a non-executable source. This
+// suite walks every `.sh` file the init actually emitted into the target's
+// required-skill `scripts/` directories and asserts BOTH (a) the execute bit
+// is set positively, and (b) the target mode matches the source mode. The
+// positive assertion is what catches the original bug; the equality assertion
+// keeps SEC-3.2's preservation contract honest.
+function testAllCopiedShellScriptsExecutable(projectDir) {
+  process.stdout.write('Suite: ARCH-003 g4 / SEC-3.2 every copied .sh is executable\n');
+
+  const targetScripts = listShellScriptsInRequiredSkillDirs(projectDir);
+  check('init copied at least the required shell scripts', () => {
+    const requiredCount = REQUIRED_SCRIPT_PATHS.length;
+    assert.ok(
+      targetScripts.length >= requiredCount,
+      `expected at least ${requiredCount} shell scripts under target required-skill scripts/; got ${targetScripts.length}`
     );
   });
+
+  for (const tgt of targetScripts) {
+    const rel = path.relative(path.join(projectDir, '.opencode', 'skills'), tgt);
+    check(`target shell script is executable: ${rel}`, () => {
+      assertExecutable(tgt, `target ${rel}`);
+    });
+    const src = path.join(SOURCE_SKILLS_DIR, rel);
+    if (fs.existsSync(src)) {
+      check(`target execute bits match source: ${rel}`, () => {
+        const srcMode = fs.statSync(src).mode & 0o777;
+        const tgtMode = fs.statSync(tgt).mode & 0o777;
+        assert.strictEqual(
+          tgtMode & 0o111,
+          srcMode & 0o111,
+          `execute bits differ: source=${srcMode.toString(8)} target=${tgtMode.toString(8)}`
+        );
+      });
+    }
+  }
 }
 
 // --- FR-7.3 merge accounting: pre-existing files counted, not overwritten ----
@@ -383,7 +489,7 @@ function main() {
       testRequiredScriptsPresent(fresh);
       testExcludedSkillsAbsent(fresh);
       testGitignorePresent(fresh);
-      testExecuteBitsPreserved(fresh);
+      testAllCopiedShellScriptsExecutable(fresh);
       testIdempotency(fresh);
       testMergeDoesNotOverwriteArbitraryFiles(fresh);
     }

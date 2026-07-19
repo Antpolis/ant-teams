@@ -162,13 +162,24 @@ ensure_opencode_gitignore() {
   fi
 }
 
-# FR-7.1 / FR-7.2 / FR-7.3 / SEC-3.2: copy the three required script-bearing
-# skills (github-issues-projects-cli, do-task, project-initialization) from the
-# source repo into the project-local `.opencode/skills/` directory. Copy is a
-# per-file merge: every regular source file is copied when absent at target and
-# preserved when already present (this is what protects project-customized
-# SKILL.md files). Execute bits travel with the source via `cp -p`. No other
-# skill is ever copied.
+# FR-7.1 / FR-7.2 / FR-7.3 / SEC-3.2 / ARCH-003 guarantee 4: copy the three
+# required script-bearing skills (github-issues-projects-cli, do-task,
+# project-initialization) from the source repo into the project-local
+# `.opencode/skills/` directory. Copy is a per-file merge: every regular source
+# file is copied when absent at target and preserved when already present (this
+# is what protects project-customized SKILL.md files). No other skill is ever
+# copied.
+#
+# Execute-bit policy (smallest robust approach): the source repository owns the
+# execute bit for every shell script under `.opencode/skills/*/scripts/`, and
+# `cp -p` preserves it into the target. This satisfies ARCH-003 guarantee 4
+# ("Shell scripts under `scripts/` have execute permission") at the source so
+# SEC-3.2's "no explicit `chmod` call is required" holds verbatim, and avoids a
+# post-copy `chmod` that would violate SEC-3.1 ("must not set explicit
+# permissions beyond what `mkdir -p` and `cp` provide by default"). Tests in
+# `tests/test_skills_copy.js` assert the source invariant AND the target
+# outcome for every required shell script so a source-mode regression cannot
+# silently ship a non-executable script into a fresh init.
 copy_required_skills() {
   local project_dir="$1"
   local repo_root="$2"
