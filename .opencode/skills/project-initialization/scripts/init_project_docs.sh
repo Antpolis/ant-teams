@@ -44,9 +44,11 @@ Repository identity (FR-4.1):
   --repo-role ROLE            Enum: service | library | infra | monorepo-root |
                               tool | docs | other.
   --related-repos TRIPLES     Comma-separated name:url:relationship triples.
-                              name and relationship are single tokens (no
-                              colons); url may carry one scheme colon (https:).
-                              Stored as-is; never fetched (SEC-1.3).
+                              First colon splits name from url; last colon
+                              splits url from relationship; url is opaque and
+                              may carry scheme/port/path colons (https://h:443,
+                              ssh://git@h:22, git@h:path). Stored as-is; never
+                              fetched (SEC-1.3).
 
 GitHub Project (FR-4.1):
   --github-owner OWNER        GitHub owner for .github-project.json.
@@ -130,25 +132,37 @@ validate_repo_role() {
 # validate_related_repos TRIPLES — exit 1 if TRIPLES is not a comma-separated
 # list of `name:url:relationship` triples per CLI-2 / FR-4.1 / SEC-1.3.
 #
-# Contract: each triple is parsed as
-#   <name>:<url>:<relationship>
-# where name and relationship are single tokens (no colons) and the url field
-# is opaque per SEC-1.3 but carries at most one colon (so standard https://
-# URLs and SCP-style `user@host:path` URLs are accepted). Triples with more
-# colons are ambiguous and rejected.
+# Contract: each triple is parsed by split-points, not field-count:
+#   <name> : <url> : <relationship>
+#     ^^^^   ^^^^^   ^^^^^^^^^^^^^
+#     first  middle  last
+#     colon  (opaque colon
+#     delim  URL)    delim
+#
+# The first colon in the entry is the name delimiter; the last colon is the
+# relationship delimiter; everything in between is the url field, treated as
+# opaque per SEC-1.3 (never fetched, never parsed). Internal url colons are
+# preserved verbatim so realistic Git remote forms are accepted:
 #
 # Accepted examples:
-#   name:https://github.com/org/repo:relationship   (1 url colon: scheme)
-#   name:github.com/org/repo:relationship           (0 url colons)
-#   name:git@github.com:org/repo:relationship       (1 url colon: SCP)
-#   name:./local/path:relationship                  (0 url colons)
-# Rejected examples:
-#   a:https://github.com/o/a:parent:extra           (2 url colons — ambiguous)
-#   a:b:c:d:e                                       (2 url colons — ambiguous)
-#   name::relationship                              (empty url)
-#   :url:relationship                               (empty name)
-#   a:url:                                          (empty relationship)
-# Stored as-is per SEC-1.3; never fetched or resolved.
+#   name:https://github.com/org/repo:relationship        (https URL)
+#   name:https://github.com:443/org/repo:relationship    (https URL with port)
+#   name:ssh://git@github.com:22/org/repo:relationship   (ssh:// URL with port)
+#   name:git@github.com:org/repo:relationship            (SCP-style git remote)
+#   name:github.com/org/repo:relationship                (no-scheme url/path)
+#   name:./local/path:relationship                       (relative path)
+#   name:/abs/path:relationship                          (absolute path)
+#
+# Unambiguous failures (rejected):
+#   just-a-name                  (fewer than 2 colons — no url+relationship)
+#   a:b                          (only 1 colon — missing relationship field)
+#   :url:relationship            (empty name)
+#   name::relationship           (empty url — middle is blank)
+#   a:url:                       (empty relationship)
+#
+# Ambiguous cases with extra internal colons (e.g. `a:b:c:d:e`) are accepted
+# because the url field is opaque per SEC-1.3 — the parser cannot know whether
+# the middle colons belong to a port, a path, an SCP remote, etc.
 validate_related_repos() {
   local raw="$1"
   if [[ -z "$raw" ]]; then
@@ -163,35 +177,35 @@ validate_related_repos() {
     # just ignorable. A non-empty entry must look like name:url:relationship.
     [[ -z "${triple// }" ]] && continue
 
-    # Need at least two colons so name + url + relationship can each be
-    # non-empty. This catches single-token entries like `just-a-name`.
+    # Need at least two colons so name + url + relationship can each exist as
+    # distinct fields. With fewer than two colons the entry is unambiguously
+    # malformed (no relationship delimiter, e.g. `just-a-name` or `a:b`).
     local colons="${triple//[^:]}"
     if (( ${#colons} < 2 )); then
       echo "[error] Invalid --related-repos entry: '$triple'" >&2
       echo "[error] Expected 'name:url:relationship' (comma-separated triples)." >&2
-      echo "[error] name and relationship must be single tokens (no colons);" >&2
-      echo "[error] url may carry one scheme colon (e.g. https:). Stored as-is;" >&2
-      echo "[error] never fetched/resolved (SEC-1.3)." >&2
+      echo "[error] First colon splits name from url; last colon splits url from" >&2
+      echo "[error] relationship; url is opaque and may carry scheme/port/path" >&2
+      echo "[error] colons (https://h:443/p, ssh://git@h:22/p, git@h:path)." >&2
+      echo "[error] Stored as-is; never fetched/resolved (SEC-1.3)." >&2
       return 1
     fi
 
-    # Extract via parameter expansion so we observe trailing empty fields
-    # (`a:url:` and `:url:rel` cases) that `read -ra` would silently drop.
-    local name="${triple%%:*}"
-    local relationship="${triple##*:}"
-    local url="${triple#*:}"   # strip "<name>:"
-    url="${url%:*}"            # strip ":<relationship>"
+    # Parse via first-colon / last-colon so internal url colons are preserved
+    # as opaque URL content. Parameter expansion gives us trailing-empty-field
+    # visibility that `read -ra` would silently drop (`a:url:` and `:url:rel`).
+    local name="${triple%%:*}"        # text before first colon
+    local relationship="${triple##*:}" # text after last colon
+    local url="${triple#*:}"          # strip "<name>:"
+    url="${url%:*}"                   # strip ":<relationship>"
 
-    # The url field may carry at most one colon (scheme or SCP-style). More
-    # than one means the triple has too many fields and is ambiguous.
-    local url_colons="${url//[^:]}"
-
-    if [[ -z "$name" || -z "$url" || -z "$relationship" || ${#url_colons} -gt 1 ]]; then
+    if [[ -z "$name" || -z "$url" || -z "$relationship" ]]; then
       echo "[error] Invalid --related-repos entry: '$triple'" >&2
       echo "[error] Expected 'name:url:relationship' (comma-separated triples)." >&2
-      echo "[error] name and relationship must be single tokens (no colons);" >&2
-      echo "[error] url may carry one scheme colon (e.g. https:). Stored as-is;" >&2
-      echo "[error] never fetched/resolved (SEC-1.3)." >&2
+      echo "[error] First colon splits name from url; last colon splits url from" >&2
+      echo "[error] relationship; url is opaque and may carry scheme/port/path" >&2
+      echo "[error] colons (https://h:443/p, ssh://git@h:22/p, git@h:path)." >&2
+      echo "[error] Stored as-is; never fetched/resolved (SEC-1.3)." >&2
       return 1
     fi
   done

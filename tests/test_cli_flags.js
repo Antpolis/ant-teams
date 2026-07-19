@@ -672,41 +672,62 @@ check('regression: INIT_PROJECT_GITHUB_PROJECT_NUMBER=nope rejected via env', ()
   assert.ok(/Invalid --github-project-number/.test(r.stderr));
 });
 
-// --- Regression: --related-repos strict name:url:relationship contract -------
-// Reviewer finding (PR #14 review loop 2): the previous check only required
-// "at least two colons", so values like `a:https://github.com/o/a:parent:extra`
-// (5 colon-separated parts) were accepted. The documented contract is exactly
-// `name:url:relationship` — name and relationship are single tokens (no colons)
-// and the url field carries at most one scheme colon (e.g. `https:`).
+// --- Regression: --related-repos opaque URL contract (first/last colon) ------
+// Reviewer finding (PR #14 review loop 3): the previous "url carries at most
+// one colon" rule rejected valid Git remote forms with ports
+// (`sibling:https://github.com:443/org/repo:sibling`,
+// `sibling:ssh://git@github.com:22/org/repo:sibling`), conflicting with
+// SEC-1.3 / ARCH-003 which treat the url field as an opaque git remote URL or
+// file path stored as-is. The new parser uses the FIRST colon as the name
+// delimiter and the LAST colon as the relationship delimiter; everything in
+// between is opaque URL content (any number of internal colons).
 
-process.stdout.write('Suite: regression --related-repos strict contract\n');
+process.stdout.write('Suite: regression --related-repos opaque URL contract\n');
 
-check('regression: extra-colon triple a:https://.../a:parent:extra rejected', () => {
-  const tmp = mkdtempRepo('reg-rr-extra-colon');
-  const r = runInit(
-    [
-      '--project-dir', tmp,
-      '--worktree-root', path.join(tmp, 'wt'),
-      ...noninteractiveRequired(),
-      '--related-repos', 'a:https://github.com/o/a:parent:extra',
-    ],
-  );
-  assert.strictEqual(r.status, 1, `expected exit 1, got ${r.status}\nstderr:\n${r.stderr}`);
-  assert.ok(
-    /Invalid --related-repos entry/.test(r.stderr),
-    `expected 'Invalid --related-repos entry' on stderr:\n${r.stderr}`,
-  );
-});
-
-for (const bad of [
-  'a:b:c:d:e',         // 4 colons → url='b:c:d' has 2 colons — ambiguous
-  'a:b:c:d:e:f:g',     // way too many colons
-  'name::relationship', // empty url
-  ':https://github.com/o/a:parent', // empty name
-  'a:https://github.com/o/a:',       // empty relationship
-  'a:b',                // only 2 parts (1 colon)
+// Reviewer's exact blocker examples — must pass now (HTTPS / SSH with ports).
+for (const good of [
+  'sibling:https://github.com:443/org/repo:sibling',          // https w/ port
+  'sibling:ssh://git@github.com:22/org/repo:sibling',         // ssh:// w/ port
+  'a:git@github.com:org/repo:sibling',                        // SCP-like remote
+  'a:https://github.com/org/repo:sibling',                    // https no port
+  'a:ssh://git@github.com/org/repo:sibling',                  // ssh:// no port
+  'a:/abs/local/path:child',                                  // absolute path
+  'a:./rel/path:child',                                       // relative path
+  'a:b:c',                                                    // minimal triple
+  // Opaque URL carrying multiple internal colons — accepted per SEC-1.3.
+  'a:https://github.com/o/a:parent:extra',                    // url=https://github.com/o/a:parent
+  'a:b:c:d:e',                                                // url=b:c:d
+  'a:b:c:d:e:f:g',                                            // url=b:c:d:e:f
+  // Multi-triple list with mixed opaque URLs (one of each form).
+  'a:https://github.com:443/o/a:sibling,b:ssh://git@github.com:22/o/b:parent,c:git@github.com:o/c:child',
 ]) {
-  check(`regression: --related-repos '${bad}' rejected`, () => {
+  check(`regression: --related-repos '${good}' accepted (opaque url)`, () => {
+    const tmp = mkdtempRepo(`reg-rr-good-${good.length}-${Math.abs(good.split(':').length)}`);
+    const r = runInit(
+      [
+        '--project-dir', tmp,
+        '--worktree-root', path.join(tmp, 'wt'),
+        ...noninteractiveRequired(),
+        '--related-repos', good,
+      ],
+    );
+    assert.strictEqual(r.status, 0, `expected exit 0 for '${good}', got ${r.status}\nstderr:\n${r.stderr}`);
+  });
+}
+
+// Unambiguous malformed entries — must fail.
+for (const bad of [
+  'just-a-name',                // no colon — missing url + relationship
+  'a:b',                        // 1 colon — missing relationship field
+  ':https://github.com/o/a:parent', // empty name (first char is colon)
+  'name::relationship',         // empty url (middle is blank)
+  'a:https://github.com/o/a:',  // empty relationship (last char is colon)
+  'a:',                         // 1 colon, empty url + empty relationship
+  ':',                          // 1 colon, all empty
+  'a::',                        // 2 colons, empty url + empty relationship
+  '::relationship',             // 2 colons, empty name + empty url
+]) {
+  check(`regression: --related-repos '${bad}' rejected (unambiguous)`, () => {
     const tmp = mkdtempRepo(`reg-rr-bad-${bad.length}-${Math.abs(bad.split(':').length)}`);
     const r = runInit(
       [
@@ -721,28 +742,21 @@ for (const bad of [
   });
 }
 
-for (const good of [
-  'sibling:https://github.com/org/sibling:sibling', // spec example (https URL)
-  'a:github.com/o/a:parent',                        // no-scheme url/path
-  'a:git@github.com:o/a:parent',                    // SSH/SCP url (1 colon in url)
-  'a:b:c',                                          // minimal 3-part triple
-  'a:b:c:d',                                        // SCP-style url='b:c' (1 colon)
-  'a:./local/path:child',                           // relative path url
-  'a:https://github.com/o/a:sibling,b:https://github.com/o/b:parent', // multi-triple
-]) {
-  check(`regression: --related-repos '${good}' accepted (valid name:url:relationship)`, () => {
-    const tmp = mkdtempRepo(`reg-rr-good-${good.length}`);
-    const r = runInit(
-      [
-        '--project-dir', tmp,
-        '--worktree-root', path.join(tmp, 'wt'),
-        ...noninteractiveRequired(),
-        '--related-repos', good,
-      ],
-    );
-    assert.strictEqual(r.status, 0, `expected exit 0 for '${good}', got ${r.status}\nstderr:\n${r.stderr}`);
-  });
-}
+// Comma-separated list with one malformed triple must fail the whole flag
+// (single-entry failure prevents silent partial storage).
+check('regression: --related-repos list with one malformed triple rejected', () => {
+  const tmp = mkdtempRepo('reg-rr-list-one-bad');
+  const r = runInit(
+    [
+      '--project-dir', tmp,
+      '--worktree-root', path.join(tmp, 'wt'),
+      ...noninteractiveRequired(),
+      '--related-repos', 'a:https://github.com:443/o/a:sibling,b:not-a-triple',
+    ],
+  );
+  assert.strictEqual(r.status, 1, `expected exit 1, got ${r.status}\nstderr:\n${r.stderr}`);
+  assert.ok(/Invalid --related-repos entry/.test(r.stderr));
+});
 
 // --- Summary ----------------------------------------------------------------
 
