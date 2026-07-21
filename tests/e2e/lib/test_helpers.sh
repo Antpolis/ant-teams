@@ -68,13 +68,24 @@ e2e_make_empty_repo() {
 }
 
 # e2e_snapshot_files DIR — stable snapshot of the regular files under DIR
-# (excluding DIR/.git) as "path<TAB>sha256" lines, sorted. Used by dry-run
-# zero-change assertions. Portable: find + sort + sha256sum (coreutils).
+# (excluding DIR/.git) as "sha256<TAB>path" lines, deterministically ordered.
+# Used by dry-run zero-change and idempotency assertions.
+#
+# Portability (TR-1.1): the previous implementation used `sort -z` to order
+# NUL-separated paths before hashing, which is a GNU coreutils extension and
+# is NOT available on BSD/macOS `sort`. This rewrite hashes via the POSIX-
+# standard `find -exec ... {} +` batching form and then orders the resulting
+# text stream with portable `sort` (no `-z`, no `-R`). Because the output is
+# `<hash>\t<path>` lines and `sort` orders the whole line, the final stream
+# is reproducible regardless of the order find visited the files in. Works
+# on Linux (coreutils), macOS (BSD find + BSD sort), and FreeBSD.
+# Assumption: no path under DIR contains an embedded newline — true for every
+# fixture and for the ant-teams source tree.
 e2e_snapshot_files() {
   local dir="$1"
-  ( cd "$dir" && find . -type f -not -path './.git/*' -print0 \
-      | sort -z \
-      | xargs -0 sha256sum 2>/dev/null )
+  ( cd "$dir" \
+      && find . -type f -not -path './.git/*' -exec sha256sum {} + 2>/dev/null ) \
+    | sort
 }
 
 # e2e_count_skill_dirs DIR — number of skill directories under
