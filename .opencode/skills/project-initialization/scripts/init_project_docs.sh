@@ -12,8 +12,13 @@
 # (FR-5.3), and pre-existing-file handling with overwrite/merge/skip +
 # .bak.<ts> backup on --force (FR-5.5 / ERR-3.2).
 # T5 (issue #6): .github-project.json DM-1 schema extension is consumed
-# unchanged. OBS-2 dry-run + idempotency overhaul (T6 / issue #7) remains
-# deferred — --dry-run is parsed here but does not suppress AGENTS.md writes.
+# unchanged.
+# T6 (issue #7): observability prefixes wired through every emit path (OBS-1),
+# true no-write --dry-run (OBS-2), pre-flight validation (ERR-1), atomic
+# write-temp-then-rename for every generated file (ERR-2.1), trap-based temp
+# cleanup on EXIT/INT/TERM (ERR-2.3), content-level idempotency so --force
+# reruns with identical inputs leave AGENTS.md byte-for-byte intact (TR-2),
+# and the `cp -Rn` non-portable-warning replaced with a find-based merge.
 #
 set -euo pipefail
 
@@ -21,8 +26,82 @@ set -euo pipefail
 # (AGENTS.md generation): the init now produces a tailored AGENTS.md whose
 # generation comment and initMeta.version carry this stamp per ARCH-003 /
 # DM-1.3. `ensure_github_project_config` (T5) consumes it on first init /
-# material merge.
+# material merge. T6 (issue #7) keeps the schema stamp at 0.3.0 because no
+# DM-1/DM-2 field changes — only behavior (observability/dry-run/idempotency).
 readonly INIT_PROJECT_VERSION="0.3.0"
+
+# --- T6 (issue #7): OBS-1.2 counters + ERR-2.3 trap-based temp cleanup -----
+# Counters are bumped by the emit_* helpers so the final [summary] line is
+# always consistent with what the operator saw on stdout/stderr. They are
+# initialized here and resolved at call time, so it is safe to define the
+# helpers before Phase 2 resolves opt_dry_run.
+stat_created=0
+stat_merged=0
+stat_skipped=0
+stat_warnings=0
+stat_would_write=0
+
+# ERR-2.3: every scratch file lives under a single mktemp -d removed by the
+# EXIT trap. Atomic-rename temps that must live in the target dir (same
+# filesystem) are registered via register_cleanup so the same trap catches
+# them on INT/TERM/EXIT. The trap is set ONCE here; later code MUST chain
+# (append to cleanup_temp), never replace it (issue guardrail).
+TEMP_DIR="$(mktemp -d 2>/dev/null || mktemp -d -t init-project-docs)"
+CLEANUP_FILES=()
+
+cleanup_temp() {
+  if [[ -n "${TEMP_DIR:-}" && -d "${TEMP_DIR:-}" ]]; then
+    rm -rf "$TEMP_DIR"
+  fi
+  local f
+  for f in "${CLEANUP_FILES[@]:-}"; do
+    if [[ -n "$f" && -e "$f" ]]; then rm -f "$f"; fi
+  done
+}
+trap cleanup_temp EXIT
+trap 'cleanup_temp; exit 130' INT
+trap 'cleanup_temp; exit 143' TERM
+
+register_cleanup() {
+  CLEANUP_FILES+=("$1")
+}
+
+# OBS-1.1 / OBS-2.1 helpers. emit_write swaps [writing] → [would-write] under
+# --dry-run (OBS-2.1) and bumps stat_would_write instead of stat_created so
+# the final summary reports the dry-run contract. emit_warning always goes to
+# stderr (OBS-1.2) and counts warnings for the summary.
+emit_write() {
+  if [[ "${opt_dry_run:-0}" == "1" ]]; then
+    echo "[would-write] $*"
+    stat_would_write=$((stat_would_write + 1))
+  else
+    echo "[writing] $*"
+    stat_created=$((stat_created + 1))
+  fi
+}
+
+emit_merge() {
+  if [[ "${opt_dry_run:-0}" == "1" ]]; then
+    echo "[would-write] $* (merge)"
+    stat_would_write=$((stat_would_write + 1))
+  else
+    echo "[writing] $* (merge)"
+    stat_merged=$((stat_merged + 1))
+  fi
+}
+
+emit_warning() {
+  echo "[warning] $*" >&2
+  stat_warnings=$((stat_warnings + 1))
+}
+
+emit_skip() {
+  # Step-level skip notice (e.g. "AGENTS.md exists; skipped"). Uses the
+  # [summary] prefix per the existing T3 contract and OBS-1.1 (there is no
+  # dedicated [skip] prefix). Bumps stat_skipped for the final tally.
+  echo "[summary] $*"
+  stat_skipped=$((stat_skipped + 1))
+}
 
 # CLI-2 / FR-4.1 --repo-role enum (per issue guardrails + ARCH-003 schema).
 readonly REPO_ROLE_VALID_VALUES="service library infra monorepo-root tool docs other"
@@ -34,9 +113,11 @@ Usage:
 
 Copy the company docs into a project repo and create the local workflow-state
 folder structure. T2 (issue #3) adds interactive/noninteractive mode selection,
-env-var resolution, and full CLI-2 flag surface. AGENTS.md generation (T3),
-.github-project.json extension (T5), and dry-run/idempotency (T6) are wired
-to the same flags and ship in later issues.
+env-var resolution, and full CLI-2 flag surface. T3 (issue #4) adds AGENTS.md
+generation. T5 (issue #6) extends .github-project.json to the DM-1 schema.
+T6 (issue #7) wires structured observability prefixes, true no-write --dry-run,
+pre-flight validation, atomic writes, trap-based temp cleanup, and content-
+level idempotency (--force reruns with identical inputs are no-ops).
 
 Mode (CLI-2.2):
   --interactive       Force interactive mode (prompts for AGENTS.md shaping).
@@ -69,14 +150,17 @@ AGENTS.md shaping inputs (FR-4.1):
 
 Behavior modifiers (CLI-2):
   --force                     Overwrite existing AGENTS.md / re-copy skills.
-                              (Full effect ships with T3/T6; parsed by T2.)
+                              Idempotent at the content level: a --force rerun
+                              with identical inputs leaves AGENTS.md byte-for-byte
+                              intact and creates no new .bak (TR-2.2).
   --merge                     Merge new content instead of overwriting.
                               Default: interactive=on, noninteractive=off.
   --migrate-agent-md          Migrate legacy agent.md content (noninteractive).
   --skip-inspection           Skip repository inspection; use only provided
                               inputs. (FR-2 / CLI-2.3.)
-  --dry-run                   Resolve and validate flags but suppress writes.
-                              (Full OBS-2 suppression ships with T6; parsed by T2.)
+  --dry-run                   Resolve and validate flags but suppress EVERY
+                              write (OBS-2). Emits [would-write] lines and a
+                              dry-run summary. No file is created or modified.
 
 Pre-existing flags (preserved verbatim per CLI-1):
   --project-dir PATH          Target project directory (default: $PWD).
@@ -113,6 +197,75 @@ expand_path() {
     "~/"*) printf '%s/%s\n' "$HOME" "${path#~/}" ;;
     *) printf '%s\n' "$path" ;;
   esac
+}
+
+# --- T6 (issue #7): ERR-1 pre-flight validation --------------------------------
+# Runs BEFORE any file is written (ERR-1.1). Each failure exits 1 with a
+# specific [error] message on stderr (ERR-1.2). The exit-1 path is reachable
+# only before the write phase, so no partial state is ever left behind.
+#
+# Checks (ERR-1.1):
+#   1. target project dir exists AND is a git repo (has .git/ or .git file)
+#   2. source repo (this checkout) contains .opencode/skills/
+#   3. node (≥18) is on PATH — required by ensure_opencode_config /
+#      ensure_github_project_config (OBS-3.2)
+#   4. coreutils cp/mkdir/cat/rm/mktemp are on PATH
+#
+# The .git/ existence check (NOT `git rev-parse`) is deliberate: the init
+# engine tests create a `.git/` directory marker in tmp fixtures, and
+# ERR-1.1 only requires the marker to be present. A real `git rev-parse`
+# check would reject those valid test fixtures and break T1-T5 suites.
+run_preflight() {
+  local project_dir_arg="$1"
+  local repo_root_arg="$2"
+
+  # ERR-1.1 item 1: target dir exists + is a git repo (AC-T6-003).
+  if [[ ! -d "$project_dir_arg" ]]; then
+    echo "[error] Target project directory does not exist: $project_dir_arg" >&2
+    echo "[error] Create it first (e.g. 'mkdir -p $project_dir_arg && cd $project_dir_arg && git init')" >&2
+    exit 1
+  fi
+  if [[ ! -e "$project_dir_arg/.git" ]]; then
+    echo "[error] Target project directory is not a git repository: $project_dir_arg" >&2
+    echo "[error] '.git' not found — run 'git init' in the target before init-project (ERR-1.1)." >&2
+    exit 1
+  fi
+
+  # ERR-1.1 item 2 / OBS-3.1: source repo contains the skills tree. Include
+  # the resolved path the script actually checked so the operator can see
+  # why a self-init from the wrong CWD failed.
+  local source_skills="$repo_root_arg/.opencode/skills"
+  if [[ ! -d "$source_skills" ]]; then
+    echo "[error] Source repository skills directory not found at: $source_skills" >&2
+    echo "[error] init-project must run from a checkout of the source repo (OBS-3.1)." >&2
+    echo "[error] Resolved repo_root=$repo_root_arg; expected $source_skills to exist." >&2
+    exit 1
+  fi
+
+  # ERR-1.1 item 3 / OBS-3.2: node ≥18 on PATH. State minimum version and
+  # which functions require it so the operator knows why.
+  if ! command -v node >/dev/null 2>&1; then
+    echo "[error] node (≥18) is required but was not found on PATH." >&2
+    echo "[error] node is used by ensure_opencode_config and ensure_github_project_config" >&2
+    echo "[error] for JSON manipulation (OBS-3.2). Install node ≥18 and re-run." >&2
+    exit 1
+  fi
+  local node_major
+  node_major="$(node -e 'process.stdout.write(String(Number(process.versions.node.split(".")[0])||0))' 2>/dev/null || echo 0)"
+  if [[ ! "$node_major" =~ ^[0-9]+$ || "$node_major" -lt 18 ]]; then
+    echo "[error] node ≥18 is required (detected node v${node_major}.x)." >&2
+    echo "[error] ensure_opencode_config and ensure_github_project_config require node ≥18 (OBS-3.2)." >&2
+    exit 1
+  fi
+
+  # ERR-1.1 item 4: coreutils presence.
+  local util
+  for util in cp mkdir cat rm mktemp; do
+    if ! command -v "$util" >/dev/null 2>&1; then
+      echo "[error] Required coreutil '$util' not found on PATH (ERR-1.1)." >&2
+      exit 1
+    fi
+  done
 }
 
 # --- T2 helpers (CLI-2 / FR-4 / ERR-4) ---------------------------------------
@@ -299,27 +452,49 @@ ensure_opencode_config() {
     config_path="$project_dir/opencode.jsonc"
   elif [[ -f "$project_dir/opencode.json" ]]; then
     config_path="$project_dir/opencode.json"
-  else
-    # Fresh repo: create at the canonical ARCH-003 Artifact 4 location.
-    # `.opencode/` may not exist yet on a true fresh init, so create it
-    # before writing. mkdir -p is idempotent and never complains if the
-    # directory already exists (SEC-3.1: mkdir -p is an allowed primitive).
+  fi
+
+  # FRESH-repo path: no existing config anywhere — create the canonical
+  # minimal file at .opencode/opencode.json (ARCH-003 Artifact 4). In dry-run
+  # we report what WOULD be created and skip the mkdir + write (OBS-2.1).
+  if [[ -z "$config_path" ]]; then
+    local would_create="$project_dir/.opencode/opencode.json"
+    local would_create_rel="${would_create#$project_dir/}"
+    if [[ "${opt_dry_run:-0}" == "1" ]]; then
+      echo "[would-write] ${would_create_rel} (minimal opencode config)"
+      stat_would_write=$((stat_would_write + 1))
+      return 0
+    fi
+    # mkdir -p is idempotent and never complains if the directory already
+    # exists (SEC-3.1: mkdir -p is an allowed primitive).
     mkdir -p "$project_dir/.opencode"
-    config_path="$project_dir/.opencode/opencode.json"
-    cat > "$config_path" <<'EOF'
-{
+    config_path="$would_create"
+    write_file_atomic "$config_path" '{
   "permission": {
     "external_directory": {}
   }
 }
-EOF
-    echo "Created repo config at $config_path"
+'
+    emit_write "${would_create_rel} (minimal opencode config)"
+    # Fresh minimal config has no external_directory entry yet — fall through
+    # to the merge step so the worktree pattern is added in the same run.
   fi
 
-  node - "$config_path" "$external_pattern" <<'NODE'
+  local config_rel="${config_path#$project_dir/}"
+
+  # COMPUTE-ONLY node helper (no writes). It prints one of:
+  #   NO_CHANGE\n            — external_directory entry already present
+  #   WRITE\n<content>       — merge needed; bash does the atomic write below
+  #   MALFORMED\n<message>   — existing file is unparseable; bash exits 1
+  # Splitting compute (node) from write (bash) lets bash own the atomic
+  # temp+rename AND register the temp with the EXIT trap (ERR-2.1 / ERR-2.3).
+  local decision
+  decision="$(CONFIG_REL="$config_rel" \
+    node - "$config_path" "$external_pattern" <<'NODE'
 const fs = require("fs");
 
 const [configPath, externalPattern] = process.argv.slice(2);
+const configRel = process.env.CONFIG_REL || configPath;
 const raw = fs.readFileSync(configPath, "utf8");
 const stripped = stripJsonComments(raw);
 
@@ -327,8 +502,8 @@ let parsed;
 try {
   parsed = JSON.parse(removeTrailingCommas(stripped));
 } catch (error) {
-  console.error(`Failed to parse ${configPath}: ${error.message}`);
-  process.exit(1);
+  process.stdout.write("MALFORMED\n" + configRel + ": " + error.message + "\n");
+  process.exit(0);
 }
 
 if (!parsed.permission || typeof parsed.permission !== "object" || Array.isArray(parsed.permission)) {
@@ -339,11 +514,12 @@ if (!parsed.permission.external_directory || typeof parsed.permission.external_d
 }
 
 if (parsed.permission.external_directory[externalPattern] === "allow") {
+  process.stdout.write("NO_CHANGE\n");
   process.exit(0);
 }
 
 parsed.permission.external_directory[externalPattern] = "allow";
-fs.writeFileSync(configPath, JSON.stringify(parsed, null, 2) + "\n");
+process.stdout.write("WRITE\n" + JSON.stringify(parsed, null, 2) + "\n");
 
 function stripJsonComments(input) {
   let output = "";
@@ -398,8 +574,92 @@ function removeTrailingCommas(input) {
   return input.replace(/,\s*([}\]])/g, "$1");
 }
 NODE
+  )"
+  local node_status=$?
+  if [[ "$node_status" -ne 0 ]]; then
+    echo "[error] opencode config merge helper exited $node_status for $config_rel" >&2
+    return 1
+  fi
 
-  echo "Ensured external directory permission in $config_path"
+  local first_line
+  first_line="$(printf '%s' "$decision" | sed -n '1p')"
+
+  case "$first_line" in
+    NO_CHANGE)
+      echo "[summary] $config_rel already allows $external_pattern; no changes needed"
+      return 0
+      ;;
+    MALFORMED)
+      local msg
+      msg="$(printf '%s' "$decision" | sed -n '2p')"
+      echo "[error] Malformed $config_rel: $msg" >&2
+      echo "[error] Fix the JSON manually and re-run; init will not overwrite a broken file." >&2
+      exit 1
+      ;;
+    WRITE)
+      if [[ "${opt_dry_run:-0}" == "1" ]]; then
+        echo "[would-write] $config_rel (external_directory entry for $external_pattern)"
+        stat_would_write=$((stat_would_write + 1))
+        return 0
+      fi
+      local content
+      content="$(printf '%s' "$decision" | sed -n '2,$p')"
+      write_file_atomic "$config_path" "$content"
+      emit_write "$config_rel (external_directory entry for $external_pattern)"
+      return 0
+      ;;
+    *)
+      echo "[error] Unexpected decision from opencode config helper: '$first_line'" >&2
+      exit 1
+      ;;
+  esac
+}
+
+# T6 (issue #7) / ERR-2.1 atomic write helper. Writes CONTENT to TARGET via a
+# temp file in the SAME directory (same-filesystem atomic rename), then mv -f.
+# The temp path is registered with the EXIT trap so an interrupt between write
+# and rename is cleaned up (ERR-2.3). Used for opencode.json, .github-project.json,
+# and AGENTS.md writes so every generated file shares the same atomic guarantee.
+write_file_atomic() {
+  local target="$1"
+  local content="$2"
+  local target_dir
+  target_dir="$(dirname "$target")"
+  local tmp
+  tmp="$(mktemp "${target_dir}/.$(basename "$target").XXXXXX")"
+  register_cleanup "$tmp"
+  printf '%s' "$content" > "$tmp"
+  mv -f "$tmp" "$target"
+}
+
+# T6 (issue #7): portable recursive copy that skips existing target files.
+# Replaces `cp -Rn` (GNU coreutils ≥9 emits a non-portable-warning on every
+# invocation; the warning was pre-existing and is owned by T6). Semantics are
+# identical to `cp -Rn`: never overwrite, only create missing files. Uses
+# `cp -p` so the source execute bit is preserved (SEC-3.2) — the same
+# primitive copy_required_skills uses for skills.
+copy_tree_no_clobber() {
+  local src="$1"
+  local dst="$2"
+  [[ -d "$src" ]] || return 0
+  mkdir -p "$dst"
+  while IFS= read -r -d '' src_file; do
+    local rel="${src_file#"$src"/}"
+    local tgt="$dst/$rel"
+    [[ -e "$tgt" ]] && continue
+    mkdir -p "$(dirname "$tgt")"
+    cp -p "$src_file" "$tgt"
+  done < <(find "$src" -type f -print0)
+}
+
+# T6 (issue #7) / TR-2.2: strip the generation-comment header (line 1) from
+# AGENTS.md content so two generations with identical inputs compare equal
+# even though the ISO 8601 timestamp differs. This is what makes --force
+# idempotent at the content level: if nothing but the timestamp would
+# change, the caller skips the rewrite and preserves the existing file
+# byte-for-byte (TR-2.1 — no new timestamps on identical reruns).
+strip_agents_md_header() {
+  awk 'NR==1 && /^<!-- Generated by init-project/ {next} {print}' "$1"
 }
 
 # FR-7.4 / AC-T4-006: ensure `.opencode/.gitignore` exists with a `node_modules`
@@ -410,17 +670,31 @@ ensure_opencode_gitignore() {
   local gitignore_path="$opencode_dir/.gitignore"
   local required_entry="node_modules"
 
-  mkdir -p "$opencode_dir"
-
+  # Dry-run (OBS-2): report what would be written; do not mkdir or write.
   if [[ ! -f "$gitignore_path" ]]; then
-    printf '%s\n' "$required_entry" > "$gitignore_path"
-    echo "[writing] .opencode/.gitignore"
+    if [[ "${opt_dry_run:-0}" == "1" ]]; then
+      echo "[would-write] .opencode/.gitignore"
+      stat_would_write=$((stat_would_write + 1))
+      return 0
+    fi
+    mkdir -p "$opencode_dir"
+    write_file_atomic "$gitignore_path" "${required_entry}"$'\n'
+    emit_write ".opencode/.gitignore"
     return 0
   fi
 
   if ! grep -Fxq "$required_entry" "$gitignore_path" 2>/dev/null; then
-    printf '%s\n' "$required_entry" >> "$gitignore_path"
-    echo "[writing] .opencode/.gitignore (node_modules entry added)"
+    if [[ "${opt_dry_run:-0}" == "1" ]]; then
+      echo "[would-write] .opencode/.gitignore (node_modules entry added)"
+      stat_would_write=$((stat_would_write + 1))
+      return 0
+    fi
+    # Append-only: read current, append entry, write atomically so an
+    # interrupt mid-write cannot truncate the existing gitignore.
+    local current
+    current="$(cat "$gitignore_path")"
+    write_file_atomic "$gitignore_path" "${current}"$'\n'"${required_entry}"$'\n'
+    emit_write ".opencode/.gitignore (node_modules entry added)"
   fi
 }
 
@@ -459,7 +733,11 @@ copy_required_skills() {
     "frontend-design"
   )
 
-  mkdir -p "$target_skills_dir"
+  # Dry-run (OBS-2): do not create directories or copy files. Still walk the
+  # source tree so [would-write] lines reflect exactly what a real run writes.
+  if [[ "${opt_dry_run:-0}" != "1" ]]; then
+    mkdir -p "$target_skills_dir"
+  fi
   ensure_opencode_gitignore "$project_dir/.opencode"
 
   local total_copied=0
@@ -470,11 +748,13 @@ copy_required_skills() {
     local tgt_skill_dir="$target_skills_dir/$skill_name"
 
     if [[ ! -d "$src_skill_dir" ]]; then
-      echo "[warning] Required skill source not found: $src_skill_dir" >&2
+      emit_warning "Required skill source not found: $src_skill_dir"
       continue
     fi
 
-    mkdir -p "$tgt_skill_dir"
+    if [[ "${opt_dry_run:-0}" != "1" ]]; then
+      mkdir -p "$tgt_skill_dir"
+    fi
 
     while IFS= read -r -d '' src_file; do
       local rel="${src_file#"$src_skill_dir"/}"
@@ -487,10 +767,16 @@ copy_required_skills() {
         continue
       fi
 
-      mkdir -p "$(dirname "$tgt_file")"
-      # SEC-3.2: `cp -p` preserves the source execute bit.
-      cp -p "$src_file" "$tgt_file"
-      echo "[writing] .opencode/skills/$skill_name/$rel"
+      if [[ "${opt_dry_run:-0}" == "1" ]]; then
+        echo "[would-write] .opencode/skills/$skill_name/$rel"
+        stat_would_write=$((stat_would_write + 1))
+      else
+        mkdir -p "$(dirname "$tgt_file")"
+        # SEC-3.2: `cp -p` preserves the source execute bit.
+        cp -p "$src_file" "$tgt_file"
+        echo "[writing] .opencode/skills/$skill_name/$rel"
+        stat_created=$((stat_created + 1))
+      fi
       total_copied=$((total_copied + 1))
     done < <(find "$src_skill_dir" -type f -print0)
   done
@@ -500,11 +786,17 @@ copy_required_skills() {
   # that would otherwise masquerade as initializer output.
   for excluded in "${excluded_skills[@]}"; do
     if [[ -d "$target_skills_dir/$excluded" ]]; then
-      echo "[warning] Excluded skill already present in target: .opencode/skills/$excluded" >&2
+      emit_warning "Excluded skill already present in target: .opencode/skills/$excluded"
     fi
   done
 
-  echo "[writing] .opencode/skills/ (${#required_skills[@]} required skills, $total_copied copied, $total_merged merged)"
+  # Per-skill summary line (OBS-1.1 — uses the same prefix family so agents
+  # can grep [writing] / [would-write] uniformly).
+  if [[ "${opt_dry_run:-0}" == "1" ]]; then
+    echo "[would-write] .opencode/skills/ (${#required_skills[@]} required skills, $total_copied would-copy, $total_merged merged)"
+  else
+    echo "[writing] .opencode/skills/ (${#required_skills[@]} required skills, $total_copied copied, $total_merged merged)"
+  fi
 }
 
 # SPEC-001 T5 / ARCH-003 DM-1: extend `.github-project.json` to the canonical
@@ -553,7 +845,16 @@ ensure_github_project_config() {
   local identity_name="${opt_name:-$repo_name}"
   local identity_role="${opt_role:-other}"
 
-  node - \
+  # COMPUTE-ONLY node helper (no writes). It prints one of:
+  #   NO_CHANGE\n                     — structural state unchanged (idempotent)
+  #   CREATE\n<content>               — fresh file needed
+  #   UPDATE\n<content>               — additive merge needed
+  #   MALFORMED\n<message>            — existing file is unparseable
+  # Bash owns the atomic write + dry-run decision + EXIT-trap temp register
+  # (ERR-2.1 / ERR-2.3 / OBS-2). This mirrors ensure_opencode_config and
+  # keeps every generated file on the same atomic-write path.
+  local decision
+  decision="$(node - \
     "$config_path" \
     "$worktree_root" \
     "$identity_name" \
@@ -603,24 +904,21 @@ if (fs.existsSync(configPath)) {
   // SEC-2.1 / ERR-2.1 spirit: abort cleanly BEFORE any mutation if the
   // existing file is malformed. The bash contract for every validation
   // failure in this script is a controlled `[error]`-prefixed stderr
-  // message + exit 1 (see validate_repo_role / validate_related_repos /
-  // die_missing_noninteractive_flags). Mirror that here so the operator
-  // sees the same UX instead of a leaked Node SyntaxError stack trace.
-  // No write happens before this point, so the file is preserved
-  // byte-for-byte on abort.
+  // message + exit 1. Surface as a MALFORMED decision so bash can emit the
+  // same UX instead of leaking a Node SyntaxError stack trace. No write
+  // happens before this point, so the file is preserved byte-for-byte.
   let raw;
   try {
     raw = fs.readFileSync(configPath, "utf8");
   } catch (readErr) {
-    console.error(`[error] Failed to read ${configPath}: ${readErr.message}`);
-    process.exit(1);
+    process.stdout.write("MALFORMED\nFailed to read " + configPath + ": " + readErr.message + "\n");
+    process.exit(0);
   }
   try {
     parsed = JSON.parse(raw);
   } catch (parseErr) {
-    console.error(`[error] Malformed ${configPath}: ${parseErr.message}`);
-    console.error("[error] Fix the JSON manually and re-run; init will not overwrite a broken file.");
-    process.exit(1);
+    process.stdout.write("MALFORMED\n" + parseErr.message + "\n");
+    process.exit(0);
   }
 } else {
   // Fresh repo: seed the operator-editable baseline fields (owner/project/
@@ -693,8 +991,8 @@ if (!Array.isArray(desired.boundaries.related_repos)) {
 }
 
 // initMeta block: required per DM-1; additive-only. generatedAt is a
-// write-time stamp set ONLY when the file is actually being written — see
-// the idempotency check below (AC-T5-005 / TR-2.1).
+// write-time stamp set ONLY when bash is about to write — see below
+// (AC-T5-005 / TR-2.1 idempotency).
 if (!desired.initMeta || typeof desired.initMeta !== "object" || Array.isArray(desired.initMeta)) {
   desired.initMeta = {};
 }
@@ -702,9 +1000,9 @@ if (!desired.initMeta.version) {
   desired.initMeta.version = version;
 }
 
-// Idempotency: write ONLY when the structural state changed. Compare
-// parsed vs desired with the volatile generatedAt field stripped from
-// both sides, so a true no-op rerun leaves the file (including its
+// Idempotency: report NO_CHANGE when the structural state is unchanged.
+// Compare parsed vs desired with the volatile generatedAt field stripped
+// from both sides, so a true no-op rerun leaves the file (including its
 // existing generatedAt) byte-for-byte identical (AC-T5-005 / TR-2.1).
 const stripGeneratedAt = (obj) => {
   const c = JSON.parse(JSON.stringify(obj));
@@ -718,22 +1016,67 @@ const currentStructural = JSON.stringify(stripGeneratedAt(parsed), null, 2);
 const desiredStructural = JSON.stringify(stripGeneratedAt(desired), null, 2);
 
 if (!isNew && currentStructural === desiredStructural) {
-  // No structural change — preserve the existing file untouched.
-  console.log("No changes needed in .github-project.json");
+  process.stdout.write("NO_CHANGE\n");
   process.exit(0);
 }
 
-// Material change (or first creation). Stamp/refresh generatedAt as the
-// last field before write so it represents "last material init write".
+// Material change (or first creation). generatedAt is set in the desired
+// payload so the file carries "last material init write" once bash writes
+// it. The idempotency check above guarantees generatedAt only advances on a
+// true structural change, never on a no-op rerun (TR-2.1 / TR-2.2).
 desired.initMeta.generatedAt = new Date().toISOString();
-fs.writeFileSync(configPath, JSON.stringify(desired, null, 2) + "\n");
-
-if (isNew) {
-  console.log("Created .github-project.json");
-} else {
-  console.log("Updated .github-project.json (additive merge)");
-}
+const verb = isNew ? "CREATE" : "UPDATE";
+process.stdout.write(verb + "\n" + JSON.stringify(desired, null, 2) + "\n");
 NODE
+  )"
+  local node_status=$?
+  if [[ "$node_status" -ne 0 ]]; then
+    echo "[error] .github-project.json merge helper exited $node_status" >&2
+    return 1
+  fi
+
+  local first_line
+  first_line="$(printf '%s' "$decision" | sed -n '1p')"
+
+  case "$first_line" in
+    NO_CHANGE)
+      # Preserve the T5 message text verbatim (AC-T5-005 test asserts this
+      # exact substring); just add the OBS-1 [summary] prefix.
+      echo "[summary] No changes needed in .github-project.json"
+      return 0
+      ;;
+    MALFORMED)
+      local msg
+      msg="$(printf '%s' "$decision" | sed -n '2p')"
+      echo "[error] Malformed $config_path: $msg" >&2
+      echo "[error] Fix the JSON manually and re-run; init will not overwrite a broken file." >&2
+      exit 1
+      ;;
+    CREATE|UPDATE)
+      if [[ "${opt_dry_run:-0}" == "1" ]]; then
+        if [[ "$first_line" == "CREATE" ]]; then
+          echo "[would-write] .github-project.json (canonical DM-1 schema)"
+        else
+          echo "[would-write] .github-project.json (additive merge)"
+        fi
+        stat_would_write=$((stat_would_write + 1))
+        return 0
+      fi
+      local content
+      content="$(printf '%s' "$decision" | sed -n '2,$p')"
+      write_file_atomic "$config_path" "$content"
+      if [[ "$first_line" == "CREATE" ]]; then
+        emit_write ".github-project.json (canonical DM-1 schema)"
+      else
+        emit_merge ".github-project.json (additive)"
+      fi
+      return 0
+      ;;
+    *)
+      echo "[error] Unexpected decision from .github-project.json helper: '$first_line'" >&2
+      exit 1
+      ;;
+  esac
 }
 
 # ===========================================================================
@@ -772,13 +1115,13 @@ run_repo_inspection() {
   local project_dir="$1"
   local inspect_script="$skill_root/scripts/inspect_repo.js"
   if [[ ! -f "$inspect_script" ]]; then
-    echo "[warning] inspect_repo.js not found at $inspect_script; AGENTS.md will rely on operator inputs only" >&2
+    emit_warning "inspect_repo.js not found at $inspect_script; AGENTS.md will rely on operator inputs only"
     printf '{}'
     return 0
   fi
   local json
   if ! json="$(node "$inspect_script" --project-dir "$project_dir" 2>/dev/null)"; then
-    echo "[warning] Repository inspection failed; AGENTS.md will rely on operator inputs only" >&2
+    emit_warning "Repository inspection failed; AGENTS.md will rely on operator inputs only"
     printf '{}'
     return 0
   fi
@@ -1279,9 +1622,11 @@ backup_agents_md() {
 merge_agents_md_content() {
   local existing_content="$1"
   local fresh_content="$2"
-  local tmp_existing tmp_fresh
-  tmp_existing="$(mktemp)"
-  tmp_fresh="$(mktemp)"
+  # T6 / ERR-2.3: scratch files live under the trap-managed TEMP_DIR so any
+  # interrupt is cleaned up by the EXIT trap. (Pre-T6 used `mktemp` directly
+  # with a manual rm that could leak on interrupt before the rm ran.)
+  local tmp_existing="$TEMP_DIR/agents-merge-existing"
+  local tmp_fresh="$TEMP_DIR/agents-merge-fresh"
   printf '%s' "$existing_content" > "$tmp_existing"
   printf '%s' "$fresh_content" > "$tmp_fresh"
   AGENTSMD_EXISTING_FILE="$tmp_existing" \
@@ -1346,21 +1691,15 @@ merge_agents_md_content() {
     for (const s of appended) out += s + "\n\n";
     process.stdout.write(out);
 NODE
-  rm -f "$tmp_existing" "$tmp_fresh"
+  # Scratch files are under TEMP_DIR → cleaned by the EXIT trap (ERR-2.3).
 }
 
-# ERR-2.1 atomic write: write content to a temp file in the same directory,
-# then rename. Avoids partial-write corruption if the process is interrupted
-# mid-write.
+# AGENTS.md atomic write is now the shared write_file_atomic helper (T6).
+# Kept as a thin wrapper so existing call sites and tests referencing this
+# name continue to work; the write is atomic + trap-cleaned via the shared
+# helper (ERR-2.1 / ERR-2.3).
 write_agents_md_atomic() {
-  local target="$1"
-  local content="$2"
-  local target_dir
-  target_dir="$(dirname "$target")"
-  local tmp
-  tmp="$(mktemp "${target_dir}/.agents.md.XXXXXX")"
-  printf '%s' "$content" > "$tmp"
-  mv -f "$tmp" "$target"
+  write_file_atomic "$1" "$2"
 }
 
 skill_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -1555,10 +1894,14 @@ if [[ "$mode" == "noninteractive" ]]; then
   fi
 fi
 
-# T2 stops here. The `opt_*` variables are now authoritative for every
-# downstream phase: AGENTS.md generation (T3 / issue #4), .github-project.json
-# extension (T5 / issue #6), and OBS-2 dry-run / idempotency (T6 / issue #7).
-# The existing skills-copy / config / docs flow below is unchanged.
+# T6 runs ERR-1 pre-flight next (before any write), then the existing
+# skills-copy / config / docs / AGENTS.md flow follows — all gated on
+# opt_dry_run (OBS-2) and using the shared atomic-write helper (ERR-2.1).
+
+# --- T6 (issue #7): ERR-1 pre-flight validation ------------------------------
+# Runs after flag resolution and BEFORE any write (ERR-1.1). Each failure
+# exits 1 with a specific [error] message (ERR-1.2) and no file is touched.
+run_preflight "$project_dir" "$repo_root"
 
 project_dir="$(mkdir -p "$project_dir" && cd "$project_dir" && pwd)"
 docs_root="${docs_root%/}"
@@ -1570,7 +1913,14 @@ fi
 
 worktree_root="$(expand_path "$worktree_root")"
 
-mkdir -p "$worktree_root"
+# T6 / OBS-2 dry-run: do not create the worktree root dir under --dry-run
+# (OBS-2.1: zero file changes). Report what would happen instead.
+if [[ "${opt_dry_run:-0}" == "1" ]]; then
+  echo "[would-write] worktree root $worktree_root (mkdir -p)"
+  stat_would_write=$((stat_would_write + 1))
+else
+  mkdir -p "$worktree_root"
+fi
 ensure_github_project_config \
   "$project_dir" \
   "$worktree_root" \
@@ -1583,26 +1933,43 @@ ensure_github_project_config \
 ensure_opencode_config "$project_dir" "$worktree_root"
 copy_required_skills "$project_dir" "$repo_root"
 
-mkdir -p "$project_dir/$docs_root"
-if [[ -d "$repo_root/docs" ]]; then
-  cp -Rn "$repo_root/docs"/. "$project_dir/$docs_root"/
+# --- Docs tree copy + project docs folders ------------------------------------
+# T6 / OBS-2 dry-run: report would-write counts; skip the actual mkdirs and
+# the recursive copy (OBS-2.1: zero file changes).
+if [[ "${opt_dry_run:-0}" == "1" ]]; then
+  if [[ -d "$repo_root/docs" ]]; then
+    local_doc_count="$(find "$repo_root/docs" -type f 2>/dev/null | wc -l | tr -d ' ')"
+    echo "[would-write] $docs_root/ (docs tree, $local_doc_count files from source)"
+    stat_would_write=$((stat_would_write + 1))
+  fi
+  echo "[would-write] $docs_root/ (project docs folder scaffold: adr/gov/arch/spec/runbook/qa/memory/proj-management)"
+  stat_would_write=$((stat_would_write + 1))
+else
+  mkdir -p "$project_dir/$docs_root"
+  if [[ -d "$repo_root/docs" ]]; then
+    # T6 fix: replace `cp -Rn` (GNU coreutils ≥9 warns "behavior of -n is
+    # non-portable") with a find-based per-file copy that skips existing
+    # targets. Same merge semantics (never overwrite project-local docs),
+    # portable across bash/coreutils variants (TR-1.1), and warning-free.
+    copy_tree_no_clobber "$repo_root/docs" "$project_dir/$docs_root"
+  fi
+
+  mkdir -p \
+    "$project_dir/$docs_root/adr" \
+    "$project_dir/$docs_root/gov" \
+    "$project_dir/$docs_root/arch" \
+    "$project_dir/$docs_root/spec" \
+    "$project_dir/$docs_root/runbook" \
+    "$project_dir/$docs_root/qa" \
+    "$project_dir/$docs_root/memory" \
+    "$project_dir/$docs_root/proj-management/tasks" \
+    "$project_dir/$docs_root/proj-management/communication" \
+    "$project_dir/$docs_root/proj-management/templates"
+
+  echo "[writing] project docs scaffold under $docs_root/"
+  echo "[summary] Use DOC_ROOT=$docs_root when running workflow scripts for this project."
+  echo "[summary] Issue worktrees will default to $worktree_root"
 fi
-
-mkdir -p \
-  "$project_dir/$docs_root/adr" \
-  "$project_dir/$docs_root/gov" \
-  "$project_dir/$docs_root/arch" \
-  "$project_dir/$docs_root/spec" \
-  "$project_dir/$docs_root/runbook" \
-  "$project_dir/$docs_root/qa" \
-  "$project_dir/$docs_root/memory" \
-  "$project_dir/$docs_root/proj-management/tasks" \
-  "$project_dir/$docs_root/proj-management/communication" \
-  "$project_dir/$docs_root/proj-management/templates"
-
-echo "Created project docs folders under $project_dir/$docs_root"
-echo "Use DOC_ROOT=$docs_root when running workflow scripts for this project."
-echo "Issue worktrees will default to $worktree_root"
 
 # --- SPEC-001 T3 (issue #4): AGENTS.md generation ---------------------------
 # Runs after skills/config/docs writes per ERR-2.1 step 4 (AGENTS.md is the
@@ -1638,7 +2005,7 @@ fi
 decide_existing_agents_md_action "$agents_md_target" "$mode" "$opt_force" "$opt_merge"
 
 if [[ "$AGENTS_MD_ACTION" == "skip" ]]; then
-  echo "[summary] AGENTS.md exists; skipped (use --force to overwrite, --force --merge to append)"
+  emit_skip "AGENTS.md exists; skipped (use --force to overwrite, --force --merge to append)"
 else
   # 4. Generate content. Env vars consumed by the inline node helper.
   AGENTS_MD_CONTENT="$(
@@ -1670,7 +2037,7 @@ else
       case "${local_confirm:-y}" in
         y|Y) break ;;
         n|N)
-          echo "[summary] Operator declined AGENTS.md write"
+          emit_skip "Operator declined AGENTS.md write"
           AGENTS_MD_ACTION="skip"
           break
           ;;
@@ -1680,26 +2047,73 @@ else
   fi
 
   # 6. Write (with backup if --force + existing — ERR-3.2).
+  # T6 / TR-2.2: for overwrite/merge on an existing file, compare the
+  # structural body (header timestamp stripped) against the existing file.
+  # If identical, downgrade to skip — no backup, no rewrite, no timestamp
+  # churn. This is what makes `--force` idempotent at the content level
+  # (TR-2.1: second run with identical parameters = no-op). The first
+  # --force on a genuinely-changed file still backs up + rewrites (ERR-3.2).
+  # T6 / OBS-2: in dry-run, emit [would-write] lines and skip every write
+  # and backup (OBS-2.1: zero file changes).
   if [[ "$AGENTS_MD_ACTION" != "skip" ]]; then
     case "$AGENTS_MD_ACTION" in
       create)
-        write_agents_md_atomic "$agents_md_target" "$AGENTS_MD_CONTENT"
-        echo "[writing] AGENTS.md (new)"
+        if [[ "${opt_dry_run:-0}" == "1" ]]; then
+          echo "[would-write] AGENTS.md (new)"
+          stat_would_write=$((stat_would_write + 1))
+        else
+          write_agents_md_atomic "$agents_md_target" "$AGENTS_MD_CONTENT"
+          emit_write "AGENTS.md (new)"
+        fi
         ;;
       overwrite)
-        agents_md_backup="$(backup_agents_md "$agents_md_target")"
-        write_agents_md_atomic "$agents_md_target" "$AGENTS_MD_CONTENT"
-        echo "[writing] ${agents_md_backup} (backup of previous AGENTS.md)"
-        echo "[writing] AGENTS.md (overwritten)"
+        # Compute the structural comparison BEFORE deciding backup vs skip.
+        existing_content_for_cmp="$(cat "$agents_md_target")"
+        merged_for_cmp="$AGENTS_MD_CONTENT"
+        if [[ "$(strip_agents_md_header <(printf '%s' "$existing_content_for_cmp"))" \
+              == "$(strip_agents_md_header <(printf '%s' "$merged_for_cmp"))" ]]; then
+          emit_skip "AGENTS.md already matches regenerated content; no changes needed (idempotent --force)"
+        elif [[ "${opt_dry_run:-0}" == "1" ]]; then
+          echo "[would-write] ${agents_md_target}.bak.<ts> (backup of previous AGENTS.md)"
+          echo "[would-write] AGENTS.md (overwritten)"
+          stat_would_write=$((stat_would_write + 2))
+        else
+          agents_md_backup="$(backup_agents_md "$agents_md_target")"
+          write_agents_md_atomic "$agents_md_target" "$AGENTS_MD_CONTENT"
+          emit_write "${agents_md_backup} (backup of previous AGENTS.md)"
+          emit_write "AGENTS.md (overwritten)"
+        fi
         ;;
       merge)
-        agents_md_backup="$(backup_agents_md "$agents_md_target")"
-        existing_content="$(cat "$agents_md_target")"
-        merged_content="$(merge_agents_md_content "$existing_content" "$AGENTS_MD_CONTENT")"
-        write_agents_md_atomic "$agents_md_target" "$merged_content"
-        echo "[writing] ${agents_md_backup} (backup of previous AGENTS.md)"
-        echo "[writing] AGENTS.md (merged)"
+        existing_content_for_merge="$(cat "$agents_md_target")"
+        merged_content="$(merge_agents_md_content "$existing_content_for_merge" "$AGENTS_MD_CONTENT")"
+        # TR-2.2 idempotency on merge: if the merge result is structurally
+        # identical to the existing file (all fresh sections already present),
+        # skip the backup + write. Otherwise behave as ERR-3.2 requires.
+        if [[ "$(strip_agents_md_header <(printf '%s' "$existing_content_for_merge"))" \
+              == "$(strip_agents_md_header <(printf '%s' "$merged_content"))" ]]; then
+          emit_skip "AGENTS.md already contains every merged section; no changes needed (idempotent --force --merge)"
+        elif [[ "${opt_dry_run:-0}" == "1" ]]; then
+          echo "[would-write] ${agents_md_target}.bak.<ts> (backup of previous AGENTS.md)"
+          echo "[would-write] AGENTS.md (merged)"
+          stat_would_write=$((stat_would_write + 2))
+        else
+          agents_md_backup="$(backup_agents_md "$agents_md_target")"
+          write_agents_md_atomic "$agents_md_target" "$merged_content"
+          emit_write "${agents_md_backup} (backup of previous AGENTS.md)"
+          emit_merge "AGENTS.md"
+        fi
         ;;
     esac
   fi
+fi
+
+# --- T6 (issue #7) / OBS-1.2: final summary line -----------------------------
+# Always emitted last so downstream agents can detect completion by reading
+# the trailing [summary] line. Dry-run reports would-write instead of
+# created/merged (OBS-2.1).
+if [[ "${opt_dry_run:-0}" == "1" ]]; then
+  echo "[summary] Dry run complete. ${stat_would_write} would-write; ${stat_skipped} skipped; ${stat_warnings} warning(s)."
+else
+  echo "[summary] Initialization complete. ${stat_created} created; ${stat_merged} merged/updated; ${stat_skipped} skipped; ${stat_warnings} warning(s)."
 fi
