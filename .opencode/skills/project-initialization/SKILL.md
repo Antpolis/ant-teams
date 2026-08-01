@@ -13,42 +13,66 @@ The point is not to invent a greenfield plan from thin air. The point is to read
 
 ## Bundled Tools
 
-This skill includes bundled setup assets.
+This skill ships the canonical project-local initialization engine plus a deprecated lightweight scaffold.
 
-Use `scripts/setup_project_docs.sh [DOC_ROOT]` when the repo needs initial documentation folders for:
+### `scripts/init_project_docs.sh` — repository-aware bootstrap (canonical)
 
-- ADRs
-- architecture docs
-- governance docs
-- GitHub collaboration config
+This is the upgraded single-command initializer (current version stamped in the script's `INIT_PROJECT_VERSION`). It is the canonical init flow for new and existing repositories. It is invoked through the thin delegation chain `scripts/init-project.sh` → `scripts/init-project-docs.sh` → this script; both wrappers are pure pass-through and add no logic.
 
-The script creates the folders and adds `README.md` guidance in each folder explaining:
+The initializer leaves behind a project-local operating baseline derived from the actual repository plus operator inputs, not from a static template:
 
-- what belongs there
-- when to create a document there
-- file naming conventions
+1. **Preflight validation** (before any write): the target directory exists and is a git repo (`.git` present), the source repo contains `.opencode/skills/`, `node` (≥18) is on PATH, and coreutils (`cp`, `mkdir`, `cat`, `rm`, `mktemp`) are available. Any failure exits 1 with a specific `[error]` message and writes nothing.
 
-The script also creates `agent.md` in the repository root to tell future agents which documentation root this repository uses. The docs root is not assumed; it should match the user-specified root passed into the setup step.
+2. **`.github-project.json` extension** (canonical ARCH-003 DM-1 schema): adds `worktreeRoot`, `identity`, `boundaries`, and `initMeta` additively. Existing fields (`owner`, `owner_type`, `repo`, `project`, `fields`, `status_options`) are preserved verbatim. A pre-existing `worktreeRoot` is never overwritten. `identity.name` defaults to the detected repo name; `boundaries.depends_on` and `boundaries.related_repos` are written as `[]` when empty (never omitted) so agents can distinguish "no relationships" from "missing field". The merge is structural-idempotent: a no-op rerun leaves the file byte-for-byte identical, including the prior `initMeta.generatedAt` timestamp.
 
-The script also creates `.github-project.json` in the repository root if it does not exist. This file is meant to be committed and should store shared GitHub collaboration metadata such as owner, project number, project ID, field IDs, common status option IDs, and the issue-worktree root. Use JSON so future metadata can be stored as nested objects and arrays without inventing more env variable names.
+3. **`.opencode/opencode.json`** (minimal runtime config): detection covers the canonical `.opencode/opencode.json`, `.opencode/opencode.jsonc`, and legacy repo-root `opencode.jsonc` / `opencode.json`. A fresh init creates `.opencode/opencode.json`. A pre-existing config is updated in place and never relocated; only the missing `permission.external_directory["<worktree-root>/**"] = "allow"` entry is added. Existing permission entries, agents, providers, and plugins are never modified.
 
-The project initialization flow should also ensure `.github-project.json` stores the default issue worktree root as top-level field `worktreeRoot`. Unless the user asks for something else, initialize it to `~/Projects/worktree/<repo name>`.
+4. **Skills copy** (exactly three): copies `github-issues-projects-cli`, `do-task`, and `project-initialization` from the source `.opencode/skills/` into the project-local `.opencode/skills/`. No other skill is copied. Copy is a per-file merge: every source file is created when absent and preserved when already present (this protects project-customized `SKILL.md` files). Execute bits are preserved via `cp -p` from the source. `.opencode/.gitignore` with a `node_modules` entry is ensured.
 
-Use `scripts/init_project_docs.sh [--project-dir PATH] [--docs-root docs] [--worktree-root PATH]` when the repo needs the full project-local workflow bootstrap, including copied docs, `.github-project.json`, and the default issue worktree root.
+5. **Docs tree copy + folder scaffold**: copies the source `docs/` tree (per-file, never overwriting) and ensures the `adr`, `gov`, `arch`, `spec`, `runbook`, `qa`, `memory`, and `proj-management/` subdirectories exist.
 
-That same initialization flow should also ensure the repository has an `opencode.jsonc` or `opencode.json` with:
+6. **`AGENTS.md` generation** (the final artifact, so "Local Configuration Files" can enumerate everything written): built from repository inspection plus operator inputs. See the AGENTS.md generation contract below.
 
-```json
-{
-  "permission": {
-    "external_directory": {
-      "<worktree root>/**": "allow"
-    }
-  }
-}
-```
+### Repository inspection phase
 
-If a repo config already exists, inspect it first and add the external-directory permission only when it is missing.
+Before prompting or writing, the initializer runs `scripts/inspect_repo.js` (read-only; never modifies the target repo). It gathers a structured evidence record (in-memory, not persisted) across these categories: language/runtime stack (lockfiles, build configs, module files), package manager, docs root (`docs/` or `.docs/`), existing agent guidance (`agent.md`, `AGENTS.md`, `.cursorrules`, `.windsurfrules`, `CLAUDE.md`, `CODEX.md`), test infrastructure (test dirs + framework configs), CI/CD (`.github/workflows/`, `.gitlab-ci.yml`, `Jenkinsfile`, `Dockerfile`, `docker-compose*.yml`), existing `.opencode` config, existing `.github-project.json`, app/service boundaries (monorepo detection), and repository origin (`git remote -v`). The record distinguishes `observed` facts from `inferred` facts and flags ambiguities (e.g., both `go.mod` and `package.json` at root). `--skip-inspection` skips this phase entirely. If inspection fails, `AGENTS.md` is still built from operator input alone.
+
+### AGENTS.md generation
+
+`AGENTS.md` is plain Markdown written to the repo root (uppercase `AGENTS.md`), in the style of Codex/Claude init. Two modes are supported:
+
+- **Interactive mode** (default when stdout is a TTY): runs a 6-prompt flow — primary purpose, working conventions, build/test/run commands, repository relationships, scratch/log directory, and GitHub Project configuration. Each prompt accepts a blank response (blank falls back to a detected default or omits the section), shows a preview, and asks Y/n confirmation before writing.
+- **Noninteractive mode** (default when stdout is not a TTY, or `--noninteractive`): all inputs come from CLI flags or env vars. Requires `--name`, `--github-owner`, and `--github-project-number`; missing values exit 1 with a clear `[error]` listing the missing flags. Completes with zero prompts.
+
+Every section in the generated `AGENTS.md` is traceable to inspection evidence or operator input — no fabricated claims. Empty sections are omitted entirely (no placeholder headings). The mandatory `## Local Configuration Files` section lists every artifact written. Line 1 carries `<!-- Generated by init-project v<version> on <ISO 8601> — edit freely -->`. A pre-existing `AGENTS.md` is never overwritten by default: interactive mode offers overwrite/merge/skip; noninteractive mode skips unless `--force` (which backs up the old file to `<name>.bak.<timestamp>` first). `--force --merge` appends new H2 sections not already present.
+
+### CLI flags and environment variables
+
+Every flag has an `INIT_PROJECT_*` env-var equivalent (uppercase, dashes → underscores). Resolution order is `default < env < CLI flag`, so explicit flags always win.
+
+- Mode: `--interactive` / `--noninteractive` (default: TTY-driven).
+- Repository identity: `--name`, `--description`, `--repo-role` (enum: `service | library | infra | monorepo-root | tool | docs | other`), `--related-repos` (comma-separated `name:url:relationship` triples; url is opaque and stored as-is, never fetched).
+- GitHub Project: `--github-owner`, `--github-project-number` (positive integer).
+- AGENTS.md shaping: `--conventions` (text or `@file`), `--commands` (text or `@file`), `--scratch-dir` (default `./tmp/`).
+- Behavior modifiers: `--force`, `--merge` (default: interactive=on, noninteractive=off), `--migrate-agent-md`, `--skip-inspection`, `--dry-run`.
+- Pre-existing (preserved): `--project-dir`, `--docs-root`, `--worktree-root`, `-h`/`--help`.
+
+### Multi-repo identity and boundary metadata
+
+`.github-project.json` gains a thin, static, non-resolving identity layer: `identity` (`name`, `description`, `role`) and `boundaries` (`owns`, `depends_on[]`, `related_repos[]`). URLs and paths are stored as opaque strings — the initializer never fetches, resolves, or opens them. This is enough for agents to understand what repo they are in and how it relates to siblings without creating a second architecture system. See ARCH-003 for the full schema and consumption rules.
+
+### Backward-compatible migration behavior
+
+The initializer is strictly additive and never destructive:
+
+- Legacy lowercase `agent.md` is never deleted; it coexists with `AGENTS.md`. Content may be migrated only when `--migrate-agent-md` is passed (noninteractive).
+- Existing `.github-project.json`, `.opencode/opencode.json` / `.jsonc`, docs folders, and project-local custom skills are preserved verbatim; only missing fields/files are added.
+- Reruns are idempotent: a no-op rerun reports "No changes needed" and writes nothing. `--force` regenerates `AGENTS.md` and re-copies skills, but a `--force` rerun with identical inputs leaves `AGENTS.md` byte-for-byte intact (content-level idempotency).
+- `setup_project_docs.sh` remains available as a deprecated lighter-weight scaffold that only creates folder READMEs, the legacy `agent.md`, and a minimal `.github-project.json`. It is not upgraded; new initializations should use `init_project_docs.sh`. The `assets/agent-md-template.md` template is likewise deprecated (it carries a deprecation notice and is no longer used for `AGENTS.md` generation).
+
+### Output format and error handling
+
+Console output uses structured prefixes so agents can parse it: `[inspecting]`, `[prompt]`, `[writing]`, `[warning]` (stderr), `[error]` (stderr), `[summary]`. In noninteractive mode output is compact (one line per artifact); warnings go to stderr, informative output to stdout. `--dry-run` resolves and validates everything but replaces every `[writing]` with `[would-write]` and writes zero files. All generated files are written atomically (write-temp-then-rename in the same directory); a trap cleans up every scratch file on EXIT/INT/TERM, so an interrupted run leaves no partial state behind.
 
 The skill also includes reference templates under `references/` for:
 
@@ -213,7 +237,7 @@ Decide what workflow artifacts should exist or be updated, such as:
 - architecture or migration doc
 - ADR folder, architecture folder, and governance folder scaffolding
 - local governance reference to the master enterprise architecture if this repo depends on an external authoritative source
-- `agent.md` pointing agents to the correct docs root
+- `AGENTS.md` (generated by `init_project_docs.sh`) pointing agents to the docs root, stack, commands, and repo identity; legacy lowercase `agent.md` is a deprecated fallback only
 - GitHub milestone and issue conventions
 - `.github-project.json` with repo GitHub owner, project identifiers, common field/option IDs, and top-level `worktreeRoot`
 - role or agent handoff guidance
@@ -248,8 +272,8 @@ Depending on the repo state, create or update some combination of:
 - stack migration note or ADR
 - ADR, architecture, and governance folder scaffolding with README guidance
 - local governance note or update confirming how the external master enterprise architecture applies to this repo when needed
-- `agent.md` documenting the repository docs root and document naming conventions
-- `.github-project.json` documenting GitHub owner, project number, project ID, common status IDs, and top-level `worktreeRoot`
+- `AGENTS.md` documenting the repository docs root, stack, commands, conventions, and document naming conventions (the bundled `init_project_docs.sh` generates this; legacy `agent.md` is deprecated)
+- `.github-project.json` documenting GitHub owner, project number, project ID, common status IDs, `worktreeRoot`, and the multi-repo `identity`/`boundaries`/`initMeta` blocks
 - first milestone/spec definition
 - first GitHub task breakdown
 - workflow setup notes for agents and handoffs

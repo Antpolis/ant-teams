@@ -13,7 +13,7 @@ The workflow is GitHub-first and GitHub-only for task execution:
 ## Start Here
 
 1. Sync company config with `scripts/sync-company.sh`.
-2. If you want only project docs plus global config, run `scripts/init-project.sh` in the project repo.
+2. Run `scripts/init-project.sh` in the project repo to bootstrap a repository-aware local baseline: it inspects the repo, generates a tailored `AGENTS.md`, extends `.github-project.json` with multi-repo identity, copies the three required script-bearing skills, and wires the worktree permission. See the `project-initialization` skill and ARCH-003 for the full contract.
 3. `scripts/init-company.sh` and `scripts/update-company.sh` are aliases to `scripts/sync-company.sh`.
 4. Restart opencode after any config changes.
 5. Run a delivery request with the `deliver` command.
@@ -23,10 +23,13 @@ The workflow is GitHub-first and GitHub-only for task execution:
 - `scripts/sync-company.sh` copies `.opencode/` into `~/.config/opencode` by default.
 - `scripts/init-company.sh` and `scripts/update-company.sh` both run `scripts/sync-company.sh`.
 - The global install at `~/.config/opencode` includes `tools/`, `skills/`, `plugins/`, `scripts/`, `docs/`, and `opencode.json`.
-- `scripts/init-project.sh` copies the company docs into a project repo and uses the global config.
-- `scripts/init-project-docs.sh` is the underlying project docs initializer.
-- `scripts/init-project-docs.sh` also ensures `.github-project.json` stores the default issue-worktree root.
-- `scripts/init-project-docs.sh` also ensures `opencode.json` or `opencode.jsonc` allows access to the issue-worktree root through `permission.external_directory`.
+- `scripts/init-project.sh` is a thin pass-through to `scripts/init-project-docs.sh`, which delegates to the canonical initializer at `.opencode/skills/project-initialization/scripts/init_project_docs.sh`. That initializer is repository-aware (per SPEC-001 / ARCH-003) and:
+  - inspects the target repo (stack, package manager, docs root, tests, CI/CD, agent guidance, repo origin) via a read-only inspection phase;
+  - generates a tailored `AGENTS.md` at the repo root from inspection plus operator inputs (interactive 6-prompt flow by default, or noninteractive via flags/env vars);
+  - extends `.github-project.json` additively with `worktreeRoot`, `identity`, `boundaries`, and `initMeta` (existing fields preserved verbatim);
+  - copies exactly three script-bearing skills (`github-issues-projects-cli`, `do-task`, `project-initialization`) into project-local `.opencode/skills/`;
+  - ensures `.opencode/opencode.json` allows access to the issue-worktree root via `permission.external_directory`;
+  - is idempotent and backward-compatible: it never deletes the legacy `agent.md`, never overwrites existing config, and a no-op rerun writes nothing.
 - `scripts/update-company.sh` refreshes the installed company config from this source tree.
 - `.opencode/commands/` holds the slash commands and is copied to `~/.config/opencode/commands`.
 - Project docs are local overrides for repo-specific architecture and workflow state.
@@ -34,6 +37,8 @@ The workflow is GitHub-first and GitHub-only for task execution:
 - Project docs override global architecture guidance when both exist.
 - When using the global workflow scripts for a project, run them from the project repo and set `DOC_ROOT=docs` (or `DOC_ROOT=.docs`) so they target the local project tree.
 - Project initialization sets the default issue-worktree root to `~/Projects/worktree/<repo name>`.
+
+Validate generated `AGENTS.md` against the DM-2 structural contract with `scripts/validate-agents-md.sh <path-to-AGENTS.md>`.
 
 Example:
 

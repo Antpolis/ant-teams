@@ -1,3 +1,5 @@
+<!-- DEPRECATED: This template is no longer used by the upgraded init-project. See ARCH-003 for the new AGENTS.md generation contract. -->
+
 # Agent Guide
 
 This repository uses `__DOC_ROOT__` as the documentation root.
