@@ -112,7 +112,10 @@
     "read": "allow",
     "grep": "allow",
     "question": "allow",
-    "webfetch": "allow"
+    "webfetch": "allow",
+    "external_directory": {
+      "/home/chrissim/Projects/worktree/ant-teams/**": "allow"
+    }
   },
   "plugin": [],
   "provider": {

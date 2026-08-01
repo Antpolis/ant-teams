@@ -1,0 +1,44 @@
+{
+  "owner": "Antpolis",
+  "owner_type": "org",
+  "repo": "Antpolis/ant-teams",
+  "project": {
+    "number": 9,
+    "id": "PVT_kwDOAGcCyM4Bdw3L"
+  },
+  "fields": {
+    "status": "PVTSSF_lADOAGcCyM4Bdw3LzhYQDlE",
+    "workflowState": "PVTSSF_lADOAGcCyM4Bdw3LzhYQD90"
+  },
+  "status_options": {
+    "todo": "f75ad846",
+    "in-progress": "47fc9ee4",
+    "done": "98236657"
+  },
+  "workflow_state_options": {
+    "inbox": "eb66d5a6",
+    "shaping": "8c478392",
+    "need-attentions": "de3538f3",
+    "ready": "3cd868ce",
+    "in-progress": "430925ac",
+    "in-review": "3cbc15c8",
+    "ready-to-merge": "894e062a",
+    "blocked": "445391b6",
+    "done": "f46ff79d"
+  },
+  "worktreeRoot": "~/Projects/worktree/ant-teams",
+  "identity": {
+    "name": "ant-teams",
+    "description": "AntPolis agentic delivery workflow source repository: project initialization, agent skills, and GitHub-based multi-agent delivery pipeline",
+    "role": "tool"
+  },
+  "boundaries": {
+    "owns": "The canonical agentic delivery flow implementation, init-project scripts, agent skill definitions, and project-local initialization artifacts",
+    "depends_on": [],
+    "related_repos": []
+  },
+  "initMeta": {
+    "version": "0.1.0",
+    "generatedAt": "2026-07-18T00:00:00+08:00"
+  }
+}
