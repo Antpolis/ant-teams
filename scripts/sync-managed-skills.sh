@@ -343,18 +343,22 @@ assert_target_within_managed() {
 }
 
 # ---------------------------------------------------------------------------
-# Managed write-path ancestor check (FR-11.4 / SEC-5.1).
+# Managed write-path ancestor check (FR-11.4 / SEC-5.1 / SEC-5.2).
 #
 # A non-directory anywhere along the directory chain leading to a target file
 # (e.g., a stray regular file where an intermediate directory is expected)
 # would make `mkdir -p` abort with "File exists". SPEC-002 treats that as an
 # unmanaged collision: warn + skip the file, never a filesystem abort.
 #
-# Returns 0 (true) when the write path is BLOCKED by an existing non-directory
-# ancestor (regular file, symlink-to-file, broken symlink, device, etc.).
-# Returns 1 (false) when every existing ancestor is a directory (or absent,
-# meaning mkdir -p can create the chain cleanly). -d follows symlinks, so a
-# symlink-to-dir is allowed; a symlink-to-file or broken symlink is not.
+# SEC-5.2 additionally forbids following ANY symlink in the managed target
+# ancestor chain: a symlinked ancestor (even a symlink-to-dir) would redirect
+# the later mkdir/write OUTSIDE ~/.agents/skills, escaping the managed subtree.
+#
+# Returns 0 (true) when the write path is BLOCKED -- i.e. any existing ancestor
+# is a symlink (to a dir, file, or broken target) or any non-directory (regular
+# file, device, etc.). Returns 1 (false) when every existing ancestor is a real
+# directory (or absent, meaning mkdir -p can create the chain cleanly without
+# ever crossing a symlink).
 # ---------------------------------------------------------------------------
 target_path_blocked() {
   local tgt="$1" dir rel cur comp rest
@@ -377,7 +381,11 @@ target_path_blocked() {
       rest="${rest#*/}"
     fi
     cur="$cur/$comp"
-    if [[ ( -e "$cur" || -L "$cur" ) && ! -d "$cur" ]]; then
+    # SEC-5.2: never follow a symlink in the ancestor chain. -L catches
+    # symlinks regardless of what they point at (dir/file/broken), so a
+    # symlink-to-dir ancestor is rejected here rather than silently followed
+    # by the later mkdir -p. A real non-directory ancestor is also a block.
+    if [[ -L "$cur" ]] || [[ -e "$cur" && ! -d "$cur" ]]; then
       return 0
     fi
   done
@@ -400,14 +408,15 @@ file_mode() {
 
 # Write a single file from a staged/source path (SEC-3, TR-4.2).
 #
-# Permission policy (reconciles SEC-3.1 with SEC-3.2):
+# Permission policy (SEC-3.1 governs install; SEC-3.2 governs update):
 #   * Fresh install (target did not exist) or --force  -> source-derived mode
 #     (0644, or 0755 if the source file is executable).                (SEC-3.1)
 #   * Update of an existing managed file (no --force)  -> preserve the
-#     operator's prior mode, enforcing only a security floor: strip group
-#     write, other write, and special bits (keep owner rwx, group/other
-#     r-x). This tightens modes looser than 0755 (e.g. 0666 -> 0644, 0777
-#     -> 0755) without breaking executable scripts.                    (SEC-3.2)
+#     operator's prior mode UNLESS it is more permissive than 0644, in
+#     which case tighten to exactly 0644 (e.g. 0666 -> 0644, 0777 -> 0644,
+#     0755 -> 0644). Modes at or below 0644 (0600, 0640, 0644, 0444 ...) are
+#     preserved as-is. The exec bit stripped from an updated executable script
+#     is restored by the next force/fresh install (SEC-3.1).           (SEC-3.2)
 # Directories are created 0755 via umask (SEC-3.1).
 # ---------------------------------------------------------------------------
 write_target_file() {
@@ -435,13 +444,18 @@ write_target_file() {
     # Fresh install or explicit --force: source-derived mode (SEC-3.1).
     chmod "$src_mode" "$tgt" 2>/dev/null || die_fs "cannot chmod $tgt"
   else
-    # Update (no force): preserve prior mode under the security floor (SEC-3.2).
-    # `0$prior_oct` forces bash to read stat's octal output as octal.
-    local prior_dec floor_dec floor_oct
+    # Update (no force): SEC-3.2 literal -- preserve prior mode unless it is
+    # more permissive than 0644, in which case tighten to 0644.
+    # `0$prior_oct` forces bash to read stat's octal output as octal; ~0644
+    # isolates any access bit outside the rw-r--r-- baseline.
+    local prior_dec extra_dec
     prior_dec=$(( 0$prior_oct ))
-    floor_dec=$(( prior_dec & 0755 ))
-    floor_oct="$(printf '%o\n' "$floor_dec")"
-    chmod "$floor_oct" "$tgt" 2>/dev/null || die_fs "cannot chmod $tgt"
+    extra_dec=$(( prior_dec & ~0644 ))
+    if [[ "$extra_dec" -ne 0 ]]; then
+      chmod 0644 "$tgt" 2>/dev/null || die_fs "cannot chmod $tgt"
+    else
+      chmod "$prior_oct" "$tgt" 2>/dev/null || die_fs "cannot chmod $tgt"
+    fi
   fi
 }
 
@@ -731,14 +745,15 @@ while IFS= read -r name; do
     # Validate target path before any write decision (SEC-1.3, FR-7).
     assert_target_within_managed "$target_file"
 
-    # FR-11.4 / SEC-5.1: a non-directory anywhere along the managed write
-    # path (e.g., a stray regular file where an intermediate directory is
-    # expected) is an unmanaged collision -> warn + skip this file, never a
-    # mkdir abort. Re-running after the operator clears the block installs
-    # the file via the normal UPDATE/INSTALL path.
+    # FR-11.4 / SEC-5.1 / SEC-5.2: a symlink or non-directory anywhere along
+    # the managed write path (e.g., a stray regular file OR a symlinked
+    # intermediate dir) is an unmanaged collision -> warn + skip this file,
+    # never a mkdir abort and never a write that follows the symlink out of the
+    # managed subtree. Re-running after the operator clears/replaces it
+    # installs the file via the normal UPDATE/INSTALL path.
     if target_path_blocked "$target_file"; then
-      warn "Unmanaged non-directory on write path: $(dirname "$target_file"); skipping $name/$subpath."
-      say_err "[SKIP collision] $name/$subpath (non-directory ancestor in managed write path)"
+      warn "Symlink or non-directory on managed write path: $(dirname "$target_file"); skipping $name/$subpath."
+      say_err "[SKIP collision] $name/$subpath (symlink or non-directory ancestor in managed write path)"
       COUNT_SKIP_COLLISION=$((COUNT_SKIP_COLLISION + 1))
       continue
     fi

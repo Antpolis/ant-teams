@@ -15,16 +15,23 @@
 #   F2  Unmanaged regular file at a managed target name (FR-11.4 / SEC-5.1):
 #       warn + skip the entry with exit 0, instead of aborting with exit 5
 #       ("mkdir: File exists").
-#   F3  Permission preservation on update (SEC-3.2): updating an existing
-#       managed file preserves the operator's prior mode under a security
-#       floor (strip group/other write + special bits); fresh install and
-#       --force still apply source-derived mode (SEC-3.1).
+#   F3  Permission policy on update (SEC-3.2 literal, review loop 4): updating
+#       an existing managed file preserves the operator's prior mode unless it
+#       is MORE permissive than 0644, in which case it tightens to 0644 (e.g.
+#       0666, 0777, 0755 -> 0644). Modes at/below 0644 (0600, 0640, 0444) are
+#       preserved. Fresh install and --force still apply source-derived mode
+#       (SEC-3.1).
 #   F4  Non-directory ancestor inside the managed write path (FR-11.4 /
 #       SEC-5.1, review loop 3): a regular file at an INTERMEDIATE managed
 #       path (e.g., .../<entry>/scripts turned into a file) makes the later
 #       mkdir abort. Any non-directory ancestor anywhere in the write path
 #       must warn + skip per file (exit 0), and clearing the block must
 #       restore normal install.
+#   F5  Symlink ancestor escape (SEC-5.2, review loop 4): a symlink anywhere
+#       in the managed target ancestor chain (even a symlink-to-dir) would
+#       redirect writes OUTSIDE ~/.agents/skills. The sync must never follow
+#       such a symlink: warn + skip the affected files (exit 0) and write
+#       nothing into the symlink target.
 #
 # All runs use a temp HOME and a temp repo copy (for source-mutation tests) so
 # the operator's real ~/.agents/skills and the real source tree are untouched.
@@ -197,8 +204,8 @@ tgt_md="$HOME3/.agents/skills/documentation-standard/SKILL.md"
 assert_eq "F3 fresh .sh mode (0755)" "$(mode_of "$tgt_sh")" "755"
 assert_eq "F3 fresh .md mode (0644)" "$(mode_of "$tgt_md")" "644"
 
-# 3a: UPDATE preserves operator mode under the security floor.
-#     Tighten .sh to 0600 (preserved), loosen .md to 0666 (floored to 0644).
+# 3a: SEC-3.2 -- modes at/below 0644 are preserved; modes above 0644 tighten.
+#     .sh -> 0600 (preserved, at/below 0644); .md -> 0666 (tightened to 0644).
 chmod 0600 "$tgt_sh"
 chmod 0666 "$tgt_md"
 # Change SOURCE content (not target) so source_hash != manifest_hash (UPDATE path).
@@ -209,13 +216,32 @@ rc=$?
 assert_eq "F3 update exit code" "$rc" 0
 assert_count_line "F3 update writes (>=2)" "$OUT" "[UPDATE]" 2
 assert_eq "F3 update .sh preserved (0600)" "$(mode_of "$tgt_sh")" "600"
-assert_eq "F3 update .md floored (0644)"   "$(mode_of "$tgt_md")" "644"
+assert_eq "F3 update .md tightened (0644)" "$(mode_of "$tgt_md")" "644"
 assert_contains "F3 update .sh content applied" "$tgt_sh" "smoke update marker"
 assert_contains "F3 update .md content applied" "$tgt_md" "smoke update marker"
 
+# 3c: SEC-3.2 literal tightening -- the reviewer loop-4 finding. The prior
+#     `& 0755` floor left any mode >0755 at 0755; the literal spec (and this
+#     rule) requires tightening anything more permissive than 0644 all the way
+#     down to 0644. Drive another UPDATE by changing source again after the
+#     operator loosened the on-disk mode. 0777 .md -> 0644 ; 0755 .sh (still
+#     executable) -> 0644 (exec bit stripped on UPDATE, restored by --force
+#     in 3b-style path / next fresh install per SEC-3.1).
+chmod 0777 "$tgt_md"
+chmod 0755 "$tgt_sh"
+printf '<!-- smoke update marker 2 -->\n' >> "$src_md"
+printf '# smoke update marker 2\n' >> "$src_sh"
+"$TSCRIPT" >"$OUT" 2>&1
+rc=$?
+assert_eq "F3 tighten-update exit code" "$rc" 0
+assert_ge "F3 tighten-update writes (>=2)" "$(grep -cF "[UPDATE]" "$OUT" || true)" 2
+assert_eq "F3 0777 .md tightened to 0644 (was 0755 under old &0755 floor)" "$(mode_of "$tgt_md")" "644"
+assert_eq "F3 0755 .sh tightened to 0644 on update (exec restored on force)" "$(mode_of "$tgt_sh")" "644"
+
 # 3b: --force applies source-derived mode (SEC-3.1) to a modified managed file.
-# After 3a the .sh is mode 0600 (owner rw); overwrite its content to make it
-# locally modified, then --force must restore source content AND src_mode 0755.
+# After 3c the .sh is mode 0644 (x-bit stripped by the SEC-3.2 update); overwrite
+# its content to make it locally modified, then --force must restore source
+# content AND src_mode 0755 (exec bit reinstated by the install path).
 echo "manual junk override" > "$tgt_sh"   # locally modify (current != manifest)
 "$TSCRIPT" --force >"$OUT" 2>&1
 rc=$?
@@ -309,6 +335,111 @@ rc=$?
 assert_eq "F4 post-clear idempotent exit code" "$rc" 0
 assert_eq "F4 post-clear idempotent collisions" \
   "$(grep -cF "[SKIP collision]" "$ERR" || true)" 0
+
+# ---------------------------------------------------------------------------
+# F5 — symlink ancestor in the managed write path (SEC-5.2, review loop 4).
+#     Review loop 4 blocker: target_path_blocked only rejected non-directory
+#     ancestors and let a symlink-to-dir ancestor through, so `mkdir -p` /
+#     `cp` followed it and wrote managed files OUTSIDE ~/.agents/skills. A
+#     symlink anywhere in the managed target ancestor chain must be rejected:
+#     warn + skip the affected files (exit 0) and write nothing into the
+#     symlink target.
+# ---------------------------------------------------------------------------
+echo
+echo "--- F5: symlink ancestor escape (SEC-5.2) ---"
+HOME5="$WORK/h5"; mkdir -p "$HOME5"
+export HOME="$HOME5"
+OUT="$WORK/f5.out"
+ERR="$WORK/f5.err"
+"$SYNC" >"$OUT" 2>"$ERR" || { echo "F5 fresh install failed (exit $?)"; cat "$ERR"; FAIL=$((FAIL + 1)); }
+assert_count_line "F5 fresh install collisions" "$ERR" "[SKIP collision]" 0
+
+# An external directory OUTSIDE ~/.agents/skills that a symlink would redirect
+# writes into if the sync followed it. If anything lands here, the boundary broke.
+escape_dir="$WORK/escape-target"
+mkdir -p "$escape_dir"
+
+# Nested symlink-to-dir at an intermediate managed path (reviewer repro):
+# replace .../project-initialization/scripts (a real managed subdir) with a
+# symlink pointing at the external escape dir.
+blocked_subdir_rel="project-initialization/scripts"
+expected_skips="$(find "$REPO_ROOT/.opencode/skills/$blocked_subdir_rel" -type f 2>/dev/null | wc -l | tr -d ' ')"
+assert_ge "F5 source has files under symlinked subdir" "$expected_skips" 1
+link_path="$HOME5/.agents/skills/$blocked_subdir_rel"
+rm -rf "$link_path"
+ln -s "$escape_dir" "$link_path"
+assert_eq "F5 symlink is a symlink-to-dir (trap set)" \
+  "$(test -L "$link_path" && echo symlink)" "symlink"
+
+"$SYNC" >"$OUT" 2>"$ERR"
+rc=$?
+assert_eq "F5 nested-symlink exit code (expect 0)" "$rc" 0
+# Every source file under the symlinked subtree must be skipped (one per file).
+assert_eq "F5 nested-symlink skip count (== source files under symlinked dir)" \
+  "$(grep -cF "[SKIP collision]" "$ERR" || true)" "$expected_skips"
+assert_ge "F5 skip lines name the nested subpaths" \
+  "$(grep -cF "[SKIP collision] project-initialization/scripts/" "$ERR" || true)" 1
+# CRITICAL: nothing may have been written through the symlink into the escape dir.
+assert_eq "F5 no files escaped through symlink" \
+  "$(find "$escape_dir" -type f 2>/dev/null | wc -l | tr -d ' ')" 0
+# The symlink itself is untouched (operator must resolve manually).
+assert_eq "F5 symlink still a symlink (not followed/replaced)" \
+  "$(test -L "$link_path" && echo symlink)" "symlink"
+# A top-level file in the same entry still reconciles (entry not aborted).
+if [[ -f "$HOME5/.agents/skills/project-initialization/SKILL.md" ]]; then
+  printf '  [PASS] F5 sibling top-level file still present\n'; PASS=$((PASS + 1))
+else
+  printf '  [FAIL] F5 sibling top-level SKILL.md missing\n' >&2; FAIL=$((FAIL + 1))
+fi
+# An unrelated entry still installs normally.
+if [[ -f "$HOME5/.agents/skills/documentation-standard/SKILL.md" ]]; then
+  printf '  [PASS] F5 unrelated entry installed\n'; PASS=$((PASS + 1))
+else
+  printf '  [FAIL] F5 unrelated entry (documentation-standard) missing\n' >&2; FAIL=$((FAIL + 1))
+fi
+
+# Idempotent: a second run with the symlink still in place stays exit 0, same
+# skip count, still nothing written through the symlink.
+"$SYNC" >"$OUT" 2>"$ERR"
+rc=$?
+assert_eq "F5 second-run exit code" "$rc" 0
+assert_eq "F5 second-run skip count (stable)" \
+  "$(grep -cF "[SKIP collision]" "$ERR" || true)" "$expected_skips"
+assert_eq "F5 second-run no files escaped" \
+  "$(find "$escape_dir" -type f 2>/dev/null | wc -l | tr -d ' ')" 0
+
+# Recovery: once the operator removes the symlink, the previously-skipped files
+# install under the real managed path (mkdir -p recreates the dir in-subtree),
+# and the escape dir is STILL empty.
+rm -f "$link_path"
+"$SYNC" >"$OUT" 2>"$ERR"
+rc=$?
+assert_eq "F5 post-clear exit code" "$rc" 0
+assert_ge "F5 post-clear installs the previously-blocked files" \
+  "$(grep -cF "[INSTALL]" "$OUT" || true)" "$expected_skips"
+assert_eq "F5 post-clear escape dir still empty" \
+  "$(find "$escape_dir" -type f 2>/dev/null | wc -l | tr -d ' ')" 0
+if [[ -f "$HOME5/.agents/skills/$blocked_subdir_rel/init_project_docs.sh" ]]; then
+  printf '  [PASS] F5 post-clear file under real managed path\n'; PASS=$((PASS + 1))
+else
+  printf '  [FAIL] F5 post-clear real managed file missing\n' >&2; FAIL=$((FAIL + 1))
+fi
+
+# Top-level entry symlink (SEC-5.2 at the entry dir itself): a symlinked entry
+# name must also be skipped, never followed, and nothing may land in its target.
+HOME5b="$WORK/h5b"; mkdir -p "$HOME5b"
+export HOME="$HOME5b"
+escape_dir2="$WORK/escape-target-2"; mkdir -p "$escape_dir2"
+"$SYNC" >"$OUT" 2>"$ERR" || true   # fresh install so the entry exists first
+rm -rf "$HOME5b/.agents/skills/documentation-standard"
+ln -s "$escape_dir2" "$HOME5b/.agents/skills/documentation-standard"
+"$SYNC" >"$OUT" 2>"$ERR"
+rc=$?
+assert_eq "F5 top-level symlink exit code (expect 0)" "$rc" 0
+assert_ge "F5 top-level symlink skip" \
+  "$(grep -cF "[SKIP collision] documentation-standard" "$ERR" || true)" 1
+assert_eq "F5 top-level symlink nothing escaped" \
+  "$(find "$escape_dir2" -type f 2>/dev/null | wc -l | tr -d ' ')" 0
 
 # ---------------------------------------------------------------------------
 # Summary
