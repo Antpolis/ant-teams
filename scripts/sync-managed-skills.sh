@@ -343,6 +343,48 @@ assert_target_within_managed() {
 }
 
 # ---------------------------------------------------------------------------
+# Managed write-path ancestor check (FR-11.4 / SEC-5.1).
+#
+# A non-directory anywhere along the directory chain leading to a target file
+# (e.g., a stray regular file where an intermediate directory is expected)
+# would make `mkdir -p` abort with "File exists". SPEC-002 treats that as an
+# unmanaged collision: warn + skip the file, never a filesystem abort.
+#
+# Returns 0 (true) when the write path is BLOCKED by an existing non-directory
+# ancestor (regular file, symlink-to-file, broken symlink, device, etc.).
+# Returns 1 (false) when every existing ancestor is a directory (or absent,
+# meaning mkdir -p can create the chain cleanly). -d follows symlinks, so a
+# symlink-to-dir is allowed; a symlink-to-file or broken symlink is not.
+# ---------------------------------------------------------------------------
+target_path_blocked() {
+  local tgt="$1" dir rel cur comp rest
+  dir="$(dirname "$tgt")"
+  # Only chain under TARGET_DIR; boundary itself is enforced by
+  # assert_target_within_managed at the call site.
+  case "$dir" in
+    "$TARGET_DIR") return 1 ;;
+    "$TARGET_DIR"/*) ;;
+    *) return 1 ;;
+  esac
+  rel="${dir#"$TARGET_DIR"/}"
+  cur="$TARGET_DIR"
+  rest="$rel"
+  while [[ -n "$rest" ]]; do
+    comp="${rest%%/*}"
+    if [[ "$comp" == "$rest" ]]; then
+      rest=""
+    else
+      rest="${rest#*/}"
+    fi
+    cur="$cur/$comp"
+    if [[ ( -e "$cur" || -L "$cur" ) && ! -d "$cur" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+# ---------------------------------------------------------------------------
 # Permission helpers (SEC-3).
 # ---------------------------------------------------------------------------
 # Portable read of a file's permission bits as the octal string printed by
@@ -688,6 +730,18 @@ while IFS= read -r name; do
 
     # Validate target path before any write decision (SEC-1.3, FR-7).
     assert_target_within_managed "$target_file"
+
+    # FR-11.4 / SEC-5.1: a non-directory anywhere along the managed write
+    # path (e.g., a stray regular file where an intermediate directory is
+    # expected) is an unmanaged collision -> warn + skip this file, never a
+    # mkdir abort. Re-running after the operator clears the block installs
+    # the file via the normal UPDATE/INSTALL path.
+    if target_path_blocked "$target_file"; then
+      warn "Unmanaged non-directory on write path: $(dirname "$target_file"); skipping $name/$subpath."
+      say_err "[SKIP collision] $name/$subpath (non-directory ancestor in managed write path)"
+      COUNT_SKIP_COLLISION=$((COUNT_SKIP_COLLISION + 1))
+      continue
+    fi
 
     in_manifest=0
     manifest_hash=""

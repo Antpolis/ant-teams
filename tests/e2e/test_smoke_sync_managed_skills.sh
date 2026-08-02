@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # test_smoke_sync_managed_skills.sh — SPEC-002-T1 regression smoke for the
-# three PR #26 review findings (issue #22, review loop 2).
+# PR #26 review findings (issue #22, review loops 2 and 3).
 #
 # Standalone (not wired into run_e2e_tests.sh, which is SPEC-001-T7 scoped).
 # Formal cross-cutting coverage is owned by issue #24 (SPEC-002-T3); this
@@ -19,6 +19,12 @@
 #       managed file preserves the operator's prior mode under a security
 #       floor (strip group/other write + special bits); fresh install and
 #       --force still apply source-derived mode (SEC-3.1).
+#   F4  Non-directory ancestor inside the managed write path (FR-11.4 /
+#       SEC-5.1, review loop 3): a regular file at an INTERMEDIATE managed
+#       path (e.g., .../<entry>/scripts turned into a file) makes the later
+#       mkdir abort. Any non-directory ancestor anywhere in the write path
+#       must warn + skip per file (exit 0), and clearing the block must
+#       restore normal install.
 #
 # All runs use a temp HOME and a temp repo copy (for source-mutation tests) so
 # the operator's real ~/.agents/skills and the real source tree are untouched.
@@ -69,6 +75,15 @@ assert_count_line() {  # <label> <output-file> <substring> <expected-count>
   local got
   got="$(grep -cF "$3" "$2" || true)"
   assert_eq "$1" "$got" "$4"
+}
+
+assert_ge() {  # <label> <actual> <min>
+  if (( $2 >= $3 )); then
+    printf '  [PASS] %s: %s >= %s\n' "$1" "$2" "$3"; PASS=$((PASS + 1))
+  else
+    printf '  [FAIL] %s: got %s, expected >= %s\n' "$1" "$2" "$3" >&2
+    FAIL=$((FAIL + 1))
+  fi
 }
 
 echo "========================================================="
@@ -209,6 +224,91 @@ assert_count_line "F3 force overwrite (.sh)" "$OUT" "[FORCE overwrite]" 1
 assert_eq "F3 force .sh mode (0755)" "$(mode_of "$tgt_sh")" "755"
 # Content restored from source (still contains the smoke marker we appended).
 assert_contains "F3 force .sh content restored" "$tgt_sh" "smoke update marker"
+
+# ---------------------------------------------------------------------------
+# F4 — non-directory ancestor inside the managed write path (nested collision).
+#     Review loop 3 blocker: F2 only covered a top-level entry name. A regular
+#     file at an INTERMEDIATE managed path (e.g., .../project-initialization/scripts
+#     turned into a file) made write_target_file's `mkdir -p` abort with exit 5.
+#     Any non-directory ancestor anywhere in the write path must warn+skip.
+# ---------------------------------------------------------------------------
+echo
+echo "--- F4: nested non-directory ancestor in write path ---"
+HOME4="$WORK/h4"; mkdir -p "$HOME4"
+export HOME="$HOME4"
+OUT="$WORK/f4.out"
+ERR="$WORK/f4.err"
+"$SYNC" >"$OUT" 2>"$ERR" || { echo "F4 fresh install failed (exit $?)"; cat "$ERR"; FAIL=$((FAIL + 1)); }
+assert_count_line "F4 fresh install collisions" "$ERR" "[SKIP collision]" 0
+
+# Number of source files that live under project-initialization/scripts/. Every
+# one of them must be skipped once that intermediate dir is replaced by a file.
+blocked_subdir_rel="project-initialization/scripts"
+expected_skips="$(find "$REPO_ROOT/.opencode/skills/$blocked_subdir_rel" -type f 2>/dev/null | wc -l | tr -d ' ')"
+assert_ge "F4 source has files under blocked subdir" "$expected_skips" 1
+
+# Replace the intermediate directory with a regular file (the reviewer repro).
+block_path="$HOME4/.agents/skills/$blocked_subdir_rel"
+rm -rf "$block_path"
+printf 'blocked-content\n' > "$block_path"
+
+# Re-run: must exit 0 (was 5 before fix) and skip every blocked file.
+"$SYNC" >"$OUT" 2>"$ERR"
+rc=$?
+assert_eq "F4 nested-collision exit code (expect 0, was 5 before fix)" "$rc" 0
+assert_eq "F4 nested skip-collision count (== source files under blocked dir)" \
+  "$(grep -cF "[SKIP collision]" "$ERR" || true)" "$expected_skips"
+# The skip messages must reference the nested files, not the entry name alone.
+assert_ge "F4 nested skip lines name the blocked subpaths" \
+  "$(grep -cF "[SKIP collision] project-initialization/scripts/" "$ERR" || true)" 1
+# The blocking regular file itself is unmanaged content -> must be untouched.
+assert_eq "F4 blocking file untouched" \
+  "$(cat "$block_path")" "blocked-content"
+# A top-level file in the SAME entry must still reconcile (NOOP), proving the
+# entry was not wholesale-aborted by the deeper collision.
+if [[ -f "$HOME4/.agents/skills/project-initialization/SKILL.md" ]]; then
+  printf '  [PASS] F4 sibling top-level file still present\n'; PASS=$((PASS + 1))
+else
+  printf '  [FAIL] F4 sibling top-level SKILL.md missing\n' >&2; FAIL=$((FAIL + 1))
+fi
+# A different entry entirely must still install normally.
+if [[ -f "$HOME4/.agents/skills/documentation-standard/SKILL.md" ]]; then
+  printf '  [PASS] F4 unrelated entry installed\n'; PASS=$((PASS + 1))
+else
+  printf '  [FAIL] F4 unrelated entry (documentation-standard) missing\n' >&2; FAIL=$((FAIL + 1))
+fi
+# Manifest must still be valid and record the partly-managed entry.
+if node -e 'const m=require(process.argv[1]); if(!m.managed_entries["project-initialization"]) process.exit(1)' \
+     "$HOME4/.agents/skills/.manifest.json" 2>/dev/null; then
+  printf '  [PASS] F4 manifest still records project-initialization\n'; PASS=$((PASS + 1))
+else
+  printf '  [FAIL] F4 manifest lost project-initialization entry\n' >&2; FAIL=$((FAIL + 1))
+fi
+
+# Idempotency of the skip: re-running with the block still in place stays exit 0
+# with the same skip count (no cascade, no abort on the second pass).
+"$SYNC" >"$OUT" 2>"$ERR"
+rc=$?
+assert_eq "F4 second-run exit code" "$rc" 0
+assert_eq "F4 second-run skip-collision count (stable)" \
+  "$(grep -cF "[SKIP collision]" "$ERR" || true)" "$expected_skips"
+assert_eq "F4 second-run blocking file still untouched" \
+  "$(cat "$block_path")" "blocked-content"
+
+# Recovery: once the operator clears the block, the previously-skipped files
+# install via the normal path (no manual intervention beyond removing the block).
+rm -f "$block_path"
+"$SYNC" >"$OUT" 2>"$ERR"
+rc=$?
+assert_eq "F4 post-clear exit code" "$rc" 0
+assert_ge "F4 post-clear installs the previously-blocked files" \
+  "$(grep -cF "[INSTALL]" "$OUT" || true)" "$expected_skips"
+# And one more run is fully idempotent (no collisions, no installs).
+"$SYNC" >"$OUT" 2>"$ERR"
+rc=$?
+assert_eq "F4 post-clear idempotent exit code" "$rc" 0
+assert_eq "F4 post-clear idempotent collisions" \
+  "$(grep -cF "[SKIP collision]" "$ERR" || true)" 0
 
 # ---------------------------------------------------------------------------
 # Summary
