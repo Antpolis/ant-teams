@@ -4,22 +4,28 @@ set -euo pipefail
 usage() {
   cat <<'USAGE'
 Usage:
-  scripts/sync-company.sh [--target-dir PATH]
+  scripts/sync-company.sh [--target-dir PATH] [--force]
 
-Copy the repository .opencode folder into target config directory.
+Copy the repository .opencode folder into target config directory,
+then perform a managed sync of repository-owned skills into ~/.agents/skills.
 
 Defaults:
   target-dir: ~/.config/opencode
 
-Example:
-  scripts/sync-company.sh
-  scripts/sync-company.sh --target-dir ~/.config/opencode
+Flags:
+  --target-dir PATH   Override the canonical OpenCode install target.
+  --force             Overwrite locally modified managed entries in ~/.agents/skills.
 USAGE
 }
 
 script_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source_dir="$script_root/.opencode"
 target_dir="${OPENCODE_CONFIG_DIR:-$HOME/.config/opencode}"
+
+# SPEC-002 FR-12.2 / CLI-2.1: --force is passed through to sync-managed-skills.sh
+# only when supplied. It does not affect the canonical OpenCode install.
+FORCE=0
 
 merge_provider_config() {
   local source_config="$1"
@@ -81,6 +87,10 @@ while [[ $# -gt 0 ]]; do
       target_dir="${2:-}"
       shift 2
       ;;
+    --force)
+      FORCE=1
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -112,3 +122,13 @@ mkdir -p "$target_dir"
 cp -R "$temp_dir"/. "$target_dir"/
 
 echo "Synced $source_dir -> $target_dir"
+
+# SPEC-002 FR-12.2 / INT-3.2: managed sync runs only after the canonical install
+# completes. Under `set -e`, a canonical-install failure exits before reaching
+# here; a managed-sync failure exits sync-company.sh with that code (CLI-2.4).
+# --force is forwarded only when supplied (no --dry-run passthrough; CLI-2.3).
+managed_args=()
+if [[ "$FORCE" == "1" ]]; then
+  managed_args+=(--force)
+fi
+"$script_dir/sync-managed-skills.sh" "${managed_args[@]}"
