@@ -54,6 +54,8 @@ HAD_SOURCE_ERROR=0
 TOTAL_MANAGED=0
 # Running count of managed entries (works in dry-run too, where NEW_TSV is empty).
 MANAGED_ENTRIES_COUNT=0
+# 1 when a valid prior manifest was read, 0 when missing/corrupt (DM-1.2/ERR-5).
+MANIFEST_PRESENT=0
 
 # Temporary directory (cleaned on exit).
 TEMP_DIR=""
@@ -341,22 +343,64 @@ assert_target_within_managed() {
 }
 
 # ---------------------------------------------------------------------------
+# Permission helpers (SEC-3).
+# ---------------------------------------------------------------------------
+# Portable read of a file's permission bits as the octal string printed by
+# stat (e.g. "644", "755"). GNU coreutils uses `-c %a`; BSD/macOS uses `-f
+# %Lp`. Returns non-zero (empty output) when stat is unavailable or fails.
+file_mode() {
+  local f="$1"
+  if stat -c %a "$f" 2>/dev/null; then
+    return 0
+  fi
+  stat -f %Lp "$f" 2>/dev/null
+}
+
 # Write a single file from a staged/source path (SEC-3, TR-4.2).
-# Directories are created 0755 via umask; files get 0644 (0755 if executable).
+#
+# Permission policy (reconciles SEC-3.1 with SEC-3.2):
+#   * Fresh install (target did not exist) or --force  -> source-derived mode
+#     (0644, or 0755 if the source file is executable).                (SEC-3.1)
+#   * Update of an existing managed file (no --force)  -> preserve the
+#     operator's prior mode, enforcing only a security floor: strip group
+#     write, other write, and special bits (keep owner rwx, group/other
+#     r-x). This tightens modes looser than 0755 (e.g. 0666 -> 0644, 0777
+#     -> 0755) without breaking executable scripts.                    (SEC-3.2)
+# Directories are created 0755 via umask (SEC-3.1).
 # ---------------------------------------------------------------------------
 write_target_file() {
-  local src="$1" tgt="$2" mode="0644"
+  local src="$1" tgt="$2" src_mode="0644"
   assert_target_within_managed "$tgt"
   if [[ -L "$tgt" ]]; then
     # SEC-5.2: refuse to follow/replace a symlink at a managed target.
     die_fs "refusing to overwrite symlink at managed target: $tgt"
   fi
   if [[ -x "$src" ]]; then
-    mode="0755"
+    src_mode="0755"
   fi
+
+  # Capture prior mode BEFORE overwriting so SEC-3.2 preserve-on-update can
+  # apply it (cp may otherwise reset the destination mode).
+  local prior_oct=""
+  if [[ -e "$tgt" ]]; then
+    prior_oct="$(file_mode "$tgt")"
+  fi
+
   mkdir -p "$(dirname "$tgt")" || die_fs "cannot create directory for $tgt"
   cp "$src" "$tgt" 2>/dev/null || die_fs "cannot write $tgt"
-  chmod "$mode" "$tgt" 2>/dev/null || die_fs "cannot chmod $tgt"
+
+  if [[ "$FORCE" == "1" || -z "$prior_oct" ]]; then
+    # Fresh install or explicit --force: source-derived mode (SEC-3.1).
+    chmod "$src_mode" "$tgt" 2>/dev/null || die_fs "cannot chmod $tgt"
+  else
+    # Update (no force): preserve prior mode under the security floor (SEC-3.2).
+    # `0$prior_oct` forces bash to read stat's octal output as octal.
+    local prior_dec floor_dec floor_oct
+    prior_dec=$(( 0$prior_oct ))
+    floor_dec=$(( prior_dec & 0755 ))
+    floor_oct="$(printf '%o\n' "$floor_dec")"
+    chmod "$floor_oct" "$tgt" 2>/dev/null || die_fs "cannot chmod $tgt"
+  fi
 }
 
 # ---------------------------------------------------------------------------
@@ -517,6 +561,7 @@ MANIFEST_READ_OUTPUT="$TEMP_DIR/read_status.txt"
 read -r _manifest_status < "$MANIFEST_READ_OUTPUT"
 case "$_manifest_status" in
   MANIFEST_OK)
+    MANIFEST_PRESENT=1
     tail -n +2 "$MANIFEST_READ_OUTPUT" > "$OLD_TSV"
     ;;
   MANIFEST_MISSING)
@@ -564,13 +609,40 @@ while IFS= read -r name; do
   entry_source_path="$(awk -F '\t' -v n="$name" '$1==n {print $3; exit}' "$ACTIVE_SOURCE_FILES_TSV")"
   entry_dir="$TARGET_DIR/$name"
 
-  # --- FR-11.4 / DM-1.2: unmanaged target-name collision -> skip -----------
-  # Only check existence (FR-7.3, guardrail); never inspect contents.
-  if [[ -d "$entry_dir" ]] && ! is_managed_name "$name"; then
-    say_err "[SKIP collision] $name (unmanaged entry already occupies target name)"
-    warn "Unmanaged content occupies $entry_dir; skipping '$name' to avoid overwrite."
+  # --- SEC-5.2: symlink at managed target entry dir -> skip ----------------
+  if [[ -L "$entry_dir" ]]; then
+    warn "Symlink detected at managed target $entry_dir; skipping entry '$name'."
+    say_err "[SKIP collision] $name (symlink at managed target)"
     COUNT_SKIP_COLLISION=$((COUNT_SKIP_COLLISION + 1))
     continue
+  fi
+
+  # --- FR-11.4: unmanaged regular file at target entry name -> skip --------
+  # A non-directory entry (e.g., a stray regular file) at the managed target
+  # name would make the later mkdir fail; warn + skip the entry rather than
+  # aborting the whole sync (SEC-5.1 unmanaged-content protection).
+  if [[ -e "$entry_dir" && ! -d "$entry_dir" ]]; then
+    warn "Unmanaged file (not a directory) occupies target name: $entry_dir; skipping '$name'."
+    say_err "[SKIP collision] $name (unmanaged regular file occupies target name)"
+    COUNT_SKIP_COLLISION=$((COUNT_SKIP_COLLISION + 1))
+    continue
+  fi
+
+  # --- Existing directory at target name: collision vs recovery ------------
+  # FR-11.4/SEC-5.1: with a manifest present and the entry not recorded, an
+  # existing directory is genuine unmanaged content -> skip (never inspected).
+  # DM-1.2/ERR-5.1a: with the manifest MISSING, a directory whose name matches
+  # a current source entry is recovered managed content -> reclaim it by
+  # reconciling against source (it is never treated as an unmanaged collision).
+  RECLAIM=0
+  if [[ -d "$entry_dir" ]] && ! is_managed_name "$name"; then
+    if [[ "$MANIFEST_PRESENT" == "1" ]]; then
+      say_err "[SKIP collision] $name (unmanaged entry already occupies target name)"
+      warn "Unmanaged content occupies $entry_dir; skipping '$name' to avoid overwrite."
+      COUNT_SKIP_COLLISION=$((COUNT_SKIP_COLLISION + 1))
+      continue
+    fi
+    RECLAIM=1
   fi
 
   # --- Upfront readability check (ERR-1.2 / ERR-2.1): skip whole entry -----
@@ -589,19 +661,16 @@ while IFS= read -r name; do
   fi
   unset _unreadable _n _t _sp _sub _fk _src
 
-  # --- SEC-5.2: symlink at managed target entry dir -> skip ----------------
-  if [[ -L "$entry_dir" ]]; then
-    warn "Symlink detected at managed target $entry_dir; skipping entry '$name'."
-    say_err "[SKIP collision] $name (symlink at managed target)"
-    COUNT_SKIP_COLLISION=$((COUNT_SKIP_COLLISION + 1))
-    continue
-  fi
-
   # Entry passed collision/symlink checks -> it is (or will be) managed.
   MANAGED_ENTRIES_COUNT=$((MANAGED_ENTRIES_COUNT + 1))
 
-  # Determine carried-forward installed_at for NOOP entries.
+  # Determine carried-forward installed_at for NOOP/modified entries.
   old_installed_at="$(old_entry_field "$name" 4)"
+  # Recovered (manifest-missing) entries have no prior installed_at; record NOW
+  # so the rebuilt manifest carries a real timestamp (DM-1.2 recovery).
+  if [[ -z "$old_installed_at" ]]; then
+    old_installed_at="$NOW"
+  fi
 
   # Track per-entry outcomes for NOOP aggregation.
   entry_files_total=0
@@ -630,6 +699,16 @@ while IFS= read -r name; do
         manifest_hash="${_row%%$'\t'*}"
         manifest_target="${_row#*$'\t'}"
       fi
+    fi
+    # DM-1.2 / ERR-5.1a manifest-missing reclaim: a directory that matches a
+    # current source entry is recovered managed content. Treat the current
+    # source hash as the recovered manifest hash so an existing file reconciles
+    # as NOOP (matches source) or modified (differs), instead of being
+    # clobbered as a fresh install. Missing files still install fresh.
+    if [[ "$RECLAIM" == "1" && "$in_manifest" == "0" && -e "$target_file" && ! -L "$target_file" ]]; then
+      in_manifest=1
+      manifest_hash="$source_hash"
+      manifest_target="$target_file"
     fi
     unset _row
 
