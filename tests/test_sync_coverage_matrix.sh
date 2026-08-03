@@ -44,7 +44,7 @@ add_req FR-11 "test_sync_unit_collision.sh test_sync_int_collision_resolution.sh
 add_req FR-12 "test_sync_unit_entrypoints.sh test_sync_e2e_company_run.sh"  # entry points
 
 # --- ERR coverage (TEST-4.2) --------------------------------------------------
-add_req ERR-1 "test_sync_unit_frontmatter.sh test_sync_int_command_transform.sh"  # malformed frontmatter
+add_req ERR-1 "test_sync_unit_frontmatter.sh test_sync_int_command_transform.sh test_sync_unit_source_errors.sh"  # ERR-1.1 malformed frontmatter + ERR-1.2 unreadable command source
 add_req ERR-2 "test_sync_unit_source_errors.sh test_sync_int_orphan.sh"   # unreadable source / orphan
 add_req ERR-3 "test_sync_unit_manifest.sh"                                # manifest corruption
 add_req ERR-4 "test_sync_int_fs_error.sh"                                 # permission errors

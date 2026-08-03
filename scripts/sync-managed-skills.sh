@@ -546,6 +546,15 @@ COMMAND_NAMES_FILE="$TEMP_DIR/command_names.txt"
 : > "$COMMAND_NAMES_FILE"
 
 for cmd_file in "$SOURCE_COMMANDS_DIR"/*.md; do
+  # ERR-1.2 pre-check: survive the staging phase so an unreadable command
+  # source is reported with the spec's graceful [ERROR] + skip + continue
+  # contract (and exit 1 via HAD_SOURCE_ERROR) instead of aborting inside
+  # generate_command_skill under `set -e`.
+  if [[ ! -r "$cmd_file" ]]; then
+    err "Source command file unreadable: $cmd_file; skipping entry."
+    HAD_SOURCE_ERROR=1
+    continue
+  fi
   name="$(basename "$cmd_file" .md)"
   staged="$COMMAND_STAGE/$name/SKILL.md"
   mkdir -p "$(dirname "$staged")"

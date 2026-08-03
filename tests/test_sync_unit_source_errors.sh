@@ -1,28 +1,26 @@
 #!/usr/bin/env bash
 #
-# test_sync_unit_source_errors.sh — SPEC-002 ERR-2.1: unreadable source skill.
+# test_sync_unit_source_errors.sh — SPEC-002 unreadable source error handling.
 #
 # Traceability:
 #   - ERR-2.1 if a file within a source skill directory is unreadable, the sync
 #     emits [ERROR] with the exact path, skips the WHOLE skill entry, and
 #     continues processing remaining entries. Final exit code 1.
-#   - ERR-1.2 (command) is covered indirectly via ERR-1.1 malformed-frontmatter
-#     handling in test_sync_unit_frontmatter.sh / test_sync_int_command_transform.sh.
-#     (Note: the staged command pipeline reads commands during discovery, so an
-#     unreadable command source aborts via set -e rather than the graceful
-#     [ERROR]+skip+continue path; that is an implementation divergence, not a
-#     test covered here. The spec-matching graceful path is exercised for
-#     source skills below.)
+#   - ERR-1.2 if a source command file is unreadable, the sync emits [ERROR]
+#     with the exact path, skips that command entry, continues processing the
+#     remaining command entries, and exits 1. (A guard in the command staging
+#     loop reports the file gracefully instead of aborting inside
+#     generate_command_skill under `set -e`.)
 #
-# Uses chmod 000 to make a single source file unreadable. Skipped when running
-# as root (chmod cannot deny root). The remaining entry must still install,
-# proving the sync continues after a per-entry source error.
+# Both scenarios use chmod 000 to make a single source file unreadable. Skipped
+# when running as root (chmod cannot deny root). The remaining entry must still
+# install in each case, proving the sync continues after a per-entry source error.
 #
 set -euo pipefail
 
 source "$(dirname "$0")/lib/sync_helpers.sh"
 
-sync_begin "ERR-2.1 unreadable source skill file"
+sync_begin "ERR-2.1 + ERR-1.2 unreadable source error handling"
 
 # Root bypasses Unix permission bits, so a chmod-000 unreadable-source test
 # would be vacuous under root. Skip cleanly in that case.
@@ -32,9 +30,16 @@ if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
   exit 0
 fi
 
+# All temp dirs are initialized up front so the EXIT trap is safe under
+# `set -u` even on the early-exit paths above (root skip) or a mid-test failure.
+FIX="" HOME_DIR="" FIX2="" HOME_DIR2=""
+trap 'rm -rf "$FIX" "$FIX2" "$HOME_DIR" "$HOME_DIR2" 2>/dev/null || true' EXIT
+
+# ----------------------------------------------------------------------------
+# ERR-2.1: unreadable file inside a source skill -> skip whole skill, continue.
+# ----------------------------------------------------------------------------
 FIX="$(sync_make_fixture_repo)"
 HOME_DIR="$(sync_make_home)"
-trap 'chmod 0755 "$FIX/.opencode/skills/bad/scripts/tool.sh" 2>/dev/null || true; rm -rf "$FIX" "$HOME_DIR"' EXIT
 SCRIPT="$FIX/scripts/sync-managed-skills.sh"
 OUT="$(mktemp)"
 
@@ -56,4 +61,32 @@ assert_not_exists "bad skill not installed" "$HOME_DIR/.agents/skills/bad"
 assert_exists "good sibling installed despite error" "$HOME_DIR/.agents/skills/good/SKILL.md"
 
 rm -f "$OUT"
+
+# ----------------------------------------------------------------------------
+# ERR-1.2: unreadable source command file -> skip that command, continue.
+# The command staging loop reads each source command via generate_command_skill;
+# an unreadable source must be reported with [ERROR] + skip + continue (and a
+# final exit 1 via HAD_SOURCE_ERROR) instead of aborting the whole script under
+# `set -e`. The sibling good command must still install.
+# ----------------------------------------------------------------------------
+FIX2="$(sync_make_fixture_repo)"
+HOME_DIR2="$(sync_make_home)"
+SCRIPT2="$FIX2/scripts/sync-managed-skills.sh"
+OUT2="$(mktemp)"
+
+printf -- '---\ndescription: bad\n---\n\nbad body\n'   > "$FIX2/.opencode/commands/badcmd.md"
+printf -- '---\ndescription: good\n---\n\ngood body\n' > "$FIX2/.opencode/commands/goodcmd.md"
+chmod 000 "$FIX2/.opencode/commands/badcmd.md"
+
+sync_capture "$OUT2" "$SCRIPT2" "$HOME_DIR2"
+assert_exit_nonzero "unreadable command: non-zero exit" "$SYNC_RC"
+assert_eq "unreadable command: exit 1 (ERR-1.2)" "$SYNC_RC" "1"
+assert_file_contains_str "unreadable command: [ERROR] emitted" "$OUT2" "[ERROR]"
+assert_file_contains_str "unreadable command: path named" "$OUT2" "badcmd.md"
+# The bad command must NOT be installed as a derived skill (entry skipped).
+assert_not_exists "bad command not installed" "$HOME_DIR2/.agents/skills/badcmd"
+# The good command must still install (sync continues after the staging skip).
+assert_exists "good command installed despite error" "$HOME_DIR2/.agents/skills/goodcmd/SKILL.md"
+
+rm -f "$OUT2"
 sync_done
