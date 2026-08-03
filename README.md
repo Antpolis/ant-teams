@@ -20,7 +20,7 @@ The workflow is GitHub-first and GitHub-only for task execution:
 
 ## Install Model
 
-- `scripts/sync-company.sh` copies `.opencode/` into `~/.config/opencode` by default.
+- `scripts/sync-company.sh` copies `.opencode/` into `~/.config/opencode` by default (the canonical OpenCode install), then runs a managed, non-destructive sync of repository-owned skills into `~/.agents/skills/`.
 - `scripts/init-company.sh` and `scripts/update-company.sh` both run `scripts/sync-company.sh`.
 - The global install at `~/.config/opencode` includes `tools/`, `skills/`, `plugins/`, `scripts/`, `docs/`, and `opencode.json`.
 - `scripts/init-project.sh` copies the company docs into a project repo and uses the global config.
@@ -34,6 +34,18 @@ The workflow is GitHub-first and GitHub-only for task execution:
 - Project docs override global architecture guidance when both exist.
 - When using the global workflow scripts for a project, run them from the project repo and set `DOC_ROOT=docs` (or `DOC_ROOT=.docs`) so they target the local project tree.
 - Project initialization sets the default issue-worktree root to `~/Projects/worktree/<repo name>`.
+
+### Managed Skill Mirror (`~/.agents/skills`)
+
+After the canonical install, `scripts/sync-company.sh` runs `scripts/sync-managed-skills.sh`, which maintains a managed, non-destructive mirror of repository-owned skills at `~/.agents/skills/` for agent runtimes that consume that directory. This mirror is distinct from the canonical `~/.config/opencode` install:
+
+- The canonical target `~/.config/opencode` is repo-owned and fully replaced on each sync.
+- The managed target `~/.agents/skills/` is manifest-tracked: only entries recorded in `~/.agents/skills/.manifest.json` are managed. Unmanaged sibling content is never touched.
+- The mirror contains 34 managed entries: 26 source skill directories (full copy) and 8 command-derived skills generated from `.opencode/commands/<name>.md` into `<name>/SKILL.md` using the exact command name.
+- Locally modified managed entries are preserved with a warning by default; `--force` is the only path to overwriting them.
+- `scripts/sync-managed-skills.sh --dry-run` previews planned actions without writing. There is no top-level `sync-company.sh --dry-run`.
+
+See `docs/runbooks/RB-001-managed-skill-sync.md` for the operator runbook, and `docs/arch/ARCH-004-managed-skill-sync-architecture.md` plus `docs/spec/SPEC-002-managed-global-skill-sync-and-command-derived-skills.md` for the canonical architecture and spec.
 
 Example:
 
