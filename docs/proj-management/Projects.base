@@ -1,0 +1,39 @@
+filters:
+  and:
+    - 'file.inFolder("proj-management/projects/active")'
+    - 'type == "project"'
+properties:
+  project_id:
+    displayName: "Project ID"
+  status:
+    displayName: "Status"
+  owner:
+    displayName: "Owner"
+  priority:
+    displayName: "Priority"
+  github_milestone:
+    displayName: "Milestone"
+  updated:
+    displayName: "Updated"
+views:
+  - type: table
+    name: "Active projects"
+    order:
+      - file.name
+      - project_id
+      - status
+      - priority
+      - owner
+      - github_milestone
+      - updated
+  - type: table
+    name: "Needs attention"
+    filters:
+      or:
+        - 'status == "blocked"'
+        - 'status == "need-attentions"'
+    order:
+      - file.name
+      - status
+      - owner
+      - updated

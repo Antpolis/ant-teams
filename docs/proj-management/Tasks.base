@@ -1,0 +1,50 @@
+filters:
+  and:
+    - 'file.inFolder("proj-management/tasks/active")'
+    - 'type == "task"'
+properties:
+  task_id:
+    displayName: "Task ID"
+  project:
+    displayName: "Project"
+  status:
+    displayName: "Status"
+  priority:
+    displayName: "Priority"
+  owner:
+    displayName: "Owner"
+  github_issue:
+    displayName: "GitHub issue"
+  due:
+    displayName: "Due"
+  blocked_by:
+    displayName: "Blocked by"
+views:
+  - type: table
+    name: "Active tasks"
+    order:
+      - file.name
+      - project
+      - status
+      - priority
+      - owner
+      - github_issue
+      - due
+  - type: table
+    name: "Ready to start"
+    filters: 'status == "ready"'
+    order:
+      - file.name
+      - project
+      - priority
+      - owner
+      - github_issue
+  - type: table
+    name: "Blocked"
+    filters: 'status == "blocked"'
+    order:
+      - file.name
+      - project
+      - owner
+      - blocked_by
+      - github_issue

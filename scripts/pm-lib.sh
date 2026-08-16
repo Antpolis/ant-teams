@@ -7,9 +7,14 @@ pm_doc_root() {
     return
   fi
 
-  local script_dir
-  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-  printf '%s' "$script_dir/docs"
+  root="${OBSIDIAN_VAULT_PATH:-}"
+  if [[ -n "$root" ]]; then
+    printf '%s' "${root%/}"
+    return
+  fi
+
+  echo "Documentation vault is not configured. Set OBSIDIAN_VAULT_PATH or DOC_ROOT; see OBSIDIAN_VAULT.md." >&2
+  return 1
 }
 
 pm_today() {
