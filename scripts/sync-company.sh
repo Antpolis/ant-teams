@@ -127,8 +127,8 @@ echo "Synced $source_dir -> $target_dir"
 # completes. Under `set -e`, a canonical-install failure exits before reaching
 # here; a managed-sync failure exits sync-company.sh with that code (CLI-2.4).
 # --force is forwarded only when supplied (no --dry-run passthrough; CLI-2.3).
-managed_args=()
 if [[ "$FORCE" == "1" ]]; then
-  managed_args+=(--force)
+  "$script_dir/sync-managed-skills.sh" --force
+else
+  "$script_dir/sync-managed-skills.sh"
 fi
-"$script_dir/sync-managed-skills.sh" "${managed_args[@]}"
