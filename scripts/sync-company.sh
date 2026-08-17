@@ -7,10 +7,11 @@ Usage:
   scripts/sync-company.sh [--target-dir PATH] [--force]
 
 Copy the repository .opencode folder into target config directory,
-then perform a managed sync of repository-owned skills into ~/.agents/skills.
+then perform managed syncs of repository-owned skills and agent definitions.
 
 Defaults:
   target-dir: ~/.config/opencode
+  Copilot agents: ~/.copilot/agents
 
 Flags:
   --target-dir PATH   Override the canonical OpenCode install target.
@@ -81,6 +82,46 @@ function isPlainObject(value) {
 NODE
 }
 
+sync_copilot_agents() {
+  local source_config="$1"
+  local agents_dir="${HOME%/}/.copilot/agents"
+
+  mkdir -p "$agents_dir"
+
+  SOURCE_CONFIG="$source_config" COPILOT_AGENTS_DIR="$agents_dir" node <<'NODE'
+const fs = require("fs");
+const path = require("path");
+
+const sourceConfig = JSON.parse(fs.readFileSync(process.env.SOURCE_CONFIG, "utf8"));
+const agents = sourceConfig.agent || {};
+const agentsDir = process.env.COPILOT_AGENTS_DIR;
+
+for (const [id, agent] of Object.entries(agents)) {
+  if (!agent || typeof agent !== "object" || typeof agent.prompt !== "string") continue;
+
+  const tools = id === "reviewer"
+    ? ["read", "search", "execute", "agent", "web"]
+    : ["read", "search", "edit", "execute", "agent", "web", "todo"];
+  const content = [
+    "---",
+    `name: ${JSON.stringify(id)}`,
+    `description: ${JSON.stringify(agent.description || `Use when acting as the ${id} role.`)}`,
+    `tools: [${tools.join(", ")}]`,
+    "---",
+    "",
+    agent.prompt.trim(),
+    "",
+  ].join("\n");
+  const target = path.join(agentsDir, `${id}.agent.md`);
+  const temporary = `${target}.tmp-${process.pid}`;
+  fs.writeFileSync(temporary, content, "utf8");
+  fs.renameSync(temporary, target);
+}
+NODE
+
+  echo "Synced OpenCode agents -> $agents_dir"
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --target-dir)
@@ -122,6 +163,7 @@ mkdir -p "$target_dir"
 cp -R "$temp_dir"/. "$target_dir"/
 
 echo "Synced $source_dir -> $target_dir"
+sync_copilot_agents "$source_dir/opencode.json"
 
 # SPEC-002 FR-12.2 / INT-3.2: managed sync runs only after the canonical install
 # completes. Under `set -e`, a canonical-install failure exits before reaching

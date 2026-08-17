@@ -32,8 +32,9 @@ mkdir -p "$HOME_DIR/.agents/skills/my-custom-skill"
 printf 'operator-owned\n' > "$HOME_DIR/.agents/skills/my-custom-skill/SKILL.md"
 MYHASH="$(sync_sha256 "$HOME_DIR/.agents/skills/my-custom-skill/SKILL.md")"
 
-# Count REAL source inventory for an exact assertion.
-REAL_SKILLS="$(sync_count_dirs "$SYNC_REAL_OPENCODE/skills")"
+# Count REAL managed source inventory for an exact assertion. Empty support
+# directories without a SKILL.md do not produce managed target entries.
+REAL_SKILLS="$(find "$SYNC_REAL_OPENCODE/skills" -mindepth 2 -maxdepth 2 -type f -name SKILL.md | wc -l | tr -d ' ')"
 REAL_CMDS="$(find "$SYNC_REAL_OPENCODE/commands" -maxdepth 1 -name '*.md' -type f 2>/dev/null | wc -l | tr -d ' ')"
 EXPECTED_TOTAL=$(( REAL_SKILLS + REAL_CMDS ))
 
@@ -45,6 +46,15 @@ assert_exists "canonical opencode.json installed" "$HOME_DIR/.config/opencode/op
 assert_exists "canonical skills dir installed" "$HOME_DIR/.config/opencode/skills"
 assert_exists "canonical commands dir installed" "$HOME_DIR/.config/opencode/commands"
 assert_file_contains_str "sync-company reports canonical sync" "$OUT" "Synced"
+
+# Copilot agents are generated from the inline OpenCode role definitions.
+for agent in orchestrator strategist tech-lead builder reviewer; do
+  assert_exists "Copilot agent installed ($agent)" \
+    "$HOME_DIR/.copilot/agents/$agent.agent.md"
+done
+assert_file_contains_str "Copilot reviewer agent remains read-only" \
+  "$HOME_DIR/.copilot/agents/reviewer.agent.md" "tools: [read, search, execute, agent, web]"
+assert_file_contains_str "sync-company reports Copilot agents" "$OUT" "Synced OpenCode agents"
 
 # FR-2 / AC-2.1: managed skills populated with the expected entry count.
 # Raw dir count includes any unmanaged sibling (my-custom-skill), so the exact

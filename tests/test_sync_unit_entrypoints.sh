@@ -37,7 +37,7 @@ assert_eq "managed unknown flag => exit 1" "$SYNC_RC" "1"
 
 # --- FR-12.2 / CLI-2.1: sync-company.sh accepts --force (static) -------------
 assert_file_contains_str "sync-company usage lists --force" "$SYNC_REAL_COMPANY" --force
-assert_file_contains_str "sync-company forwards --force to managed" "$SYNC_REAL_COMPANY" "managed_args+=(--force)"
+assert_file_contains_str "sync-company forwards --force to managed" "$SYNC_REAL_COMPANY" 'sync-managed-skills.sh" --force'
 
 # --- FR-12.3 / CLI-3.1: wrappers delegate to sync-company.sh unchanged -------
 INIT_COMPANY="$SYNC_REPO_ROOT/scripts/init-company.sh"
