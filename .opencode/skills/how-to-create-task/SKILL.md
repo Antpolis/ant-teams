@@ -50,12 +50,12 @@ Technical sections (must be present in the spec — written by tech-lead; each m
 - [ ] Observability requirements (logging, metrics, alerting, tracing)
 - [ ] Error handling (user-facing errors, retry or fallback behaviour, failure modes)
 - [ ] Testing strategy (what must be tested, who writes tests, coverage expectations)
-- [ ] Architecture notes referencing relevant `docs/arch/` docs; any new ADR or ARCH doc needed
+- [ ] Architecture notes referencing relevant central Obsidian project docs; any new ADR or ARCH doc needed
 - [ ] Acceptance criteria at the spec level
 - [ ] Rollout and rollback plan (phasing, feature flags, migration steps, rollback procedure)
 
 Also confirm:
-- [ ] Relevant architecture docs under `docs/arch/` have been read and inform the guardrails for this spec
+- [ ] Relevant architecture docs in the central Obsidian project folder have been read and inform the guardrails for this spec
 - [ ] No open shaping discussion remains unresolved in chat or comments
 
 If any checkbox cannot be checked, record which items are missing as a GitHub comment on the milestone, leave the milestone in `Shaping`, and stop. Do not create issues from an incomplete spec.

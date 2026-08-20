@@ -372,7 +372,7 @@ When the workflow takes multiple commands, present them as a small sequence with
 - Avoid bulk edits without previewing targets first.
 - Avoid hard-coding IDs that were not freshly discovered.
 - Avoid acting on the wrong owner or repo because of local defaults.
-- Prefer durable GitHub comments for handoffs, blockers, and status notes instead of leaving important reasoning only in chat.
+- Prefer individual Obsidian communication event files for agent handoffs, blockers, and reasoning. Use GitHub comments for final closing messages, status-critical updates, and links to the Obsidian event.
 - If a mutation could affect many items, summarize the intended scope before executing.
 
 ## Reference File

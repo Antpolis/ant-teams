@@ -15,7 +15,7 @@ Role ownership — non-negotiable:
 Flow:
 1. Orchestrator drives the full shaping loop from start to stop. Do not treat the founder's first prompt as a complete spec.
 2. Strategist leads: extract the founder goal, urgency, business value, success metrics, constraints, assumptions, and open questions. Do not proceed to step 3 until strategist can articulate the business problem, business value, and success metrics clearly.
-3. Research the most relevant repository docs, code context, existing GitHub milestones, issues, and project history needed to ground the conversation in real repo context. Search by topic, feature name, domain terms, paths, module names, and synonyms. Do not rely on document numbering.
+3. Read `.github-project.json`, resolve the central Obsidian project documentation path, and research the relevant vault notes, code context, existing GitHub milestones, issues, and project history needed to ground the conversation in real repo context. Search by topic, feature name, domain terms, paths, module names, and synonyms. Do not rely on document numbering.
 4. Strategist pressure-tests the idea with the founder: challenge assumptions, suggest better variants, cut scope to the smallest viable slice, and surface product tradeoffs, risks, and missing decisions.
 5. Tech-lead pressure-tests before the spec is finalized: feasibility, architecture fit, integration points, sequencing, operational burden, technical tradeoffs, and risk. Tech-lead must identify gaps, not rubber-stamp the draft.
 6. Any discussion between strategist and tech-lead that changes scope, assumptions, tradeoffs, sequencing, constraints, or the recommended path must be written back as a durable GitHub comment before the flow moves on. Do not leave shaping decisions only in transient chat.
@@ -50,7 +50,7 @@ Flow:
    - Observability requirements: logging expectations, metrics to emit, alerting thresholds, tracing needs
    - Error handling: user-facing error surfaces, retry or fallback behaviour, failure modes
    - Testing strategy: what must be tested, who writes the tests, coverage expectations
-   - Architecture notes: relevant decisions or guardrails from `docs/arch/`; any new ADR or ARCH doc needed
+   - Architecture notes: relevant decisions or guardrails from the central Obsidian project folder; any new ADR or ARCH doc needed
    - Acceptance criteria: conditions that prove the spec is fully delivered; each criterion must later be traceable to at least one issue
    - Rollout and rollback plan: phasing, feature flags, migration steps, rollback procedure, and who is responsible
 
@@ -60,7 +60,7 @@ Flow:
     - Milestone exists with description using the `how-to-create-task` milestone template
     - Every issue follows the `how-to-create-task` issue template including Why, Tech-Lead Guardrails, Definition of Done, and Sequence Position
     - Tech-lead has worked through the Required Task Types checklist — every type either has an issue or an explicit exclusion recorded in the milestone
-    - Documentation and testing/QA tasks exist unless explicitly excluded with written justification
+    - Documentation tasks point to the central Obsidian project folder, and testing/QA execution tasks exist unless explicitly excluded with written justification
     - Tech-lead has sequenced all issues and recorded the full sequence in the milestone
     - Every spec acceptance criterion is covered by at least one issue
     - Every functional, technical, data model, API, security, observability, and error handling requirement from the spec is addressed by at least one issue

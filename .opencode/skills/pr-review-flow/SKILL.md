@@ -140,7 +140,7 @@ When raising a concern about separation, name the two concerns that are mixed an
 
 Flag as a finding if new code is placed in the wrong layer, namespace, or package.
 
-Before judging placement, read the repository architecture documents under `docs/arch/`. The project-defined structure takes precedence over generic language conventions. Do not apply Java, .NET, or TypeScript defaults if the project has its own documented layer definitions.
+Before judging placement, read the central Obsidian project architecture documents resolved from `.github-project.json`. The project-defined structure takes precedence over generic language conventions. Do not apply Java, .NET, or TypeScript defaults if the project has its own documented layer definitions.
 
 If no project-specific architecture document covers the placement question, fall back to language conventions as a secondary guide:
 
@@ -218,7 +218,7 @@ The detailed discussion lives in PR comments. The issue receives a concise summa
 
 ## Role Memory Sync
 
-After each review loop, update role memory. Role memory is a persistent record per role (builder, architect, reviewer) that accumulates lessons across tasks. If a `role-memory` skill is available, invoke it. Otherwise write the updates directly into the relevant role memory file.
+After each review loop, create the required Obsidian communication event file and update project-specific role memory. Role memory is a persistent record per role (builder, architect, reviewer) in the central Obsidian project folder. Do not write it to repository-local memory files.
 
 - Builder memory captures implementation lessons and recurring review fixes.
 - Architect memory captures architecture constraints, accepted tradeoffs, defer tasks, and loop-breaker rationale.

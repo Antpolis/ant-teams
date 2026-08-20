@@ -13,7 +13,11 @@ The point is not to invent a greenfield plan from thin air. The point is to read
 
 ## Bundled Tools
 
-This skill ships the canonical project-local initialization engine plus a deprecated lightweight scaffold.
+This skill ships the canonical project initialization engine and the central-vault `AGENTS.md` template. Documentation-vault changes made by this workflow must be committed and pushed after verification, with unrelated changes excluded. The initializer must preserve only code-local operational guidance while routing all product documentation to the shared Obsidian vault.
+
+### `assets/AGENTS.md.template` — central-vault project guidance
+
+This is the canonical template for project repositories that receive an `AGENTS.md`. It must point product documentation to the Obsidian vault configured in `.github-project.json.documentation`, specifically the resolved `projectPathTemplate`, while keeping only code-adjacent operational guidance in the repository. Do not create a second product-documentation tree in the project repo.
 
 ### `scripts/init_project_docs.sh` — repository-aware bootstrap (canonical)
 
@@ -29,7 +33,7 @@ The initializer leaves behind a project-local operating baseline derived from th
 
 4. **Skills copy** (exactly three): copies `github-issues-projects-cli`, `do-task`, and `project-initialization` from the source `.opencode/skills/` into the project-local `.opencode/skills/`. No other skill is copied. Copy is a per-file merge: every source file is created when absent and preserved when already present (this protects project-customized `SKILL.md` files). Execute bits are preserved via `cp -p` from the source. `.opencode/.gitignore` with a `node_modules` entry is ensured.
 
-5. **Docs tree copy + folder scaffold**: copies the source `docs/` tree (per-file, never overwriting) and ensures the `adr`, `gov`, `arch`, `spec`, `runbook`, `qa`, `memory`, and `proj-management/` subdirectories exist.
+5. **Central documentation routing**: does not copy or scaffold a product-documentation tree in the target repository. It reads `.github-project.json.documentation`, resolves the central Obsidian project path, and records that path in `AGENTS.md`. QA and runbook documentation are not created in the Obsidian project model by this initializer.
 
 6. **`AGENTS.md` generation** (the final artifact, so "Local Configuration Files" can enumerate everything written): built from repository inspection plus operator inputs. See the AGENTS.md generation contract below.
 
@@ -138,7 +142,7 @@ Look for:
 - `package.json`, `pnpm-lock.yaml`, `yarn.lock`, `pom.xml`, `build.gradle*`, `Cargo.toml`, `go.mod`, `pyproject.toml`, `requirements.txt`
 - Docker, Compose, Helm, Terraform, k8s, CI, and deployment files
 - `.opencode/opencode.json` and relevant workflow skills if present
-- `docs/adr/`, `docs/architecture/`, `docs/governance/`, `docs/arch/`, and related README guidance if present
+- the central Obsidian project documentation path resolved from `.github-project.json`
 - governance docs that explain master-enterprise-architecture usage, mirroring rules, or local ADR/ARCH/GOV routing
 
 ## Core Principle
@@ -162,7 +166,7 @@ Produce or update these as appropriate for the repo:
 When editing repository artifacts, prefer:
 
 - product or enhancement spec under `docs/spec/` or the repo's existing convention
-- architecture or migration notes under `docs/architecture/`, `docs/arch/`, `docs/adr/`, or `docs/governance/` as appropriate for the repo
+- architecture or migration notes under the central Obsidian project path
 - GitHub milestones, issues, project fields, and issue templates for collaboration artifacts
 - `.github-project.json` for repo-level GitHub collaboration defaults, including top-level `worktreeRoot`
 - `opencode.json` or `opencode.jsonc` for repo-level runtime permissions including worktree access
@@ -345,7 +349,7 @@ Use these when relevant:
 - `state-transitions` for workflow states
 - `approval-or-escalation` for review and escalation rules
 - `agentic-flow-terms` for shared workflow vocabulary
-- `docs/gov/GOV-002-master-enterprise-architecture-reference-and-local-application.md` or the repo's equivalent local governance rule for how external enterprise architecture is applied here
+- central Obsidian vault governance notes and `.github-project.json`
 
 ## File Naming Conventions
 

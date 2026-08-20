@@ -1,6 +1,6 @@
 ---
 name: agent-communication-log
-description: Use when multiple agents collaborate on a spec, GitHub milestone, GitHub issue, pull request, code review, reviewer verification, blocker, defer decision, or review-development loop. Enforces GitHub issue comments and PR comments as the collaboration record, while keeping only durable memory and retrospective knowledge local.
+description: Use when multiple agents collaborate on a spec, GitHub milestone, GitHub issue, pull request, code review, reviewer verification, blocker, defer decision, or review-development loop. Uses the central Obsidian project folder for agent-to-agent communication records, while using GitHub Issues, milestones, Projects, and PRs for status, execution state, and final closing messages.
 ---
 
 # Agent Communication Log
@@ -9,13 +9,15 @@ Use this skill whenever work moves between agents or enters a builder-reviewer r
 
 Use the agentic-flow-terms skill as the canonical glossary for custom workflow metadata terms referenced by this skill.
 Use the GitHub workflow skills for milestones, issues, project states, approvals, and escalation rules.
-Use role-memory for local durable memory after collaboration has been recorded in GitHub.
+Use role-memory for project-specific durable memory in the central Obsidian project folder after collaboration has been recorded in GitHub.
+
+After completing a communication-log task, commit and push only the communication files changed by that task to the documentation vault remote.
 
 ## Purpose
 
-Keep all important collaboration between agents in GitHub so the workflow does not depend on one continuous chat context.
+Keep agent-to-agent collaboration in the central Obsidian project folder so the workflow does not depend on one continuous chat context. Keep GitHub as the authoritative status and execution system.
 
-The GitHub collaboration record is the shared execution record for:
+The communication record is stored in Obsidian; GitHub remains the shared execution and status record for:
 
 - Product/spec decisions
 - Tech-lead guardrails
@@ -27,24 +29,36 @@ The GitHub collaboration record is the shared execution record for:
 - Hard blockers needing human intervention
 - Tech-lead escalation decisions
 - Defer tasks for architecture decisions or technical debt
-- Links to role-memory or retrospective updates when durable local memory is needed
+- Links to project-specific Obsidian communication and role-memory notes when durable context is needed
 
 ## Collaboration Location
 
-Use GitHub as the collaboration surface.
+Use the central Obsidian project folder for agent-to-agent communication. Resolve it from `.github-project.json.documentation.projectPathTemplate`.
 
-Prefer:
+Store communication records under:
 
-- milestone description for spec summary and canonical repo-doc links
-- GitHub issue comments for task collaboration, delegations, blockers, and status discussion
-- PR comments and review threads for code-review conversation
-- GitHub issue or PR links when referencing follow-up work or defer decisions
+- `<project-doc-path>/agent-communication/milestones/<milestone-slug>/`
+- `<project-doc-path>/agent-communication/issues/issue-<number>/`
 
-Use local repo files only for canonical specs, architecture guidance, durable memory, and retrospective notes, not as the primary collaboration surface.
+Use GitHub for:
+
+- Project, milestone, and issue status
+- Assignees, labels, dependencies, and workflow state
+- Final closing messages on the issue and PR
+- Code-specific review threads and approval evidence
+
+Use Obsidian for:
+
+- Agent-to-agent handoffs and working communication
+- Shaping conclusions and technical interpretation
+- Review-loop summaries and durable coordination context
+- Links to the relevant GitHub issue, milestone, and PR
+
+Do not duplicate live status in Obsidian; link to GitHub instead.
 
 ## Required Rule
 
-Every agent delegation must be recorded in the relevant GitHub issue or PR comment thread.
+Every agent delegation and agent-to-agent communication about an issue or milestone must be recorded in the relevant Obsidian communication note. The note must link to the GitHub issue or milestone. Final closing messages must still be posted to the GitHub issue and PR.
 
 Use `handoff` only when returning control to the founder or escalating for a founder decision.
 
@@ -54,16 +68,55 @@ Do not rely only on chat history for decisions, blockers, review comments, or ve
 
 ## Communication Rules
 
-- If a discussion changes scope, sequencing, guardrails, acceptance, blocker state, or ownership, summarize the outcome back to GitHub before another role is expected to act.
-- If agents reason together in chat, GitHub still needs the durable conclusion, not the full transcript.
+- If a discussion changes scope, sequencing, guardrails, acceptance, blocker state, or ownership, record the detailed agent communication in Obsidian and update GitHub status or final summary as appropriate before another role is expected to act.
+- If agents reason together in chat, Obsidian needs the durable communication summary; GitHub needs only the status change, link, blocker, or final closing message required for execution traceability.
 - Prefer concise decision summaries over long narrative comments, but include enough detail for the next role to continue without asking the same question again.
-- Keep one canonical thread per context when possible: issue comments for task-level decisions, PR comments for code-review discussion, milestone description or shaping issue comments for spec-level shaping.
+- Create one Obsidian Markdown file per communication event. Do not use one large issue or milestone log. Keep GitHub comments for final closure, status-critical decisions, and code-specific PR review discussion.
 - Do not split one decision across scattered comments if one durable summary can carry the context more cleanly.
+
+## Communication Event File Convention
+
+Each agent-to-agent communication event is one Markdown file under the relevant issue or milestone folder.
+
+Filename:
+
+`YYYY-MM-DD-<agent-name>-<title>-<status>.md`
+
+Rules:
+
+- Use ISO date format `YYYY-MM-DD`.
+- Use a stable lowercase agent role name.
+- Keep the title to five words or fewer.
+- End the filename with `open` or `closed`.
+- Use matching frontmatter `status: open` or `status: closed`.
+- Include `issue`, `milestone`, `project`, `from_role`, `to_role`, `communication_type`, `date`, and GitHub links.
+- Link the event to the next action or closing event when applicable.
+
+Example:
+
+`2026-08-20-builder-handoff-open.md`
+
+```yaml
+doc_type: agent-communication
+project: ant-teams
+issue: 123
+milestone: SPEC-001
+from_role: builder
+to_role: reviewer
+communication_type: handoff
+status: open
+date: 2026-08-20
+github_issue: https://github.com/Antpolis/ant-teams/issues/123
+github_pr: https://github.com/Antpolis/ant-teams/pull/45
+tags:
+  - agent-communication
+  - issue/123
+```
 
 ## Comment Structure
 
 ```md
-## Delegation
+# Communication Event
 
 Role: <role>
 Target Role: <next role or reviewer>
@@ -96,7 +149,7 @@ Next Action:
 - Builder fixes findings on the same task branch.
 - Repeat development-review until reviewer clears the code or a stop condition is reached.
 - The loop must run no more than 8 times.
-- Record each review-development cycle in GitHub issue comments or PR review threads so the loop history is visible in the collaboration surface.
+- Record each review-development cycle as one or more individual Obsidian communication event files. Link the issue and PR; record final approval and closure in GitHub.
 
 ## Stop Conditions
 
@@ -110,8 +163,9 @@ Stop the loop when one of these happens:
 
 If there is a hard blocker:
 
-- Record the blocker in the relevant GitHub issue or PR thread.
-- Set status to `blocked`.
+- Record the blocker as an individual Obsidian communication event file in the relevant issue folder.
+- Set GitHub status to `Blocked`.
+- Add a concise GitHub link/comment when the blocker affects execution or requires founder input.
 - State exactly what human input, access, or decision is required.
 
 If 8 loops are reached and architecture issues remain:
@@ -151,14 +205,14 @@ If the next role is expected to decide something, state the exact question. If t
 
 ## Comment Rules
 
-- Keep task collaboration in the GitHub issue.
+- Keep each agent-to-agent task communication in its own Obsidian event file inside the issue communication folder.
 - Keep code-review discussion in the pull request.
 - If a conversation affects execution, make sure the next agent can continue from GitHub alone without needing the chat transcript.
-- When a durable lesson should outlive the issue or PR, record it in local role memory after the GitHub discussion is complete.
+- When a durable lesson should outlive the issue or PR, record it in project-specific Obsidian role memory after the Obsidian communication record is complete.
 
 ## Role Memory Rules
 
 - After every task or review loop, builder, reviewer, and tech-lead should review the GitHub collaboration record.
 - Each role must update its role memory with durable information relevant to that role, using the role-memory skill.
-- If there is no new durable information, record that in local role memory.
+- If there is no new durable information, record that explicitly in project-specific Obsidian role memory.
 - Tech-lead must read architect memory before making loop-breaker, blocker, defer-task, or architecture conflict decisions.

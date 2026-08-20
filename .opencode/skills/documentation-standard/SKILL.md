@@ -1,11 +1,11 @@
 ---
 name: documentation-standard
-description: Use when creating or updating project documentation under docs/, .docs/, or ~/.config/opencode/docs, including ADR, GOV, ARCH, specs, runbooks, API docs, database docs, deployment docs, QA docs, or document index entries. Intended for docs-focused roles and documentation tasks; not for CPO/CTO/spec-governance drafting unless explicitly updating docs.
+description: Use whenever creating, updating, searching, or organizing documentation in the central Obsidian vault at /home/chrissim/Projects/documentation. This is a vault workflow: always use obsidian-markdown for notes and obsidian-bases for Bases; use obsidian-cli when available.
 ---
 
 # Documentation Standard
 
-Use this skill whenever creating or updating repository documentation.
+This is the central Obsidian architecture-vault documentation workflow. Use this skill whenever creating, updating, searching, or organizing documentation. Always load and follow `obsidian-markdown` for Markdown notes and `obsidian-bases` for `.base` files.
 
 This skill should also help decide what kind of document to create. In particular, it must distinguish clearly between:
 
@@ -15,16 +15,26 @@ This skill should also help decide what kind of document to create. In particula
 
 ## Required Behavior
 
-- Documentation roots are `docs/`, `.docs/`, and the global company docs root `~/.config/opencode/docs/`.
-- Check for `docs/DOCUMENT_INDEX.md`, `.docs/DOCUMENT_INDEX.md`, then `DOCUMENT_INDEX.md`, in that order.
-- If an index exists, add or update the document row there.
-- If no index exists, create `docs/DOCUMENT_INDEX.md` before adding new docs unless the repository already uses `.docs/` or the global company docs root.
+- Treat `/home/chrissim/Projects/documentation` as an Obsidian vault, not as an ordinary repository docs folder.
+- Never create project documentation directly in the vault root `/home/chrissim/Projects/documentation/`.
+- Always resolve the project folder from `.github-project.json.documentation.projectPathTemplate` and write under `/home/chrissim/Projects/documentation/projects/<project-name>/` (or the configured equivalent).
+- Root-level vault files are reserved for vault-wide indexes, governance entry points, and architecture-meta references; they are not valid destinations for project notes.
+- After completing any vault documentation task, inspect the diff, commit only the files changed for that task, and push the commit to the vault remote. Never stage unrelated user changes or secrets.
+- For every vault documentation task, use the Obsidian skills before editing: `obsidian-markdown` for notes and `obsidian-bases` for Bases.
+
+- The canonical product documentation root is `/home/chrissim/Projects/documentation`.
+- Resolve the project-specific destination from `.github-project.json.documentation.projectPathTemplate`; for this repository it is `/home/chrissim/Projects/documentation/projects/ant-teams/`.
+- Use `obsidian-markdown` whenever creating or editing Obsidian Markdown, properties, wikilinks, embeds, callouts, or templates.
+- Use `obsidian-bases` whenever creating or editing `.base` files, Base filters, views, formulas, or summaries.
+- Use `obsidian-cli` only when a running Obsidian instance is available; otherwise edit valid vault files directly and validate their structure.
+- Read the central vault governance and project notes before changing product documentation.
+- Do not create new product documentation under a repository `docs/` or `.docs/` folder. Keep only code-adjacent operational guidance locally.
 - Do not rely on numeric document ordering.
 - Use stable IDs such as `ADR-001`, `GOV-001`, `ARCH-001`, `SPEC-001`, `DB-001`, `API-001`, `DEPLOY-001`, `QA-001`, or `RUNBOOK-001`.
 - Use `adr` for architecture decision records.
 - Use `gov` for governance, standards, policies, conventions, and required process docs.
 - Use `arch` for customized architecture decisions and architecture guidance specific to the repository.
-- Prefer the repository's real folder conventions when present. If the repo uses `docs/architecture/` and `docs/governance/`, follow that instead of forcing `docs/arch/` and `docs/gov/`.
+- Prefer the central Obsidian vault folder convention defined by `.github-project.json.documentation`.
 - Prefer content-based metadata: domain, applies-to, keywords, related docs, and supersedes.
 - Mark stale or replaced docs as `deprecated` or `superseded`; do not silently delete historical docs unless explicitly asked.
 - Keep documentation technical, specific, and actionable.
@@ -168,7 +178,7 @@ Technical sections (owned by tech-lead — each section must be present or expli
 - Observability requirements: logging expectations, metrics to emit, alerting thresholds, tracing needs
 - Error handling: how errors are surfaced to users or callers; retry or fallback behaviour; failure modes
 - Testing strategy: what must be tested (unit, integration, end-to-end, smoke); who writes the tests; coverage expectations
-- Architecture notes: relevant decisions or guardrails from `docs/arch/` that apply to this spec; any new ADR or ARCH doc needed
+- Architecture notes: relevant decisions or guardrails from the central Obsidian project path; any new ADR or ARCH doc needed
 - Acceptance criteria at the spec level: the conditions that prove the spec is fully delivered; each criterion must be traceable to at least one implementation task; criteria should be verifiable, not subjective
 - Rollout and rollback plan: phasing, feature flags, migration steps, rollback procedure, and who is responsible for each step
 
@@ -187,7 +197,7 @@ For `arch` documents, include:
 - Developer guardrails
 - Traceability to ADRs, governance docs, plans, or specs
 
-For architecture principles, use the TOGAF 10 EA principle format defined in `docs/gov/GOV-001-architecture-principles-standard.md`:
+For architecture principles, use the TOGAF 10 EA principle format defined by the central vault governance standard.
 
 - Statement
 - Rationale
@@ -250,7 +260,7 @@ For `database` documents, include:
 - Constraints
 - Backup or restore notes
 
-For `deployment` or `runbook` documents, include:
+For code-adjacent `deployment` or `runbook` documents, include:
 
 - Prerequisites
 - Commands
@@ -258,7 +268,7 @@ For `deployment` or `runbook` documents, include:
 - Rollback
 - Troubleshooting
 
-For `qa` documents, include:
+For code-adjacent `qa` documents, include:
 
 - Smoke checks
 - Test commands
@@ -269,30 +279,24 @@ For `qa` documents, include:
 
 When looking for relevant docs:
 
-- Read `docs/DOCUMENT_INDEX.md`, `.docs/DOCUMENT_INDEX.md`, or `DOCUMENT_INDEX.md` first if present.
-- Match by `Keywords`, `Domain`, `Applies To`, and `Summary`.
-- Then search repository content under `docs/` and `.docs/` for the deliverable terms and synonyms.
+- Read the central vault project record and relevant notes under `/home/chrissim/Projects/documentation/projects/<project-name>/` first.
+- Match by frontmatter properties, tags, keywords, domain, project, and document type.
+- Then search the central vault by topic, feature name, domain terms, filenames, paths, module names, and synonyms.
 - Treat the index as an accelerator, not the only source of truth.
 - If the repository has a governance document describing how an external master enterprise architecture is applied locally, read that before creating new architecture-principle, governance, or architecture-reference docs.
 
+## Obsidian Workflow
+
+When documentation work involves the central vault:
+
+1. Read `.github-project.json` to resolve the vault and the exact project folder.
+2. Confirm the destination is the project-specific folder, never the vault root.
+3. Load `obsidian-markdown` for note authoring and link/property conventions.
+4. Load `obsidian-bases` for portfolio, project, architecture, or memory views.
+5. Create or update the note in the resolved project folder.
+6. Verify frontmatter, internal links, and Base references.
+7. Keep GitHub links as external execution references; do not duplicate live issue status in notes.
+
 ## Preferred Paths
 
-Use these folders when creating new documents if the repository does not already have a stronger convention:
-
-- `docs/adr/` or `.docs/adr/` for ADRs.
-- `docs/governance/`, `docs/gov/`, `.docs/governance/`, or `.docs/gov/` for governance and standards.
-- `docs/architecture/`, `docs/arch/`, `.docs/architecture/`, or `.docs/arch/` for repository-specific architecture guidance.
-- `~/.config/opencode/docs/adr/`, `~/.config/opencode/docs/gov/`, and `~/.config/opencode/docs/arch/` for global enterprise defaults.
-- `docs/spec/` or `.docs/spec/` for product and enhancement specs.
-- `docs/runbook/` or `.docs/runbook/` for runbooks.
-- `docs/qa/` or `.docs/qa/` for QA and smoke-test docs.
-
-## Naming Conventions
-
-When creating these document types, use zero-padded stable prefixes plus a descriptive kebab-case title:
-
-- `ADR-001-short-kebab-case-title.md`
-- `ARCH-001-short-kebab-case-title.md`
-- `GOV-001-short-kebab-case-title.md`
-
-Do not renumber published documents casually.
+Use `.github-project.json.documentation.projectPathTemplate` for all product, architecture, ADR, governance, lifecycle, and specification documents. Resolve the template to the current project folder under the central Obsidian vault. Do not create these documents in repository `docs/` or `.docs/`.

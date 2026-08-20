@@ -11,7 +11,7 @@ Use the agentic-flow-terms skill as the canonical glossary for custom workflow m
 
 ## Purpose
 
-Role memory is durable, repo-local knowledge that agents must read before future work.
+Role memory is durable, project-specific knowledge stored in the central Obsidian vault and read before future work.
 
 It is extracted from the GitHub collaboration record and stores important information relevant to each role:
 
@@ -23,19 +23,11 @@ This memory helps future agents continue without relying on chat context and hel
 
 ## File Locations
 
-Prefer these files:
+Read `.github-project.json` and resolve `documentation.projectPathTemplate`. Store memory only in the project-specific Obsidian folder:
 
-- `docs/memory/builder-memory.md`
-- `docs/memory/reviewer-memory.md`
-- `docs/memory/architect-memory.md`
+- `<project-doc-path>/agent-memory/<role>-memory.md`
 
-If the repository uses `.docs/`, prefer:
-
-- `.docs/memory/builder-memory.md`
-- `.docs/memory/reviewer-memory.md`
-- `.docs/memory/architect-memory.md`
-
-If neither docs root exists, create `docs/memory/` unless the user or repo convention says otherwise.
+Use separate project notes for `builder`, `reviewer`, and `architect` memory. Do not write role memory to repository `docs/` or `.docs/` folders. Use the project-specific Agent Memory Base in the central vault when filtering memory.
 
 ## Required Behavior
 
@@ -145,4 +137,4 @@ Before future work, agents must read the relevant role memory:
 - Reviewer reads reviewer memory before review and lightweight smoke verification.
 - Tech-lead reads architect memory before escalation, defer-task creation, or loop-breaker decisions.
 
-Role memory complements repository docs. It does not replace ADR, GOV, ARCH, spec, milestone, issue, or PR records.
+Role memory complements the central Obsidian project docs. It does not replace ADR, GOV, ARCH, spec, milestone, issue, or PR records.

@@ -14,8 +14,8 @@ Do not use this skill to police normal founder collaboration during shaping or p
 Use the agentic-flow-terms skill as the canonical glossary for workflow terms.
 Use github-agentic-delivery-flow for the overall operating model.
 Use approval-or-escalation for the approval gate and escalation rules.
-Use agent-communication-log for GitHub handoff and discussion expectations.
-Use role-memory for durable repo-local memory before deciding the founder is needed.
+Use agent-communication-log for Obsidian communication event files and GitHub final-closure expectations.
+Use role-memory for project-specific Obsidian memory before deciding the founder is needed.
 
 ## Purpose
 
@@ -37,7 +37,7 @@ Apply this pass only when the founder is being asked to unblock or approve deliv
 Before escalating, do all of the following:
 
 1. Read the current task, issue, milestone, PR, or spec that triggered the escalation thought.
-2. Search `docs/` and `.docs/` by topic, feature name, domain terms, file paths, module names, and synonyms. Do not rely on document numbers alone.
+2. Read `.github-project.json`, resolve the central Obsidian project documentation path, and search that vault project folder by topic, feature name, domain terms, file paths, module names, and synonyms. Do not rely on document numbers alone.
 3. Read the relevant GitHub collaboration record:
    - issue comments
    - PR comments or review threads if code exists

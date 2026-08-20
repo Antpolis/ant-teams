@@ -40,5 +40,11 @@
   "initMeta": {
     "version": "0.1.0",
     "generatedAt": "2026-07-18T00:00:00+08:00"
+  },
+  "documentation": {
+    "vaultPath": "/home/chrissim/Projects/documentation",
+    "projectPathTemplate": "/home/chrissim/Projects/documentation/02-Architecture-Landscape/projects/<project-name>",
+    "sourceOfTruth": "obsidian-vault",
+    "repository": "Antpolis/documentation"
   }
 }

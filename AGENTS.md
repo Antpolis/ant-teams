@@ -7,7 +7,9 @@ Role: tool
 
 ## Project Structure
 
-Documentation root: `docs/`
+Repository-local documentation root: `docs/` (code-adjacent guidance only)
+Central Obsidian documentation vault: `/home/chrissim/Projects/documentation`
+Project documentation path: `/home/chrissim/Projects/documentation/projects/ant-teams/`
 Test directories: `tests/`
 
 ## Build, Test, and Run Commands
@@ -18,7 +20,24 @@ Test directories: `tests/`
 
 ## Documentation
 
-Documentation root: `docs/`
+Central product documentation: `/home/chrissim/Projects/documentation/projects/ant-teams/`
+Use the `architecture-vault` skill and the central Obsidian vault for product specs, architecture, ADRs, governance, lifecycle, and project documentation.
+
+## Worktree and Documentation Routing
+
+1. Read `.github-project.json` before creating a task worktree or project documentation.
+2. Use `.github-project.json.worktreeRoot` as the default worktree parent.
+3. Create one worktree per issue at `<worktreeRoot>/<issue-id>` using `git worktree add`; do not set `core.worktree`.
+4. Store this project's documentation in `.github-project.json.documentation.projectPathTemplate`, resolving `<project-name>` to `ant-teams`.
+5. Keep GitHub Issues, PRs, and Project status as the live execution record; keep durable product documentation in the Obsidian vault.
+6. After any documentation-vault task, inspect the diff, stage only task-owned files, commit, and push to the vault remote. Never stage unrelated user changes or secrets.
+
+Example:
+
+```sh
+config=$(node -e 'const fs=require("fs"); const c=JSON.parse(fs.readFileSync(".github-project.json")); console.log(JSON.stringify({worktreeRoot:c.worktreeRoot, docs:c.documentation}, null, 2))')
+git worktree add "$HOME/Projects/worktree/ant-teams/issue-123" -b feat/issue-123 origin/master
+```
 
 ## Scratch and Log Directories
 

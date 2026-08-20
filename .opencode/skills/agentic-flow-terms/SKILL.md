@@ -59,9 +59,9 @@ These terms are specific to this repository's agentic flow. Agents must use thes
 | Defer Task | A tech-lead-created task that intentionally postpones architecture cleanup, ADR/GOV/ARCH updates, future implementation, or technical debt. It must include reason, risk, target follow-up, and invalidation conditions. |
 | Accepted Tradeoff | A known compromise explicitly accepted by tech-lead, usually recorded in architect memory and the GitHub collaboration record. |
 | Technical Debt | Work intentionally postponed and tracked so it can be addressed later. Technical debt must not be used to hide unresolved blockers. |
-| ADR | Architecture Decision Record. Stored under `docs/adr/` or `.docs/adr/` when applicable. |
-| GOV | Governance, standards, policies, conventions, or required process docs. Stored under `docs/gov/` or `.docs/gov/` when applicable. |
-| ARCH | Repository-specific architecture guidance or customized architecture decisions. Stored under `docs/arch/` or `.docs/arch/` when applicable. |
+| ADR | Architecture Decision Record. Stored in the central Obsidian project folder or governance area. |
+| GOV | Governance, standards, policies, conventions, or required process docs. Stored in the central Obsidian governance area. |
+| ARCH | Repository-specific architecture guidance or customized architecture decisions. Stored in the central Obsidian project or shared-architecture area. |
 
 ## Completion Terms
 

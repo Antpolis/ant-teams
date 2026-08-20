@@ -4,7 +4,7 @@
     "orchestrator": {
       "description": "Owns queue-driven execution orchestration by invoking strategist, tech-lead, builder, and reviewer directly until the next real human decision is required.",
       "mode": "primary",
-      "model": "openai/gpt-5.4-mini",
+      "model": "openai/gpt-5.6-luna-fast",
       "permission": {
         "edit": {
           "docs/**": "allow",
@@ -13,6 +13,9 @@
           "*": "deny"
         },
         "bash": "allow",
+        "webfetch": "allow",
+        "websearch": "allow",
+        "question": "allow",
         "apply_patch": "allow",
         "glob": "allow",
         "grep": "allow",
@@ -29,7 +32,7 @@
     "strategist": {
       "description": "Challenges new ideas, sharpens them into practical MVPs, and prepares implementation-ready specs for the user, who remains the final decision maker.",
       "mode": "primary",
-      "model": "openai/gpt-5.4",
+      "model": "openai/gpt-5.6-terra-fast",
       "permission": {
         "edit": {
           "docs/**": "allow",
@@ -75,7 +78,7 @@
     "builder": {
       "description": "Implements approved work with focused code changes and verification.",
       "mode": "primary",
-      "model": "zai-coding-plan/glm-5.2",
+      "model": "zai-coding-plan/glm-5.3",
       "permission": {
         "edit": "allow",
         "bash": "allow",
@@ -93,7 +96,7 @@
     "reviewer": {
       "description": "Reviews builder output for KISS violations, separation of concerns, wrong folder/package/namespace placement, architecture alignment, scope discipline, and lightweight smoke verification. Raises findings as blockers, not suggestions.",
       "mode": "primary",
-      "model": "openai/gpt-5.4-mini",
+      "model": "opencode/qwen-3.6-plus",
       "permission": {
         "edit": "deny",
         "bash": "allow",
@@ -114,7 +117,10 @@
     "question": "allow",
     "webfetch": "allow",
     "external_directory": {
-      "/home/chrissim/Projects/worktree/ant-teams/**": "allow"
+      "/home/chrissim/Projects/worktree/ant-teams/**": "allow",
+      "~/.config/opencode/skills/**": "allow",
+      "/home/chrissim/.agents/skills/**": "allow",
+      "/home/chrissim/Projects/documentation/**": "allow"
     }
   },
   "plugin": [],

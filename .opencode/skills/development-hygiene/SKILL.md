@@ -30,9 +30,8 @@ Before making strong implementation decisions:
 
 Useful repo guidance often lives in:
 
-- `docs/arch/`
-- `docs/gov/`
-- `docs/adr/` if present
+- the central Obsidian project documentation path from `.github-project.json`
+- project-specific architecture, governance, and ADR notes in that vault path
 - related skill docs and workflow docs under `.opencode/skills/`
 
 If the repo has a local governance document describing how architecture guidance is applied, follow that before inventing a new pattern.
@@ -174,7 +173,7 @@ If the answer exposes unnecessary complexity, simplify before finishing.
 1. Is the implementation more complex than the simplest solution that would work?
 2. Are there new abstractions with only one caller or one current use?
 3. Is there indirection that obscures rather than clarifies?
-4. Does the code live in the correct folder, package, or namespace as defined by the repository architecture documents? Read `docs/arch/` before judging placement — do not apply generic language conventions when a project-specific architecture document defines the expected structure.
+4. Does the code live in the correct folder, package, or namespace as defined by the repository architecture documents? Read the central Obsidian project architecture notes before judging placement — do not apply generic language conventions when a project-specific architecture document defines the expected structure.
 5. Are any two concerns mixed in a single file, class, or function that should be separated?
 6. Was architecture or cleanup bundled into a feature change without being explicitly called out?
 

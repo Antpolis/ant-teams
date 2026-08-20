@@ -121,7 +121,7 @@ For each issue:
 - read the linked spec, dependencies, prior delegations, and relevant repository docs
 - if product intent, scope meaning, or execution meaning is unclear, clear it with `strategist`
 - if technical interpretation, sequencing, or guardrails are unclear, resolve them with `tech-lead`
-- record any clarification discussion in GitHub comments for auditability
+- record each clarification discussion as an Obsidian communication event file for auditability; update GitHub only for status or final closure
 - if the issue has a blocker or needs human intervention, record that in GitHub and skip to the next executable issue
 - if the issue needs strategist or tech-lead resolution before safe execution can continue, record a durable GitHub comment and move it to `Need attentions`
 - once the technical requirement is clear, invoke `builder` and record that delegation in GitHub
@@ -133,7 +133,7 @@ For each issue:
 - `builder` works the delegated issue according to the assigned GitHub issue, approved guardrails, and the shared build-review loop
 - when `builder` starts, `builder` must create or switch to the issue worktree, create or switch to the issue branch in that worktree, and move the issue into `In Progress`
 - after `builder` finishes implementation, `builder` must create or update the PR, move the issue into `In Review`, and leave a durable handover note in the issue or PR before `reviewer` review starts
-- builder-reviewer review discussion must happen in the PR comments or review threads
+- builder-reviewer agent communication must be recorded as individual Obsidian event files in the issue communication folder; code-specific findings and final approval remain in PR comments or review threads
 - `orchestrator` should only check that the worktree, branch, PR, state change, and handover note exist before delegating `reviewer`
 - after the PR is ready, `reviewer` must review before the issue advances
 - if `reviewer` finds issues, `reviewer` returns the issue to `builder` in the same worktree and on the same branch and continues the loop through durable review findings
@@ -143,7 +143,7 @@ For each issue:
 ## Tech-Lead Merge Gate
 
 - every issue in `Ready to Merge` must be routed to `tech-lead` by `orchestrator` before it is considered done
-- `tech-lead` reads the linked spec, the GitHub issue, and the PR diff to verify that the implementation matches approved scope and satisfies architecture guardrails (KISS, separation of concerns, folder/package/namespace per `docs/arch/`)
+- `tech-lead` reads the linked central Obsidian project documentation, GitHub issue, and PR diff to verify that implementation matches approved scope and satisfies architecture guardrails (KISS, separation of concerns, folder/package/namespace)
 - if the check passes: `tech-lead` merges the PR, moves the issue to `Done`, and posts a merge confirmation comment on the PR
 - if the check fails: `tech-lead` posts specific findings as PR comments and moves the issue to `Need attentions` with a durable GitHub comment summarising the findings; in the next reconciliation pass, `tech-lead` reviews the `Need attentions` comment, confirms the findings are builder-actionable, and moves the issue back to `Ready`; builder then picks up from `Ready`, fixes the findings on the same branch, moves to `In Progress` then `In Review`, and the review loop continues
 - a tech-lead final check failure that results in builder rework counts as a continuation of the same review loop — the 8-loop cap applies across all review passes for the issue including those triggered by tech-lead findings; if the cap is hit, treat it as a loop-breaker and escalate to founder
@@ -154,8 +154,10 @@ For each issue:
 
 - GitHub Issues are the canonical execution tasks
 - GitHub Project status is the canonical workflow board
-- GitHub issue comments and PR comments are the canonical delegation and audit log
-- repository docs are the canonical spec and architecture source
+- individual Obsidian issue and milestone communication event files are the canonical agent-to-agent delegation log
+- GitHub issue comments and PR comments are the final status, closure, and code-review audit record
+- the central Obsidian project folder is the canonical product and architecture source
+- repository files are canonical only for code-adjacent implementation guidance
 
 ## Delegation Rule
 
@@ -170,7 +172,7 @@ For each issue:
 - `orchestrator` owns queue selection, cross-role coordination, and verification that required GitHub artifacts exist.
 - `strategist` owns product framing, scope clarity, success criteria, and product-level resolution of ambiguous work.
 - `tech-lead` owns technical interpretation, architecture guardrails, sequencing, loop-breaker technical decisions, all `Need attentions` resolution (routing to `strategist` if needed), the final spec-alignment check, the merge decision, and the transition from `Ready to Merge` to `Done`.
-- `builder` owns the issue worktree, task branch, implementation, implementation-state transitions into active work and review, PR creation or update, and builder handover notes.
+- `builder` owns the issue worktree, task branch, implementation, implementation-state transitions into active work and review, PR creation or update, and builder handover event files in Obsidian.
 - `reviewer` owns review findings, review approvals, return-to-builder decisions, reviewer verification notes, and the transition from `In Review` to `Ready to Merge` on approval or back to `In Progress` on findings. Reviewer does not merge and does not move issues to `Done`.
 - A role should not perform another role's normal workflow mutation just because it has tool access. If recovery is necessary, record why the usual owner could not perform the action.
 

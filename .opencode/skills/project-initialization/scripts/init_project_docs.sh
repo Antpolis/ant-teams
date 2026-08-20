@@ -1504,12 +1504,22 @@ generate_agents_md_content() {
       if (lines.length) sections.push({ heading: "Repository Relationships", body: lines.join("\n") });
     }
 
-    // ## Documentation — operator --docs-root flag or default docs/.
+    // ## Documentation — central Obsidian vault routing.
     {
-      const root = docsRoot || "docs";
-      sections.push({ heading: "Documentation", body: `Documentation root: \`${root}/\`` });
+      let vaultPath = "";
+      let projectPath = "";
+      try {
+        const cfgPath = path.join(projectDir, ".github-project.json");
+        const cfg = JSON.parse(fs.readFileSync(cfgPath, "utf8"));
+        vaultPath = cfg.documentation?.vaultPath || "";
+        projectPath = cfg.documentation?.projectPathTemplate || "";
+      } catch (_e) { /* config may not exist during generation */ }
+      const lines = [];
+      if (vaultPath) lines.push(`Central Obsidian documentation vault: \`${vaultPath}\``);
+      if (projectPath) lines.push(`Project documentation: \`${projectPath}\``);
+      lines.push("Product documentation is stored in the central Obsidian vault; this repository keeps only code-adjacent guidance.");
+      sections.push({ heading: "Documentation", body: lines.join("\n") });
     }
-
     // ## Scratch and Log Directories — operator input or ./tmp/ default.
     {
       const sd = eff.scratchDir || "./tmp/";
@@ -1933,44 +1943,16 @@ ensure_github_project_config \
 ensure_opencode_config "$project_dir" "$worktree_root"
 copy_required_skills "$project_dir" "$repo_root"
 
-# --- Docs tree copy + project docs folders ------------------------------------
-# T6 / OBS-2 dry-run: report would-write counts; skip the actual mkdirs and
-# the recursive copy (OBS-2.1: zero file changes).
+# --- Central Obsidian documentation routing -----------------------------------
+# Product documentation is not copied or scaffolded into project repositories.
+# The target repository receives only AGENTS.md guidance pointing to the
+# project-specific path from .github-project.json.documentation.
 if [[ "${opt_dry_run:-0}" == "1" ]]; then
-  if [[ -d "$repo_root/docs" ]]; then
-    local_doc_count="$(find "$repo_root/docs" -type f 2>/dev/null | wc -l | tr -d ' ')"
-    echo "[would-write] $docs_root/ (docs tree, $local_doc_count files from source)"
-    stat_would_write=$((stat_would_write + 1))
-  fi
-  echo "[would-write] $docs_root/ (project docs folder scaffold: adr/gov/arch/spec/runbook/qa/memory/proj-management)"
+  echo "[would-write] central Obsidian documentation routing in AGENTS.md"
   stat_would_write=$((stat_would_write + 1))
 else
-  mkdir -p "$project_dir/$docs_root"
-  if [[ -d "$repo_root/docs" ]]; then
-    # T6 fix: replace `cp -Rn` (GNU coreutils ≥9 warns "behavior of -n is
-    # non-portable") with a find-based per-file copy that skips existing
-    # targets. Same merge semantics (never overwrite project-local docs),
-    # portable across bash/coreutils variants (TR-1.1), and warning-free.
-    copy_tree_no_clobber "$repo_root/docs" "$project_dir/$docs_root"
-  fi
-
-  mkdir -p \
-    "$project_dir/$docs_root/adr" \
-    "$project_dir/$docs_root/gov" \
-    "$project_dir/$docs_root/arch" \
-    "$project_dir/$docs_root/spec" \
-    "$project_dir/$docs_root/runbook" \
-    "$project_dir/$docs_root/qa" \
-    "$project_dir/$docs_root/memory" \
-    "$project_dir/$docs_root/proj-management/tasks" \
-    "$project_dir/$docs_root/proj-management/communication" \
-    "$project_dir/$docs_root/proj-management/templates"
-
-  echo "[writing] project docs scaffold under $docs_root/"
-  echo "[summary] Use DOC_ROOT=$docs_root when running workflow scripts for this project."
-  echo "[summary] Issue worktrees will default to $worktree_root"
+  echo "[summary] Product documentation remains in the central Obsidian vault"
 fi
-
 # --- SPEC-001 T3 (issue #4): AGENTS.md generation ---------------------------
 # Runs after skills/config/docs writes per ERR-2.1 step 4 (AGENTS.md is the
 # final artifact so "Local Configuration Files" can enumerate what was

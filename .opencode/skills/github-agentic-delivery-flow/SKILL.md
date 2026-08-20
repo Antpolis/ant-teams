@@ -216,7 +216,7 @@ When an agent moves an issue to `Need attentions`:
 
 When `tech-lead` asks `strategist` to clarify a spec or issue during execution:
 
-- record the clarification request and resolution in GitHub comments
+- record the clarification request and resolution as individual Obsidian communication event files; update GitHub status and final closure messages as required
 - keep the issue in the current spec group unless it is blocked
 - skip to another issue only when waiting on a real blocker or human input
 

@@ -11,7 +11,7 @@ This skill defines how GitHub should represent workflow concepts. It does not re
 
 ## Purpose
 
-Use GitHub as the shared operational surface for multi-agent delivery while keeping the canonical implementation detail in the repository.
+Use GitHub as the shared operational surface for multi-agent delivery while keeping product documentation in the central Obsidian vault and code implementation detail in the repository.
 
 ## Core Mapping
 
@@ -23,8 +23,10 @@ Apply this mapping consistently:
 | Task | GitHub Issue |
 | Workflow State | GitHub Project item status |
 | Implementation artifact | GitHub Branch + Pull Request |
-| Durable handoff / findings / approvals | GitHub issue comments and PR comments |
-| Canonical implementation detail | Repository docs linked from the milestone or issue |
+| Agent-to-agent communication | Central Obsidian project communication notes |
+| Final closing message / approval | GitHub issue and pull request comments |
+| Product and architecture documentation | Central Obsidian vault project path linked from the milestone or issue |
+| Code implementation detail | Project repository and pull request |
 
 Do not treat milestone text as the full spec.
 
@@ -106,10 +108,12 @@ When strategist and tech-lead discuss a spec during shaping, they may do the liv
 
 ## Source Of Truth Rules
 
-- Keep the canonical implementation detail in the repository.
-- Link the canonical spec from the milestone.
-- Keep shaping and task-local execution discussion in GitHub comments when it affects future work.
-- Keep task-local execution discussion on the issue.
+- Keep product specs, architecture notes, ADRs, governance, lifecycle, and project memory in the central Obsidian vault.
+- Keep code-adjacent implementation detail in the project repository.
+- Link the central Obsidian document or Antpolis/documentation URL from the milestone.
+- Keep agent-to-agent shaping and task-local execution discussion in the central Obsidian communication note.
+- Keep GitHub status fields authoritative for workflow state.
+- Link the Obsidian communication note from the issue or milestone when useful.
 - Keep code-specific review on the pull request.
 - Reconcile GitHub artifacts and repo docs if they drift.
 

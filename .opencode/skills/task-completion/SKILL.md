@@ -9,7 +9,7 @@ Use this skill whenever completing, reviewing, closing, or validating a task rep
 
 Use the agentic-flow-terms skill as the canonical glossary for custom workflow metadata terms referenced by this skill.
 Use the GitHub workflow skills for state, review, blocker, defer, and approval behavior.
-Use role-memory for local durable lessons after GitHub collaboration is updated.
+Use role-memory for project-specific durable lessons in the central Obsidian project folder after GitHub collaboration is updated.
 
 ## Completion Gate
 
@@ -25,22 +25,24 @@ A task can be marked `completed` only when all are true:
 - No known severe review findings remain open.
 - The implementation is on a working branch created from the production base branch.
 - Reviewer has approved the code review and smoke verification outcome.
-- The relevant GitHub issue or PR records the builder handoff, reviewer findings, verification result, and approval state.
+- Individual Obsidian communication event files record builder handoff, reviewer findings, and loop context.
+- The GitHub issue and PR contain the final closing message, verification result, and approval state.
 - Builder, reviewer, and architect role memories have been reviewed and updated after the task or explicitly marked as having no new durable memory.
 
 ## Required Review Steps
 
 1. Read the GitHub issue.
 2. Read the linked PR and review discussion.
-3. Read the GitHub collaboration record using agent-communication-log.
-4. Read the parent spec and relevant docs if referenced.
-5. Inspect changed files.
-6. Compare implementation against scope, definition of done, and acceptance tests.
-7. Run or verify evidence for required commands.
-8. Confirm the implementation branch has not been merged back without reviewer approval.
-9. Append review, verification, approval, blocker, or defer-task notes to the GitHub issue or PR.
-10. Use role-memory to update builder, reviewer, and architect memory from the GitHub collaboration record, or record that there is no new durable memory for a role.
-11. Update the GitHub issue state and completion notes if editing is allowed.
+3. Read the relevant Obsidian communication event files and GitHub status/final-closure records using agent-communication-log.
+4. Read the parent spec and relevant central Obsidian project docs if referenced.
+5. Confirm documentation changes were made in the resolved Obsidian project folder, not repository `docs/` or `.docs/`.
+6. Inspect changed files.
+7. Compare implementation against scope, definition of done, and acceptance tests.
+8. Run or verify evidence for required commands.
+9. Confirm the implementation branch has not been merged back without reviewer approval.
+10. Append review, verification, approval, blocker, or defer-task notes to the GitHub issue or PR.
+11. Use role-memory to update project-specific builder, reviewer, and architect memory in the central Obsidian project folder, or record that there is no new durable memory for a role.
+12. Update the GitHub issue state and completion notes if editing is allowed.
 
 ## Task Status Rules
 
@@ -119,4 +121,4 @@ Report:
 
 - Treat GitHub issue state, GitHub Project status, issue comments, PR comments, and PR review as the authoritative task workflow surface.
 - Do not close or validate work based on local task-file state alone.
-- Use repository docs for the canonical spec and architecture context that GitHub issues and milestones link back to.
+- Use the central Obsidian project folder for canonical spec and architecture context that GitHub issues and milestones link back to.
