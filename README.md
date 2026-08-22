@@ -69,6 +69,7 @@ opencode deliver "add user activity reporting"
 ## Install Model
 
 - `scripts/init-company.sh` copies `templates/opencode/` into `.opencode/` and `~/.config/opencode`, then runs `scripts/sync-managed-skills.sh`, a managed, non-destructive sync of repository-owned skills into `~/.agents/skills/`.
+- `scripts/init-company.sh` also installs the canonical `templates/scripts/` tree to `~/.agents/scripts` (exported as `ANT_TEAM_SCRIPTS`). Run `ant-team-help.sh` (from `$ANT_TEAM_SCRIPTS`, or `templates/scripts/ant-team-help.sh` in this repo) to list every installed helper script with a one-line description.
 - `$ANT_TEAM_SCRIPTS/init-project.sh` initializes a project-local agent runtime, seeds or updates `.github-project.env`, and ensures `opencode.json` or `opencode.jsonc` allows access to the issue-worktree root through `permission.external_directory`.
 - Project initialization sets the default issue-worktree root to `~/Projects/worktree/<repo name>`.
 
@@ -91,7 +92,7 @@ See the central Obsidian project folder for the managed-skill sync runbook, arch
 
 - `templates/opencode/` — canonical editable OpenCode configuration, skills, and command source
 - `.opencode/` — generated local OpenCode runtime; recreate it with `scripts/init-company.sh`
-- `templates/scripts/` — canonical editable team-script source installed to `~/.agents/scripts`
+- `templates/scripts/` — canonical editable team-script source installed to `~/.agents/scripts` (`ant-team-help.sh`, `record-communication.sh`, worktree helpers, `validate-agents-md.sh`)
 - `.github/ISSUE_TEMPLATE/task.yml` — execution-task issue template (tech-lead owned)
 - `.github-project.env` — sole committed project config source (`ANT_TEAM_*` runtime exports)
 - The central Obsidian project folder — canonical product, architecture, governance, runbook, and project documentation
@@ -104,4 +105,5 @@ scripts/init-company.sh
 "$ANT_TEAM_SCRIPTS/init-project.sh"
 opencode deliver "<your request>"
 bash templates/scripts/validate-agents-md.sh AGENTS.md
+"$ANT_TEAM_SCRIPTS/ant-team-help.sh"
 ```
