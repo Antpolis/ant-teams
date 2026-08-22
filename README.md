@@ -70,6 +70,7 @@ There is no `.github-project.json` and no other runtime config file. Edit the en
 ## Install Model
 
 - `scripts/sync-company.sh` copies `.opencode/` into `~/.config/opencode` (the canonical OpenCode install), then runs `scripts/sync-managed-skills.sh`, a managed, non-destructive sync of repository-owned skills into `~/.agents/skills/`.
+- `scripts/sync-company.sh` also installs the repository `scripts/` tree to `~/.agents/scripts` (exported as `ANT_TEAM_SCRIPTS`). Run `ant-team-help.sh` (from `$ANT_TEAM_SCRIPTS`, or `scripts/ant-team-help.sh` in this repo) to list every installed helper script with a one-line description.
 - `scripts/init-project.sh` copies the company docs into a project repo and uses the global config; `scripts/init-project-docs.sh` is the underlying initializer and also seeds/updates `.github-project.env` and ensures `opencode.json` or `opencode.jsonc` allows access to the issue-worktree root through `permission.external_directory`.
 - Project initialization sets the default issue-worktree root to `~/Projects/worktree/<repo name>`.
 
@@ -96,7 +97,7 @@ See `docs/runbooks/RB-001-managed-skill-sync.md` for the operator runbook, and `
 - `.github/ISSUE_TEMPLATE/task.yml` — execution-task issue template (tech-lead owned)
 - `.github-project.env` — sole committed project config source (`ANT_TEAM_*` runtime exports)
 - `docs/` — code-adjacent guidance: architecture decisions, specs, runbooks, and the document index
-- `scripts/` — current operational scripts (company sync, project initialization, worktree helpers, `validate-agents-md.sh`)
+- `scripts/` — current operational scripts (company sync, project initialization, worktree helpers, `validate-agents-md.sh`, `ant-team-help.sh`, `record-communication.sh`)
 
 ## First Useful Commands
 
@@ -105,4 +106,5 @@ scripts/sync-company.sh
 scripts/init-project.sh
 opencode deliver "<your request>"
 bash scripts/validate-agents-md.sh AGENTS.md
+"$ANT_TEAM_SCRIPTS/ant-team-help.sh"
 ```

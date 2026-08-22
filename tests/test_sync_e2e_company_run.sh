@@ -10,7 +10,7 @@
 #     skills + command-derived skills.
 #   - FR-12.2 sync-company invokes sync-managed-skills after the canonical
 #     install; exit code reflects the worst outcome (here 0).
-#   - AC-1.1 / AC-2.1 exactly 33 managed entries (26 source + 7 command-derived;
+#   - AC-1.1 / AC-2.1 exactly 38 managed entries (31 source + 7 command-derived;
 #     0 name collisions in the real source tree); unmanaged content untouched.
 #
 # Runs the REAL repo scripts against a temp HOME so neither the real
@@ -46,6 +46,8 @@ assert_exists "canonical opencode.json installed" "$HOME_DIR/.config/opencode/op
 assert_not_exists "canonical skills dir is not installed" "$HOME_DIR/.config/opencode/skills"
 assert_exists "canonical commands dir installed" "$HOME_DIR/.config/opencode/commands"
 assert_exists "team scripts installed" "$HOME_DIR/.agents/scripts/sync-company.sh"
+assert_exists "helper CLI installed" "$HOME_DIR/.agents/scripts/ant-team-help.sh"
+assert_exists "communication recorder installed" "$HOME_DIR/.agents/scripts/record-communication.sh"
 assert_file_contains_str "bash config exports team scripts" \
   "$HOME_DIR/.bashrc" 'export ANT_TEAM_SCRIPTS="$HOME/.agents/scripts"'
 assert_file_contains_str "zsh config exports team scripts" \
@@ -66,9 +68,9 @@ assert_file_contains_str "sync-company reports Copilot agents" "$OUT" "Synced Op
 # managed count is verified via the manifest; the dir count is a lower bound.
 assert_ge "managed dir count >= skills + commands" \
   "$(sync_count_dirs "$HOME_DIR/.agents/skills")" "$EXPECTED_TOTAL"
-assert_eq "manifest records 33 managed entries" \
+assert_eq "manifest records 38 managed entries" \
   "$(sync_manifest_count_entries "$MANIFEST")" "$EXPECTED_TOTAL"
-assert_eq "expected total is 33 (26+7)" "$EXPECTED_TOTAL" "33"
+assert_eq "expected total is 38 (31+7)" "$EXPECTED_TOTAL" "38"
 assert_eq "manifest present" "$(sync_manifest_is_valid_json "$MANIFEST")" "yes"
 
 # A representative source skill and a command-derived skill are present.
