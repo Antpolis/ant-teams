@@ -22,6 +22,8 @@
  *   ENV-9   gh_project_helper resolves from the env alone (no JSON parse)
  *   ENV-10  do-task worktree helpers read ANT_TEAM_WORKTREE_ROOT from the env
  *   ENV-11  AGENTS.md Local Configuration Files lists .github-project.env
+ *   ENV-12  ANT_TEAM_DOCS_PROJECT_PATH resolves as VAULT_PATH/02-Architecture-Landscape/projects/NAME
+ *           (founder-set concrete value preserved verbatim; no template key emitted)
  *
  * No external npm dependencies — Node built-ins only. No network access.
  */
@@ -356,6 +358,45 @@ check('ENV-11: AGENTS.md Local Configuration Files lists .github-project.env', (
   assert.ok(
     !agents.includes('.github-project.json'),
     'AGENTS.md must not reference .github-project.json as a config artifact'
+  );
+});
+
+// --- ENV-12: concrete project path derivation ----------------------------------
+
+check('ENV-12a: ANT_TEAM_DOCS_PROJECT_PATH derives from vault + project name', () => {
+  const tmp = mkdtempRepo('env12a');
+  fs.writeFileSync(
+    path.join(tmp, '.github-project.env'),
+    "export ANT_TEAM_DOCS_VAULT_PATH='/vault/root'\n" +
+      "export ANT_TEAM_DOCS_PROJECT_NAME='my-proj'\n"
+  );
+  const r = runInit(initArgs(tmp));
+  assert.strictEqual(r.status, 0, `init exit ${r.status}\nstderr:\n${r.stderr}`);
+  assert.strictEqual(
+    envVar(tmp, 'ANT_TEAM_DOCS_PROJECT_PATH'),
+    '/vault/root/02-Architecture-Landscape/projects/my-proj',
+    'project path must resolve as VAULT_PATH/02-Architecture-Landscape/projects/PROJECT_NAME'
+  );
+  assert.ok(
+    !readEnvFile(tmp).includes('ANT_TEAM_DOCS_PROJECT_PATH_TEMPLATE'),
+    'ANT_TEAM_DOCS_PROJECT_PATH_TEMPLATE must not be emitted:\n' + readEnvFile(tmp)
+  );
+});
+
+check('ENV-12b: founder-set ANT_TEAM_DOCS_PROJECT_PATH is preserved verbatim', () => {
+  const tmp = mkdtempRepo('env12b');
+  fs.writeFileSync(
+    path.join(tmp, '.github-project.env'),
+    "export ANT_TEAM_DOCS_VAULT_PATH='/vault/root'\n" +
+      "export ANT_TEAM_DOCS_PROJECT_NAME='my-proj'\n" +
+      "export ANT_TEAM_DOCS_PROJECT_PATH='/custom/elsewhere/proj'\n"
+  );
+  const r = runInit(initArgs(tmp, ['--force']));
+  assert.strictEqual(r.status, 0, `init exit ${r.status}\nstderr:\n${r.stderr}`);
+  assert.strictEqual(
+    envVar(tmp, 'ANT_TEAM_DOCS_PROJECT_PATH'),
+    '/custom/elsewhere/proj',
+    'a founder-set concrete project path must not be overwritten by derivation'
   );
 });
 

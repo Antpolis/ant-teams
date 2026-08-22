@@ -319,16 +319,17 @@ check('AC-T6-004: when node is absent from PATH, exit 1 with [error] naming ≥1
 
 process.stdout.write('Suite: OBS-3.1 source repo path in error\n');
 
-check('OBS-3.1: source-skills-missing error includes the resolved path attempted', () => {
+check('OBS-3.1: required-sibling-missing error includes the resolved path attempted', () => {
   // Point --project-dir at a valid git dir, but run the script from a CWD
-  // whose repo_root (computed from BASH_SOURCE) is the real source — we
-  // cannot easily fake BASH_SOURCE, so this asserts the message format on
-  // the non-git path instead. A direct source-missing scenario is covered
-  // by the run_preflight code path; here we verify the wording of the
-  // missing-source branch by checking the script source contains the
-  // OBS-3.1 wording (defensive check against regressions).
+  // whose sibling skills root (computed from BASH_SOURCE) is the real
+  // source — we cannot easily fake BASH_SOURCE, so this asserts the message
+  // format on the non-git path instead. A direct missing-sibling scenario is
+  // covered by the run_preflight code path (and by tests/test_mirror_init.js
+  // MIR-2); here we verify the wording of the missing-sibling branch by
+  // checking the script source contains the OBS-3.1 wording (defensive check
+  // against regressions).
   const src = fs.readFileSync(INIT_SCRIPT, 'utf8');
-  assert.ok(/Source repository skills directory not found at:/.test(src),
+  assert.ok(/Required skill not found in the sibling skills root:/.test(src),
     'expected OBS-3.1 resolved-path wording in script');
   assert.ok(/OBS-3\.1/.test(src), 'expected OBS-3.1 reference in script comment');
 });

@@ -50,6 +50,9 @@
  *          retired command/role/script claims (audit finding 4).
  *   INV-15 No stale ANT_TEAM_GITHUB_STATUS_* legacy env keys anywhere: the
  *          board is driven only by the Workflow State field (audit finding 5).
+ *   INV-16 No ANT_TEAM_DOCS_PROJECT_PATH_TEMPLATE on any active surface: the
+ *          concrete ANT_TEAM_DOCS_PROJECT_PATH is founder-set or derived as
+ *          VAULT_PATH/02-Architecture-Landscape/projects/PROJECT_NAME.
  *
  * No external npm dependencies — Node built-ins only. No network access.
  */
@@ -388,10 +391,10 @@ check('INV-6b: the retired pm-lib script family stays retired', () => {
 });
 
 check('INV-6c: init-project wrappers route through ANT_TEAM_SCRIPTS', () => {
-  const w = read('scripts/init-project-docs.sh');
-  mustContain(w, '${ANT_TEAM_SCRIPTS:', 'init-project-docs.sh');
-  mustContain(w, 'sync-company.sh', 'init-project-docs.sh');
-  mustNotContain(w, '$(dirname "$0")/../.opencode', 'init-project-docs.sh');
+  const w = read('scripts/init-project.sh');
+  mustContain(w, '${ANT_TEAM_SCRIPTS:', 'init-project.sh');
+  mustContain(w, 'init-company.sh', 'init-project.sh');
+  mustNotContain(w, '$(dirname "$0")/../.opencode', 'init-project.sh');
   const wrappers = ['scripts/create-task-branch.sh', 'scripts/cleanup-task-worktree.sh'];
   for (const f of wrappers) {
     mustContain(read(f), '${ANT_TEAM_SCRIPTS:', f);
@@ -399,9 +402,9 @@ check('INV-6c: init-project wrappers route through ANT_TEAM_SCRIPTS', () => {
 });
 
 check('INV-6d: sync-company installs team scripts and exports ANT_TEAM_SCRIPTS', () => {
-  const s = read('scripts/sync-company.sh');
-  mustContain(s, 'sync_team_scripts', 'sync-company.sh');
-  mustContain(s, 'export ANT_TEAM_SCRIPTS="$HOME/.agents/scripts"', 'sync-company.sh');
+  const s = read('scripts/init-company.sh');
+  mustContain(s, 'sync_team_scripts', 'init-company.sh');
+  mustContain(s, 'export ANT_TEAM_SCRIPTS="$HOME/.agents/scripts"', 'init-company.sh');
 });
 
 // --- INV-7: /migrate and --migrate-agent-md retired --------------------------
@@ -500,7 +503,6 @@ check('INV-10a: AGENTS.md is the primary runtime guidance for .github-project.en
   mustContain(a, 'worktree operations', 'AGENTS.md');
   // No-JSON rule: the env is the sole committed config; no JSON config exists.
   mustContain(a, 'sole committed project config source', 'AGENTS.md');
-  mustContain(a, 'there is no `.github-project.json`', 'AGENTS.md');
   // Key ANT_TEAM_* variables are shown.
   for (const v of [
     'ANT_TEAM_GITHUB_OWNER',
@@ -517,8 +519,8 @@ check('INV-10a: AGENTS.md is the primary runtime guidance for .github-project.en
     mustContain(a, v, 'AGENTS.md key variables');
   }
   // Prerequisite chain: sync-company installs scripts, project-init seeds the env.
-  mustContain(a, 'scripts/sync-company.sh', 'AGENTS.md');
-  mustContain(a, 'init-project-docs.sh', 'AGENTS.md');
+  mustContain(a, 'scripts/init-company.sh', 'AGENTS.md');
+  mustContain(a, 'init-project.sh', 'AGENTS.md');
   mustContain(a, 'no standalone generator', 'AGENTS.md');
   mustContain(a, 'no JSON config', 'AGENTS.md');
   // Worktree root may carry a literal ~ that git will not expand.
@@ -767,7 +769,6 @@ check('INV-14b: README makes no retired command, role, or script claims', () => 
 check('INV-15: no ANT_TEAM_GITHUB_STATUS_* legacy keys in the env or its seed sources', () => {
   const files = [
     '.github-project.env',
-    '.opencode/skills/project-initialization/scripts/setup_project_docs.sh',
     '.opencode/skills/project-initialization/scripts/init_project_docs.sh',
     '.opencode/skills/github-issues-projects-cli/references/command-patterns.md',
   ];
@@ -777,6 +778,27 @@ check('INV-15: no ANT_TEAM_GITHUB_STATUS_* legacy keys in the env or its seed so
   // The env itself keeps exactly the canonical Workflow State field + options.
   const env = read('.github-project.env');
   mustContain(env, 'export ANT_TEAM_GITHUB_WORKFLOW_STATE_FIELD_ID=', '.github-project.env');
+});
+
+// --- INV-16: retired template key ---------------------------------------------
+
+check('INV-16: ANT_TEAM_DOCS_PROJECT_PATH_TEMPLATE is retired', () => {
+  const offenders = [];
+  const files = [
+    ...activeMarkdownSurfaces(),
+    ...activeScriptSurfaces(),
+    '.github-project.env',
+    'OBSIDIAN_VAULT.md',
+  ];
+  for (const f of files) {
+    if (read(f).includes('ANT_TEAM_DOCS_PROJECT_PATH_TEMPLATE')) offenders.push(f);
+  }
+  assert.deepStrictEqual(
+    offenders,
+    [],
+    'the retired ANT_TEAM_DOCS_PROJECT_PATH_TEMPLATE key must not appear on active surfaces:\n' +
+      offenders.join('\n')
+  );
 });
 
 // --- summary -------------------------------------------------------------------

@@ -110,7 +110,7 @@ readonly REPO_ROLE_VALID_VALUES="service library infra monorepo-root tool docs o
 usage() {
   cat <<'USAGE'
 Usage:
-  "$ANT_TEAM_SCRIPTS/init-project-docs.sh" [options]
+  "$ANT_TEAM_SCRIPTS/init-project.sh" [options]
 
 Copy the company docs into a project repo and create the local workflow-state
 folder structure. T2 (issue #3) adds interactive/noninteractive mode selection,
@@ -176,16 +176,16 @@ flag, so explicit flags always win.
 
 Examples:
   # TTY default → interactive
-  "$ANT_TEAM_SCRIPTS/init-project-docs.sh"
+  "$ANT_TEAM_SCRIPTS/init-project.sh"
 
   # Noninteractive, fully specified (AC-T2-002)
-  "$ANT_TEAM_SCRIPTS/init-project-docs.sh" \
+  "$ANT_TEAM_SCRIPTS/init-project.sh" \
       --noninteractive \
       --name my-service --github-owner antpolis --github-project-number 9
 
   # Env var provides default; CLI flag overrides (AC-T2-004)
   INIT_PROJECT_GITHUB_OWNER=antpolis \
-      "$ANT_TEAM_SCRIPTS/init-project-docs.sh" \
+      "$ANT_TEAM_SCRIPTS/init-project.sh" \
       --noninteractive --github-owner override \
       --name t --github-project-number 1
 USAGE
@@ -207,7 +207,8 @@ expand_path() {
 #
 # Checks (ERR-1.1):
 #   1. target project dir exists AND is a git repo (has .git/ or .git file)
-#   2. source repo (this checkout) contains .opencode/skills/
+#   2. sibling managed skills root contains every required skill
+#      (github-issues-projects-cli, do-task, project-initialization)
 #   3. node (≥18) is on PATH — required by ensure_opencode_config /
 #      ensure_project_runtime_env (OBS-3.2)
 #   4. coreutils cp/mkdir/cat/rm/mktemp are on PATH
@@ -218,7 +219,7 @@ expand_path() {
 # check would reject those valid test fixtures and break T1-T5 suites.
 run_preflight() {
   local project_dir_arg="$1"
-  local repo_root_arg="$2"
+  local managed_skills_root_arg="$2"
 
   # ERR-1.1 item 1: target dir exists + is a git repo (AC-T6-003).
   if [[ ! -d "$project_dir_arg" ]]; then
@@ -232,16 +233,21 @@ run_preflight() {
     exit 1
   fi
 
-  # ERR-1.1 item 2 / OBS-3.1: source repo contains the skills tree. Include
-  # the resolved path the script actually checked so the operator can see
-  # why a self-init from the wrong CWD failed.
-  local source_skills="$repo_root_arg/.opencode/skills"
-  if [[ ! -d "$source_skills" ]]; then
-    echo "[error] Source repository skills directory not found at: $source_skills" >&2
-    echo "[error] init-project must run from a checkout of the source repo (OBS-3.1)." >&2
-    echo "[error] Resolved repo_root=$repo_root_arg; expected $source_skills to exist." >&2
-    exit 1
-  fi
+  # ERR-1.1 item 2 / OBS-3.1: the sibling managed skills root contains every
+  # required skill. This holds identically in a source checkout
+  # (<repo>/.opencode/skills) and in the managed mirror (~/.agents/skills
+  # after scripts/init-company.sh). Include the resolved path the script
+  # actually checked so the operator can see why an init from a wrong
+  # location failed.
+  local required_skill
+  for required_skill in github-issues-projects-cli do-task project-initialization; do
+    if [[ ! -d "$managed_skills_root_arg/$required_skill" ]]; then
+      echo "[error] Required skill not found in the sibling skills root: $managed_skills_root_arg/$required_skill" >&2
+      echo "[error] init-project must run from a source checkout (.opencode/skills/) or the managed mirror (~/.agents/skills/ after scripts/init-company.sh) (OBS-3.1)." >&2
+      echo "[error] Resolved sibling skills root: $managed_skills_root_arg" >&2
+      exit 1
+    fi
+  done
 
   # ERR-1.1 item 3 / OBS-3.2: node ≥18 on PATH. State minimum version and
   # which functions require it so the operator knows why.
@@ -701,10 +707,13 @@ ensure_opencode_gitignore() {
 
 # FR-7.1 / FR-7.2 / FR-7.3 / SEC-3.2 / ARCH-003 guarantee 4: copy the three
 # required script-bearing skills (github-issues-projects-cli, do-task,
-# project-initialization) from the source repo into the project-local
-# `.opencode/skills/` directory. Copy is a per-file merge: every regular source
-# file is copied when absent at target and preserved when already present (this
-# is what protects project-customized SKILL.md files). No other skill is ever
+# project-initialization) from the sibling managed skills root into the
+# project-local `.opencode/skills/` directory. The sibling root is the
+# directory this skill lives in: <repo>/.opencode/skills in a source checkout
+# or ~/.agents/skills in the managed mirror — the copy source is identical in
+# both locations. Copy is a per-file merge: every regular source file is
+# copied when absent at target and preserved when already present (this is
+# what protects project-customized SKILL.md files). No other skill is ever
 # copied.
 #
 # Execute-bit policy (smallest robust approach): the source repository owns the
@@ -719,8 +728,8 @@ ensure_opencode_gitignore() {
 # silently ship a non-executable script into a fresh init.
 copy_required_skills() {
   local project_dir="$1"
-  local repo_root="$2"
-  local source_skills_dir="$repo_root/.opencode/skills"
+  local managed_skills_root="$2"
+  local source_skills_dir="$managed_skills_root"
   local target_skills_dir="$project_dir/.opencode/skills"
   local -a required_skills=(
     "github-issues-projects-cli"
@@ -812,7 +821,6 @@ copy_required_skills() {
 #   - Existing env: FOUNDER VALUES ARE PRESERVED. Only missing keys are filled
 #     (placeholders/defaults); the canonical header is normalized. Nothing the
 #     founder set is ever overwritten.
-#   - There is no JSON config and no legacy `.github-project.json`
 #     import/removal path — the env is the only config the initializer reads or
 #     writes.
 #   - ANT_TEAM_DOCS_PROJECT_NAME defaults to the detected git repository name
@@ -855,6 +863,7 @@ ensure_project_runtime_env() {
     "$opt_github_owner" \
     "$opt_github_project_number" <<'NODE'
 const fs = require("fs");
+const path = require("path");
 
 const [
   envPath,
@@ -961,11 +970,18 @@ for (const [name, value] of workflowStateOptionLines) {
 
 values.ANT_TEAM_WORKTREE_ROOT = pick(envMap.ANT_TEAM_WORKTREE_ROOT, worktreeRoot);
 // Documentation keys: projectName defaults to the detected git repo name;
-// vault/template/repository are founder-owned and omitted when unset.
+// vault/repository are founder-owned and omitted when unset. The concrete
+// project path preserves a founder-set value verbatim; otherwise it resolves
+// as VAULT_PATH/02-Architecture-Landscape/projects/PROJECT_NAME.
 values.ANT_TEAM_DOCS_VAULT_PATH = pick(envMap.ANT_TEAM_DOCS_VAULT_PATH);
 values.ANT_TEAM_DOCS_PROJECT_NAME = pick(envMap.ANT_TEAM_DOCS_PROJECT_NAME, repoName);
-values.ANT_TEAM_DOCS_PROJECT_PATH_TEMPLATE = pick(envMap.ANT_TEAM_DOCS_PROJECT_PATH_TEMPLATE);
 values.ANT_TEAM_DOCS_REPOSITORY = pick(envMap.ANT_TEAM_DOCS_REPOSITORY);
+values.ANT_TEAM_DOCS_PROJECT_PATH = pick(
+  envMap.ANT_TEAM_DOCS_PROJECT_PATH,
+  nonempty(values.ANT_TEAM_DOCS_VAULT_PATH) && nonempty(values.ANT_TEAM_DOCS_PROJECT_NAME)
+    ? path.join(values.ANT_TEAM_DOCS_VAULT_PATH, "02-Architecture-Landscape", "projects", values.ANT_TEAM_DOCS_PROJECT_NAME)
+    : ""
+);
 
 // Canonical output order (stable, deterministic).
 const orderedNames = [
@@ -979,8 +995,8 @@ const orderedNames = [
   "ANT_TEAM_WORKTREE_ROOT",
   "ANT_TEAM_DOCS_VAULT_PATH",
   "ANT_TEAM_DOCS_PROJECT_NAME",
-  "ANT_TEAM_DOCS_PROJECT_PATH_TEMPLATE",
   "ANT_TEAM_DOCS_REPOSITORY",
+  "ANT_TEAM_DOCS_PROJECT_PATH",
 ];
 
 const lines = [];
@@ -988,16 +1004,8 @@ for (const name of orderedNames) {
   const value = values[name];
   if (nonempty(value)) lines.push("export " + name + "=" + shq(value));
 }
-// Derived resolved project path (first-occurrence placeholder resolution).
-if (nonempty(values.ANT_TEAM_DOCS_PROJECT_PATH_TEMPLATE) && nonempty(values.ANT_TEAM_DOCS_PROJECT_NAME)) {
-  const resolved = String(values.ANT_TEAM_DOCS_PROJECT_PATH_TEMPLATE).replace(
-    "<project-name>",
-    String(values.ANT_TEAM_DOCS_PROJECT_NAME)
-  );
-  lines.push("export ANT_TEAM_DOCS_PROJECT_PATH=" + shq(resolved));
-}
 // Preserve founder-added keys that are not part of the canonical set.
-const canonicalSet = new Set([...orderedNames, "ANT_TEAM_DOCS_PROJECT_PATH"]);
+const canonicalSet = new Set(orderedNames);
 for (const name of envOrder) {
   if (!canonicalSet.has(name) && nonempty(envMap[name])) {
     lines.push("export " + name + "=" + shq(envMap[name]));
@@ -1499,7 +1507,7 @@ generate_agents_md_content() {
           if (m) envVars[m[1]] = m[2].replace(/'\\''/g, "'");
         }
         vaultPath = envVars.ANT_TEAM_DOCS_VAULT_PATH || "";
-        projectPath = envVars.ANT_TEAM_DOCS_PROJECT_PATH || envVars.ANT_TEAM_DOCS_PROJECT_PATH_TEMPLATE || "";
+        projectPath = envVars.ANT_TEAM_DOCS_PROJECT_PATH || "";
       } catch (_e) { /* env may not exist during generation */ }
       const lines = [];
       if (vaultPath) lines.push(`Central Obsidian documentation vault: \`${vaultPath}\``);
@@ -1710,7 +1718,15 @@ write_agents_md_atomic() {
 }
 
 skill_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-repo_root="$(cd "$skill_root/../../.." && pwd)"
+# Sibling managed skills root: the skills directory this skill lives in. In a
+# source checkout that is <repo>/.opencode/skills; in the managed mirror
+# installed by scripts/sync-managed-skills.sh it is ~/.agents/skills. The
+# engine must run correctly from BOTH locations (the installed wrapper
+# "$ANT_TEAM_SCRIPTS/init-project.sh" executes the mirror copy), so
+# required-skill discovery resolves from the sibling root — never from a
+# checkout-derived repo root, which would resolve to $HOME in the mirror and
+# fail preflight against a nonexistent $HOME/.opencode/skills.
+managed_skills_root="$(cd "$skill_root/.." && pwd)"
 project_dir="$(pwd)"
 docs_root="docs"
 worktree_root=""
@@ -1904,7 +1920,7 @@ fi
 # --- T6 (issue #7): ERR-1 pre-flight validation ------------------------------
 # Runs after flag resolution and BEFORE any write (ERR-1.1). Each failure
 # exits 1 with a specific [error] message (ERR-1.2) and no file is touched.
-run_preflight "$project_dir" "$repo_root"
+run_preflight "$project_dir" "$managed_skills_root"
 
 project_dir="$(mkdir -p "$project_dir" && cd "$project_dir" && pwd)"
 docs_root="${docs_root%/}"
@@ -1931,7 +1947,7 @@ ensure_project_runtime_env \
   "$opt_github_owner" \
   "$opt_github_project_number"
 ensure_opencode_config "$project_dir" "$worktree_root"
-copy_required_skills "$project_dir" "$repo_root"
+copy_required_skills "$project_dir" "$managed_skills_root"
 
 # --- Local docs root (CLI-1 --docs-root contract) ----------------------------
 # Regression fix (2026-08-22 review finding, AC-T2-005a): the central-Obsidian

@@ -13,7 +13,6 @@
  *   - AC-T4-002: do-task/scripts/create_task_worktree.sh and
  *                cleanup_task_worktree.sh exist WITH execute permission.
  *   - AC-T4-003: project-initialization/scripts/init_project_docs.sh (and
- *                setup_project_docs.sh per AC-SPEC-007) exist WITH execute
  *                permission.
  *   - AC-T4-004: skill-creator/, webapp-testing/, doc-coauthoring/,
  *                frontend-design/ are NOT copied.
@@ -70,7 +69,6 @@ const REQUIRED_SCRIPT_PATHS = [
   'do-task/scripts/create_task_worktree.sh',
   'do-task/scripts/cleanup_task_worktree.sh',
   'project-initialization/scripts/init_project_docs.sh',
-  'project-initialization/scripts/setup_project_docs.sh',
 ];
 
 // Lists every `.sh` file under `<rootDir>/.opencode/skills/<required-skill>/scripts/`.
@@ -272,18 +270,6 @@ function testRequiredScriptsPresent(projectDir) {
     assertExecutable(
       path.join(projectDir, '.opencode/skills/project-initialization/scripts/init_project_docs.sh'),
       'AC-T4-003 init_project_docs.sh'
-    );
-  });
-  check('AC-T4-003 / AC-SPEC-007: project-initialization/scripts/setup_project_docs.sh exists', () => {
-    assert.ok(
-      fs.existsSync(path.join(projectDir, '.opencode/skills/project-initialization/scripts/setup_project_docs.sh')),
-      'missing project-initialization/scripts/setup_project_docs.sh'
-    );
-  });
-  check('AC-T4-003 / AC-SPEC-007: setup_project_docs.sh has execute permission', () => {
-    assertExecutable(
-      path.join(projectDir, '.opencode/skills/project-initialization/scripts/setup_project_docs.sh'),
-      'AC-T4-003 setup_project_docs.sh'
     );
   });
   check('AC-T4-003: project-initialization/SKILL.md exists', () => {

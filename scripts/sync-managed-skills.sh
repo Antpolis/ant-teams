@@ -140,7 +140,7 @@ USAGE
 
 # ---------------------------------------------------------------------------
 # Dependency detection (TR-1.2). sha256sum with shasum -a 256 fallback.
-# node is already a repository runtime dependency (sync-company.sh requires it)
+# node is already a repository runtime dependency (init-company.sh requires it)
 # and is used here only for reliable JSON validate/serialize (DM-4.2).
 # ---------------------------------------------------------------------------
 SHA_CMD=""

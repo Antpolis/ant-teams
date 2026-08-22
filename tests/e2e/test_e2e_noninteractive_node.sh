@@ -59,7 +59,7 @@ else
   check FAIL ".github-project.env is not sourceable"
 fi
 # No JSON config is created under the env-only contract.
-assert_not_exists ".github-project.json absent" "$TMP/.github-project.json"
+assert_not_exists ".github-project.json legacy artifact absent" "$TMP/.github-project.json"
 
 # .opencode config gets the worktree external_directory entry (ARCH-003 Artifact 4).
 OC_JSON="$TMP/.opencode/opencode.json"
@@ -75,7 +75,6 @@ assert_exec "$TMP/.opencode/skills/github-issues-projects-cli/scripts/gh_project
 assert_exec "$TMP/.opencode/skills/do-task/scripts/create_task_worktree.sh"
 assert_exec "$TMP/.opencode/skills/do-task/scripts/cleanup_task_worktree.sh"
 assert_exec "$TMP/.opencode/skills/project-initialization/scripts/init_project_docs.sh"
-assert_exec "$TMP/.opencode/skills/project-initialization/scripts/setup_project_docs.sh"
 
 assert_file_contains "structured summary line" "$OUT" '\[summary\] Initialization complete'
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# test_sync_e2e_company_run.sh — SPEC-002 TEST-3.1: real sync-company.sh run.
+# test_sync_e2e_company_run.sh — SPEC-002 TEST-3.1: real init-company.sh run.
 #
 # Traceability:
-#   - FR-1.1/.2 a default sync-company.sh run installs .opencode/ into
+#   - FR-1.1/.2 a default init-company.sh run installs .opencode/ into
 #     ~/.config/opencode (full-replace + provider merge) AND does not weaken
 #     the canonical install.
 #   - FR-2.1/.2 the managed sync populates ~/.agents/skills with all source
@@ -20,7 +20,7 @@ set -euo pipefail
 
 source "$(dirname "$0")/lib/sync_helpers.sh"
 
-sync_begin "TEST-3.1 real sync-company.sh run"
+sync_begin "TEST-3.1 real init-company.sh run"
 
 HOME_DIR="$(sync_make_home)"
 trap 'rm -rf "$HOME_DIR"' EXIT
@@ -39,13 +39,13 @@ REAL_CMDS="$(find "$SYNC_REAL_OPENCODE/commands" -maxdepth 1 -name '*.md' -type 
 EXPECTED_TOTAL=$(( REAL_SKILLS + REAL_CMDS ))
 
 sync_capture "$OUT" "$SYNC_REAL_COMPANY" "$HOME_DIR"
-assert_exit_zero "sync-company.sh exit 0" "$SYNC_RC"
+assert_exit_zero "init-company.sh exit 0" "$SYNC_RC"
 
 # FR-1: canonical install target populated.
 assert_exists "canonical opencode.json installed" "$HOME_DIR/.config/opencode/opencode.json"
 assert_not_exists "canonical skills dir is not installed" "$HOME_DIR/.config/opencode/skills"
 assert_exists "canonical commands dir installed" "$HOME_DIR/.config/opencode/commands"
-assert_exists "team scripts installed" "$HOME_DIR/.agents/scripts/sync-company.sh"
+assert_exists "team scripts installed" "$HOME_DIR/.agents/scripts/init-company.sh"
 assert_file_contains_str "bash config exports team scripts" \
   "$HOME_DIR/.bashrc" 'export ANT_TEAM_SCRIPTS="$HOME/.agents/scripts"'
 assert_file_contains_str "zsh config exports team scripts" \

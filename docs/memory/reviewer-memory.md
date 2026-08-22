@@ -2,6 +2,24 @@
 
 ## Active Lessons
 
+### 2026-08-22 - PR #30 / MIR-3 direct helper smoke re-review
+
+- Context: Re-reviewed the added MIR-3 direct `$ANT_TEAM_SCRIPTS/gh_project_helper.sh` smoke in PR #30.
+- Smoke Result: Pass; direct wrapper invocation now exercises the mirror engine with a non-executable managed copy and env-sourced owner/project-number resolution.
+- Runtime Requirement: Invoke the installed wrapper directly with `spawnSync(wrapper, ...)` from a temp HOME + target repo that carries its own `.github-project.env`; keep the fake `gh` shim in PATH for offline verification.
+- Verification Command: `node tests/test_mirror_init.js && for f in tests/test_*.js; do node "$f" || exit 1; done`
+- Known Gap: None.
+- Related Docs: `docs/arch/ARCH-003-project-local-initialization-artifacts.md`, `docs/memory/builder-memory.md`, PR #30.
+
+### 2026-08-22 - PR #30 / no new durable memory
+
+- Context: Reviewed PR #30 (Agent Communication template/Base, helper CLI, record/list MVP).
+- Smoke Result: Pass; focused helper/recorder smoke plus full sync/init regression suites passed.
+- Runtime Requirement: Run `record-communication.sh` from the project root with `.github-project.env` present and the approved vault template/Base available; use temp HOME for sync smoke.
+- Verification Command: `bash tests/test_helper_cli.sh && bash tests/test_record_communication.sh`; `for f in tests/test_*.js; do node "$f"; done`; `bash tests/run_sync_tests.sh && bash tests/run_e2e_tests.sh`
+- Known Gap: None.
+- Related Docs: `docs/arch/ARCH-003-project-local-initialization-artifacts.md`, `docs/arch/ARCH-004-managed-skill-sync-architecture.md`, `agent-communication-log` skill, PR #30.
+
 ### 2026-08-22 - project-env / env-first helper re-review
 
 - Context: Re-reviewed the gh_project_helper env-first fix for malformed `.github-project.json` sessions with already-sourced `ANT_TEAM_*` variables.

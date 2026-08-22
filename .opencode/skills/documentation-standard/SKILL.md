@@ -17,7 +17,7 @@ This skill should also help decide what kind of document to create. In particula
 
 - Treat `/home/chrissim/Projects/documentation` as an Obsidian vault, not as an ordinary repository docs folder.
 - Never create project documentation directly in the vault root `/home/chrissim/Projects/documentation/`.
-- Always resolve the project folder by sourcing `./.github-project.env` in the repository (the sole committed project config source) and using `ANT_TEAM_DOCS_PROJECT_PATH`, and write under `/home/chrissim/Projects/documentation/projects/<project-name>/` (or the configured equivalent).
+- Always resolve the project folder by sourcing `./.github-project.env` in the repository (the sole committed project config source) and using `ANT_TEAM_DOCS_PROJECT_PATH` (by default `$ANT_TEAM_DOCS_VAULT_PATH/02-Architecture-Landscape/projects/$ANT_TEAM_DOCS_PROJECT_NAME`, or the configured concrete value).
 - Root-level vault files are reserved for vault-wide indexes, governance entry points, and architecture-meta references; they are not valid destinations for project notes.
 - After completing any vault documentation task, inspect the diff, commit only the files changed for that task, and push the commit to the vault remote. Never stage unrelated user changes or secrets.
 - For every vault documentation task, use the Obsidian skills before editing: `obsidian-markdown` for notes and `obsidian-bases` for Bases.
@@ -283,7 +283,7 @@ For code-adjacent `qa` documents, include:
 
 When looking for relevant docs:
 
-- Read the central vault project record and relevant notes under `/home/chrissim/Projects/documentation/projects/<project-name>/` first.
+- Read the central vault project record and relevant notes under the resolved `ANT_TEAM_DOCS_PROJECT_PATH` (by default `$ANT_TEAM_DOCS_VAULT_PATH/02-Architecture-Landscape/projects/$ANT_TEAM_DOCS_PROJECT_NAME`) first.
 - Match by frontmatter properties, tags, keywords, domain, project, and document type.
 - Then search the central vault by topic, feature name, domain terms, filenames, paths, module names, and synonyms.
 - Treat the index as an accelerator, not the only source of truth.

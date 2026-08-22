@@ -1,3 +1,13 @@
+### 2026-08-22 - PR #30 / No new durable memory
+
+- Context: Reviewed PR #30 for the agent communication helper/template wiring.
+- Architecture Constraint: Existing ARCH-003 env-only config and ARCH-004 managed-sync boundaries already cover the touched surfaces.
+- Accepted Tradeoff: None.
+- Deferred Work: None.
+- Risk: None.
+- Loop Breaker Notes: No new architecture decision required for approval.
+- Related Docs: `docs/arch/ARCH-003-project-local-initialization-artifacts.md`, `docs/arch/ARCH-004-managed-skill-sync-architecture.md`, PR #30
+
 ### 2026-08-03 - SPEC-002 / #25 (review) — No new durable memory
 
 - Context: Reviewed docs-only PR #29 for the final SPEC-002 documentation task.

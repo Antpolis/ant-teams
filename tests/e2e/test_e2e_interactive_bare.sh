@@ -60,7 +60,7 @@ else
   check FAIL ".github-project.env is not sourceable"
 fi
 # No JSON config exists under the env-only contract.
-assert_not_exists ".github-project.json absent" "$TMP/.github-project.json"
+assert_not_exists ".github-project.json legacy artifact absent" "$TMP/.github-project.json"
 
 # AC-T7-002 / AC-SPEC-007: exactly 3 required skills copied, no extras.
 assert_eq "exactly 3 skills copied" "$(e2e_count_skill_dirs "$TMP")" "3"
@@ -77,7 +77,6 @@ assert_exec "$TMP/.opencode/skills/github-issues-projects-cli/scripts/gh_project
 assert_exec "$TMP/.opencode/skills/do-task/scripts/create_task_worktree.sh"
 assert_exec "$TMP/.opencode/skills/do-task/scripts/cleanup_task_worktree.sh"
 assert_exec "$TMP/.opencode/skills/project-initialization/scripts/init_project_docs.sh"
-assert_exec "$TMP/.opencode/skills/project-initialization/scripts/setup_project_docs.sh"
 
 # Interactive preview + write path must have surfaced the confirmation prompt
 # and the final structured summary (OBS-1).

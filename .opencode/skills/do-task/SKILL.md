@@ -20,7 +20,7 @@ Bundled helpers for issue-isolated development live in:
 - `$ANT_TEAM_SCRIPTS/create-task-branch.sh`
 - `$ANT_TEAM_SCRIPTS/cleanup-task-worktree.sh`
 
-Use these helpers instead of inventing ad hoc `git worktree` commands when the builder needs to start or clean up issue workspaces. `ANT_TEAM_SCRIPTS` is installed and configured by `sync-company.sh`.
+Use these helpers instead of inventing ad hoc `git worktree` commands when the builder needs to start or clean up issue workspaces. `ANT_TEAM_SCRIPTS` is installed and configured by `init-company.sh`.
 These helpers read the default issue-worktree root from `ANT_TEAM_WORKTREE_ROOT` in `.github-project.env` (source it: `source ./.github-project.env` — the sole committed project config source) when it is present.
 
 ## Issue Done Definition

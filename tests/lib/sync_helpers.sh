@@ -15,7 +15,7 @@
 #     or `~/.config/opencode/`: they override `$HOME` to a temp dir (TR-1.3 —
 #     the script resolves `~` via `$HOME`, never tilde expansion).
 #   - No external dependencies: bash + coreutils + grep + the repo's existing
-#     `node` runtime (already required by sync-company.sh for provider merge).
+#     `node` runtime (already required by init-company.sh for provider merge).
 #
 # Two fixture strategies are supported:
 #   1. Controlled fixture repo (TEST-1 unit + TEST-2 integration): the REAL
@@ -34,7 +34,7 @@
 SYNC_HELPERS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SYNC_REPO_ROOT="$(cd "$SYNC_HELPERS_DIR/../.." && pwd)"
 SYNC_REAL_SCRIPT="$SYNC_REPO_ROOT/scripts/sync-managed-skills.sh"
-SYNC_REAL_COMPANY="$SYNC_REPO_ROOT/scripts/sync-company.sh"
+SYNC_REAL_COMPANY="$SYNC_REPO_ROOT/scripts/init-company.sh"
 SYNC_REAL_OPENCODE="$SYNC_REPO_ROOT/.opencode"
 
 # Per-test counters (reset by sync_begin).
@@ -97,14 +97,14 @@ sync_make_fixture_repo() {
 }
 
 # sync_make_fixture_repo_with_company — like the above but also copies the real
-# sync-company.sh (for tests that exercise the two-target coordinator). The
+# init-company.sh (for tests that exercise the two-target coordinator). The
 # canonical install source is the fixture's `.opencode/`, so a real run is
 # isolated. Echoes the fixture root path.
 sync_make_fixture_repo_with_company() {
   local fix
   fix="$(sync_make_fixture_repo)"
-  cp "$SYNC_REAL_COMPANY" "$fix/scripts/sync-company.sh"
-  chmod 0755 "$fix/scripts/sync-company.sh" 2>/dev/null || true
+  cp "$SYNC_REAL_COMPANY" "$fix/scripts/init-company.sh"
+  chmod 0755 "$fix/scripts/init-company.sh" 2>/dev/null || true
   printf '%s' "$fix"
 }
 

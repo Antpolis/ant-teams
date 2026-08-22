@@ -2,6 +2,24 @@
 
 ## Active Lessons
 
+### 2026-08-22 - project-init mirror/skill conflict fix (tech-lead identified)
+
+- Context: `$ANT_TEAM_SCRIPTS/init-project-docs.sh` executes the ENGINE copy from the managed mirror (`~/.agents/skills/...`), but the engine derived `repo_root` from its own path (`$skill_root/../../..` → `$HOME` in the mirror) and preflight failed against nonexistent `$HOME/.opencode/skills`.
+- Implementation Lesson: engines that can run from EITHER a checkout or the `~/.agents/skills` mirror must resolve required skills from the SIBLING skills root (`$(cd "$skill_root/.." && pwd)`), never a checkout-derived repo root. Wrappers must invoke engines with `bash <engine>` — managed sync (ARCH-004 SEC-3.2) tightens updated files >0644 down to 0644, so mirror exec bits cannot be relied upon.
+- Files/Modules: `.opencode/skills/project-initialization/scripts/init_project_docs.sh` (`managed_skills_root`, `run_preflight`, `copy_required_skills`), `scripts/{init-project-docs,create-task-branch,cleanup-task-worktree,gh_project_helper}.sh`, `tests/test_mirror_init.js`
+- Verification: `for f in tests/test_*.js; do node "$f"; done` (10 suites); `bash tests/run_e2e_tests.sh`; mirror smoke = real `sync-company.sh` into temp HOME, `chmod 0644` mirror engines, then run installed wrappers (init, worktree create/cleanup, gh helper). Reviewer loop follow-up: that gh-helper mirror smoke is now AUTOMATED as MIR-3 in `tests/test_mirror_init.js` — real `sync-company.sh` into temp HOME, `chmod 0644` the mirror engine, then DIRECT `spawnSync(<wrapper>)` of `$ANT_TEAM_SCRIPTS/gh_project_helper.sh list-statuses` with the ENV-9 fake-`gh`-shim pattern (shim logs args, echoes stub field-list JSON; engine resolves owner/number from the target repo's `.github-project.env`). Discrimination check: the 0644 engine executed DIRECTLY fails exit 126 (permission denied) — the wrapper's `bash <engine>` is what makes centralized wrapper execution work; invoke the wrapper via `spawnSync(wrapper, …)` (not `spawnSync('bash', [wrapper, …])`) so the test proves the installed entry point itself is executable.
+- Avoid: Do not pin preflight error wording in tests without updating them alongside message changes (`tests/test_dryrun.js` OBS-3.1 pinned the old "Source repository skills directory not found" string). `tests/test_sync_e2e_company_run.sh`/`test_sync_e2e_idempotent.sh` pin stale managed-entry count 33 (26+7); actual is 38 (31 skills + 7 commands) after the 5 `ponytail-*` skills landed — pre-existing failure, needs its own count-fix task.
+- Related Docs: `docs/arch/ARCH-003-project-local-initialization-artifacts.md`, `docs/arch/ARCH-004-managed-skill-sync-architecture.md`, `tests/test_mirror_init.js`
+
+### 2026-08-22 - PR #30 / No new durable memory
+
+- Context: Reviewed PR #30 for the communication helper/template wiring.
+- Implementation Lesson: None beyond existing helper/install conventions.
+- Files/Modules: `scripts/ant-team-help.sh`, `scripts/record-communication.sh`, `tests/test_helper_cli.sh`, `tests/test_record_communication.sh`
+- Verification: `bash tests/test_helper_cli.sh && bash tests/test_record_communication.sh`; `bash tests/run_sync_tests.sh && bash tests/run_e2e_tests.sh`
+- Avoid: None.
+- Related Docs: `docs/arch/ARCH-003-project-local-initialization-artifacts.md`, `docs/arch/ARCH-004-managed-skill-sync-architecture.md`
+
 ### 2026-08-03 - SPEC-002 / #24 (PR #28, loop 1)
 
 - Context: SPEC-002-T3 — comprehensive managed-sync test suite (TEST-1 unit, TEST-2 integration 14 scenarios, TEST-3 e2e 4 scenarios, TEST-4 FR/ERR coverage matrix). Test-only PR: 31 new files under `tests/`, ZERO changes to `scripts/` or prior `tests/` (scope boundary for #23 impl / #25 docs respected). Built on the merged #22 (`sync-managed-skills.sh`) + #23 (`sync-company.sh` integration) at `origin/master` `0b6d0e3`.

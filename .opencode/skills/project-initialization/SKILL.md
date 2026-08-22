@@ -17,31 +17,29 @@ This skill ships the canonical project initialization engine and the central-vau
 
 ### `assets/AGENTS.md.template` — central-vault project guidance
 
-This is the canonical template for project repositories that receive an `AGENTS.md`. It must point product documentation to the Obsidian vault configured in `.github-project.env` (`ANT_TEAM_DOCS_*` exports, with `ANT_TEAM_DOCS_PROJECT_PATH` resolving the template placeholder), while keeping only code-adjacent operational guidance in the repository. Do not create a second product-documentation tree in the project repo.
+This is the canonical template for project repositories that receive an `AGENTS.md`. It must point product documentation to the Obsidian vault configured in `.github-project.env` (`ANT_TEAM_DOCS_*` exports, with `ANT_TEAM_DOCS_PROJECT_PATH` as the concrete project folder), while keeping only code-adjacent operational guidance in the repository. Do not create a second product-documentation tree in the project repo.
 
-### `$ANT_TEAM_SCRIPTS/init-project-docs.sh` — repository-aware bootstrap (canonical)
+### `$ANT_TEAM_SCRIPTS/init-project.sh` — repository-aware bootstrap (canonical)
 
-This is the upgraded single-command initializer (current version stamped in the script's `INIT_PROJECT_VERSION`). It is the canonical init flow for new and existing repositories. It is invoked through the thin delegation chain `$ANT_TEAM_SCRIPTS/init-project.sh` → `$ANT_TEAM_SCRIPTS/init-project-docs.sh` → this script; both wrappers are pure pass-through and add no logic. Prerequisite: run `scripts/sync-company.sh` first so `ANT_TEAM_SCRIPTS` is installed and exported; the wrappers hard-fail with a clear message when it is not set.
+This is the upgraded single-command initializer (current version stamped in the script's `INIT_PROJECT_VERSION`). It is the canonical init flow for new and existing repositories. It is invoked through the thin delegation chain `$ANT_TEAM_SCRIPTS/init-project.sh` → `$ANT_TEAM_SCRIPTS/init-project.sh` → this script; both wrappers are pure pass-through and add no logic, and they invoke the engine with `bash` so the managed skill mirror's execute bits are never required. Prerequisite: run `scripts/init-company.sh` first so `ANT_TEAM_SCRIPTS` is installed and exported; the wrappers hard-fail with a clear message when it is not set. The engine runs identically from a source checkout (`.opencode/skills/`) and from the managed mirror (`~/.agents/skills/`): required skills are resolved from the sibling skills root, never from a checkout-derived repo root.
 
-The initializer leaves behind a project-local operating baseline derived from the actual repository plus operator inputs, not from a static template. The helper scripts are available through `ANT_TEAM_SCRIPTS`, configured by `sync-company.sh`.
+The initializer leaves behind a project-local operating baseline derived from the actual repository plus operator inputs, not from a static template. The helper scripts are available through `ANT_TEAM_SCRIPTS`, configured by `init-company.sh`.
 
-1. **Preflight validation** (before any write): the target directory exists and is a git repo (`.git` present), the source repo contains `.opencode/skills/`, `node` (≥18) is on PATH, and coreutils (`cp`, `mkdir`, `cat`, `rm`, `mktemp`) are available. Any failure exits 1 with a specific `[error]` message and writes nothing.
+1. **Preflight validation** (before any write): the target directory exists and is a git repo (`.git` present), the sibling managed skills root contains every required skill (`github-issues-projects-cli`, `do-task`, `project-initialization`), `node` (≥18) is on PATH, and coreutils (`cp`, `mkdir`, `cat`, `rm`, `mktemp`) are available. Any failure exits 1 with a specific `[error]` message and writes nothing.
 
 2. **`.github-project.env` seeding and update** (env-only configuration contract, founder-confirmed 2026-08): the initializer seeds and updates `.github-project.env` — the sourceable `ANT_TEAM_*` exports and the SOLE committed project config source — DIRECTLY. On a fresh repo it seeds the full canonical key set: operator flags (`--github-owner`, `--github-project-number`) fill values where provided and the rest get clearly-marked placeholders. On an existing env, founder values are always preserved; only missing keys are filled. `ANT_TEAM_WORKTREE_ROOT` defaults to the computed worktree root, and `ANT_TEAM_DOCS_PROJECT_NAME` defaults to the detected git repository name (basename of the project root) — a founder-set value is never overwritten. Workflow State option IDs added by the initializer are placeholders — record verified remote option IDs by editing the env directly; the initializer never invents real-looking IDs and never renames remote board options. The canonical Workflow State names live as constants in the workflow skills, tests, and docs, not as a config field. The seed/update is structural-idempotent: a no-op rerun leaves the env byte-for-byte identical with a stable mtime.
 
-3. **No JSON config / no JSON import-removal path**: there is no `.github-project.json` and no runtime JSON parsing anywhere in the workflow; a stray `.github-project.json` is ignored (never read, never removed). There is also no standalone env generator command — the seeding/update logic is built into initialization (node-only; jq is not needed) and a failure is a hard `[error]` exit. Under `--dry-run` nothing is written and `[would-write]` lines are reported.
 
 4. **`.opencode/opencode.json`** (minimal runtime config): detection covers the canonical `.opencode/opencode.json`, `.opencode/opencode.jsonc`, and legacy repo-root `opencode.jsonc` / `opencode.json`. A fresh init creates `.opencode/opencode.json`. A pre-existing config is updated in place and never relocated; only the missing `permission.external_directory["<worktree-root>/**"] = "allow"` entry is added. Existing permission entries, agents, providers, and plugins are never modified.
 
-5. **Skills copy** (exactly three): copies `github-issues-projects-cli`, `do-task`, and `project-initialization` from the source `.opencode/skills/` into the project-local `.opencode/skills/`. No other skill is copied. Copy is a per-file merge: every source file is created when absent and preserved when already present (this protects project-customized `SKILL.md` files). Execute bits are preserved via `cp -p` from the source. `.opencode/.gitignore` with a `node_modules` entry is ensured.
+5. **Skills copy** (exactly three): copies `github-issues-projects-cli`, `do-task`, and `project-initialization` from the sibling skills root (the source `.opencode/skills/` in a checkout, or `~/.agents/skills/` in the managed mirror) into the project-local `.opencode/skills/`. No other skill is copied. Copy is a per-file merge: every source file is created when absent and preserved when already present (this protects project-customized `SKILL.md` files). Execute bits are preserved via `cp -p` from the source. `.opencode/.gitignore` with a `node_modules` entry is ensured.
 
-6. **Central documentation routing**: does not copy or scaffold a product-documentation tree in the target repository. It reads the `ANT_TEAM_DOCS_*` exports from `.github-project.env` (with `ANT_TEAM_DOCS_PROJECT_PATH` resolving the `<project-name>` placeholder) and records the central Obsidian project path in `AGENTS.md`. QA and runbook documentation are not created in the Obsidian project model by this initializer.
+6. **Central documentation routing**: does not copy or scaffold a product-documentation tree in the target repository. It reads the `ANT_TEAM_DOCS_*` exports from `.github-project.env` (with `ANT_TEAM_DOCS_PROJECT_PATH` as the concrete project folder, derived as `$ANT_TEAM_DOCS_VAULT_PATH/02-Architecture-Landscape/projects/$ANT_TEAM_DOCS_PROJECT_NAME`) and records the central Obsidian project path in `AGENTS.md`. QA and runbook documentation are not created in the Obsidian project model by this initializer.
 
 7. **`AGENTS.md` generation** (the final artifact, so "Local Configuration Files" can enumerate everything written): built from repository inspection plus operator inputs. `.github-project.env` is listed in "Local Configuration Files" when it exists on disk. See the AGENTS.md generation contract below.
 
 ### Repository inspection phase
 
-Before prompting or writing, the initializer runs `scripts/inspect_repo.js` (read-only; never modifies the target repo). It gathers a structured evidence record (in-memory, not persisted) across these categories: language/runtime stack (lockfiles, build configs, module files), package manager, docs root (`docs/` or `.docs/`), existing agent guidance (`agent.md`, `AGENTS.md`, `.cursorrules`, `.windsurfrules`, `CLAUDE.md`, `CODEX.md`), test infrastructure (test dirs + framework configs), CI/CD (`.github/workflows/`, `.gitlab-ci.yml`, `Jenkinsfile`, `Dockerfile`, `docker-compose*.yml`), existing `.opencode` config, existing `.github-project.env`, app/service boundaries (monorepo detection), and repository origin (`git remote -v`). The record distinguishes `observed` facts from `inferred` facts and flags ambiguities (e.g., both `go.mod` and `package.json` at root). `--skip-inspection` skips this phase entirely. If inspection fails, `AGENTS.md` is still built from operator input alone.
 
 ### AGENTS.md generation
 
@@ -71,10 +69,7 @@ Repository identity and relationships are thin, static, and non-resolving: `--na
 
 The initializer is strictly additive and never destructive:
 
-- Legacy lowercase `agent.md` is never deleted; it coexists with `AGENTS.md`. The retired `--migrate-agent-md` flag and the `/migrate` command are gone; there is no automated legacy-content migration path.
-- Existing `.github-project.env` values, `.opencode/opencode.json` / `.jsonc`, docs folders, and project-local custom skills are preserved verbatim; only missing env keys/files are added. There is no `.github-project.json` import/removal path — a stray JSON file is ignored.
 - Reruns are idempotent: a no-op rerun reports "No changes needed" and writes nothing. `--force` regenerates `AGENTS.md` and re-copies skills, but a `--force` rerun with identical inputs leaves `AGENTS.md` byte-for-byte intact (content-level idempotency).
-- `setup_project_docs.sh` remains available as a deprecated lighter-weight scaffold that only creates folder READMEs, the legacy `agent.md`, and a placeholder `.github-project.env`. It is not upgraded; new initializations should use `init_project_docs.sh`. The `assets/agent-md-template.md` template is likewise deprecated (it carries a deprecation notice and is no longer used for `AGENTS.md` generation).
 
 ### Output format and error handling
 
@@ -243,7 +238,6 @@ Decide what workflow artifacts should exist or be updated, such as:
 - architecture or migration doc
 - ADR folder, architecture folder, and governance folder scaffolding
 - local governance reference to the master enterprise architecture if this repo depends on an external authoritative source
-- `AGENTS.md` (generated by `init_project_docs.sh`) pointing agents to the docs root, stack, commands, and repo identity; legacy lowercase `agent.md` is a deprecated fallback only
 - GitHub milestone and issue conventions
 - `.github-project.env` with repo GitHub owner, project identifiers, common field/option IDs, and `ANT_TEAM_WORKTREE_ROOT`
 - `.github-project.env` (generated by init-project) with the same values as sourceable `ANT_TEAM_*` exports
@@ -279,7 +273,6 @@ Depending on the repo state, create or update some combination of:
 - stack migration note or ADR
 - ADR, architecture, and governance folder scaffolding with README guidance
 - local governance note or update confirming how the external master enterprise architecture applies to this repo when needed
-- `AGENTS.md` documenting the repository docs root, stack, commands, conventions, and document naming conventions (the bundled `init_project_docs.sh` generates this; legacy `agent.md` is deprecated)
 - `.github-project.env` with the `ANT_TEAM_*` runtime exports seeded/updated by init-project directly (GitHub owner/project/field/option IDs, worktree root, documentation paths) — the sole committed project config source
 - first milestone/spec definition
 - first GitHub task breakdown

@@ -9,7 +9,7 @@ Metadata:
 | Domain | global workflow installation |
 | Status | active |
 | Owner | tech-lead |
-| Applies To | `scripts/sync-managed-skills.sh`, `scripts/sync-company.sh`, managed install target `~/.agents/skills`, manifest `~/.agents/skills/.manifest.json`, source `.opencode/skills/`, source `.opencode/commands/` |
+| Applies To | `scripts/sync-managed-skills.sh`, `scripts/init-company.sh`, managed install target `~/.agents/skills`, manifest `~/.agents/skills/.manifest.json`, source `.opencode/skills/`, source `.opencode/commands/` |
 | Keywords | managed sync, two-target install, manifest ownership, command-derived skills, SKILL.md transform, idempotent sync, non-destructive install, exact-name collision, force overwrite, manual rollback |
 | Related Docs | SPEC-002, SPEC-001, ARCH-001, ARCH-003, GOV-002 |
 | Supersedes |  |
@@ -35,12 +35,12 @@ This document covers:
 - Modification detection using content hashes
 - Exact-name collision resolution rules
 - Force overwrite and manual rollback semantics
-- Integration contract between `sync-company.sh` and `sync-managed-skills.sh`
+- Integration contract between `init-company.sh` and `sync-managed-skills.sh`
 - Operational concerns: idempotency, atomicity, error recovery
 
 Out of scope:
 
-- The canonical OpenCode install target (`~/.config/opencode`) behavior — this is unchanged and defined in the existing `sync-company.sh`
+- The canonical OpenCode install target (`~/.config/opencode`) behavior — this is unchanged and defined in the existing `init-company.sh`
 - Project-local initialization (ARCH-003, SPEC-001)
 - Any broader `~/.agents` content management beyond `~/.agents/skills/`
 
@@ -119,7 +119,7 @@ The sync determines whether an entry is managed by consulting the manifest. An e
 - `--force`: overwrite locally modified managed entries
 - `--dry-run`: report planned actions, write nothing
 
-### Component 2: `scripts/sync-company.sh` (Modified)
+### Component 2: `scripts/init-company.sh` (Modified)
 
 **Responsibility:** Coordinate the two-target install. Existing canonical install (unchanged) plus invocation of `sync-managed-skills.sh`.
 
@@ -308,7 +308,7 @@ The manifest is the last artifact written, and it is written atomically (temp fi
 
 10. **Exit codes are part of the contract.** Scripts calling `sync-managed-skills.sh` depend on specific exit codes (0-5).
 
-11. **Do not re-introduce top-level dry-run or prune scope in MVP.** `sync-company.sh` remains a real canonical installer; dry-run stays on the managed sync script only until there is a real no-write preview for both targets.
+11. **Do not re-introduce top-level dry-run or prune scope in MVP.** `init-company.sh` remains a real canonical installer; dry-run stays on the managed sync script only until there is a real no-write preview for both targets.
 
 ## Traceability To Spec
 

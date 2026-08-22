@@ -256,7 +256,6 @@ function detectDocsRoot(projectDir) {
 
 const AGENT_GUIDANCE_FILES = [
   'AGENTS.md',
-  'agent.md',
   '.cursorrules',
   '.windsurfrules',
   'CLAUDE.md',

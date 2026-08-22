@@ -44,7 +44,7 @@ That file stores every config value with the `ANT_TEAM_` prefix (`ANT_TEAM_GITHU
 - Workflow State option IDs (one `ANT_TEAM_GITHUB_WORKFLOW_STATE_OPTION_<STATE>_ID` per canonical state)
 - the default `ANT_TEAM_WORKTREE_ROOT` and the `ANT_TEAM_DOCS_*` documentation routing exports
 
-Prefer sourcing it over any other config lookup. The env is seeded and updated by project initialization itself (`"$ANT_TEAM_SCRIPTS/init-project-docs.sh"` after `scripts/sync-company.sh`; there is no standalone generator and no JSON config): existing values are preserved and missing keys are filled. The bundled `gh_project_helper.sh` sources the env as its sole local runtime config.
+Prefer sourcing it over any other config lookup. The env is seeded and updated by project initialization itself (`"$ANT_TEAM_SCRIPTS/init-project.sh"` after `scripts/init-company.sh`; there is no standalone generator and no JSON config): existing values are preserved and missing keys are filled. The bundled `gh_project_helper.sh` sources the env as its sole local runtime config; `"$ANT_TEAM_SCRIPTS/gh_project_helper.sh"` is the thin centralized wrapper that invokes it (with `bash`, so mirror execute bits are never required).
 
 The env file is intended to be committed to the repository because it stores shared GitHub collaboration metadata rather than secrets.
 
@@ -91,17 +91,19 @@ Do not guess field names, single-select option IDs, or project item IDs.
 
 Prefer commands in this order:
 
-1. `gh issue ...` for issue-native operations
-2. `gh project ...` for supported project inspection commands
-3. `gh api graphql` when GitHub Projects v2 mutations or richer joins are needed
-4. `jq` to extract only the fields needed for the next step
+1. the bundled helper for issue and milestone operations (`issue-create`, `issue-view`, `issue-list`, `issue-edit`, `issue-comment`, `issue-close`, `milestone-create`, `milestone-list`, `milestone-edit`, `milestone-close`) — thin wrappers around `gh issue` / `gh api` that resolve the target repository from `.github-project.env` (`ANT_TEAM_GITHUB_REPO`) so no `--repo` has to be repeated
+2. `gh issue ...` directly when operating outside a repository with `.github-project.env`
+3. `gh project ...` for supported project inspection commands
+4. `gh api graphql` when GitHub Projects v2 mutations or richer joins are needed
+5. `jq` to extract only the fields needed for the next step
 
 Prefer structured output over human-formatted output:
 
 - use `--json`
 - use `--jq` for simple extraction
 - use external `jq` for more involved transforms
-- for repeated GitHub Project operations, prefer the bundled script `scripts/gh_project_helper.sh` to save tokens and avoid re-deriving GraphQL details
+- the helper's `issue-view` and `issue-list` print curated collaboration JSON by default; pass `--json`, `--jq`, `--template`, `--comments`, or `--web` to control the shape yourself (all other flags pass straight through to `gh issue`)
+- for repeated GitHub Project operations, prefer the centralized wrapper `"$ANT_TEAM_SCRIPTS/gh_project_helper.sh"` (it routes to this skill's bundled engine and saves tokens by avoiding re-derived GraphQL details)
 - prefer repo-local defaults (source `./.github-project.env` — the sole committed project config source — for `ANT_TEAM_*` values) before asking the user again for owner or project number
 - prefer repo-local IDs from the sourced env before calling GitHub endpoints to rediscover stable field IDs and option IDs
 
@@ -123,9 +125,9 @@ Prefer structured output over human-formatted output:
 Use this flow when the user wants to inspect or update one or more issues:
 
 1. Identify repo context.
-2. Query the issue set with `gh issue list` or `gh issue view`.
+2. Query the issue set with the helper (`issue-list`, `issue-view`) or raw `gh issue list` / `gh issue view` outside a configured repo.
 3. Shape the output to show number, title, state, labels, assignees, milestone, and URL.
-4. If mutating, run the smallest issue edit command possible.
+4. If mutating, run the smallest issue edit command possible (`issue-edit`, `issue-comment`, `issue-close`).
 5. Re-read the issue to verify labels, assignees, milestone, or state.
 
 Common operations:
@@ -135,7 +137,7 @@ Common operations:
 - add labels
 - set assignee
 - attach milestone
-- comment with handoff or blocker notes
+- comment with final decisions, status, closure, or review outcomes
 - close or reopen issues
 
 ### 2. Project Board Inspection
@@ -189,37 +191,43 @@ When the user asks for a common action, start from these defaults and adapt them
 Use:
 
 ```bash
-gh issue comment ISSUE_NUMBER --repo OWNER/REPO --body "MESSAGE"
+./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh issue-comment ISSUE_NUMBER \
+  --body "Final decision: approved with the follow-up filed as #51."
 ```
 
-Use this for handoffs, blocker notes, status updates, and review-ready notes.
+Comments carry only final decisions, status, closure, and code-review outcomes; durable handoffs and reasoning live in the central Obsidian project folder. Pass `--body-file` for longer notes.
 
 ### Create Issue As A Task
 
 Use:
 
 ```bash
-gh issue create --repo OWNER/REPO \
-  --title "TASK: short task title" \
+./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh issue-create "TASK: short task title" \
   --body-file /tmp/issue.md \
   --label type:feature \
   --assignee USERNAME \
   --milestone "SPEC-001"
 ```
 
-Prefer `--body-file` when the task template is more than a couple of lines.
+The first positional is the required title; every other flag passes straight through to `gh issue create`. Prefer `--body-file` when the task template is more than a couple of lines.
 
 ### Create Milestone As A Spec
 
 Use:
 
 ```bash
-gh api repos/OWNER/REPO/milestones \
-  -f title="SPEC-001: Deliverable name" \
-  -f description="Short summary with spec link and owner"
+./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh milestone-create "SPEC-001: Deliverable name" \
+  "Short summary with spec link and owner"
 ```
 
-Use `gh api` here because milestone creation is not covered by a dedicated `gh milestone create` command.
+The description is optional. The helper wraps the REST milestones API via `gh api` (there is no dedicated `gh milestone create` command) and prints a curated summary (number, title, state, counts, URL). Related commands:
+
+```bash
+./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh milestone-list            # open milestones
+./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh milestone-list all
+./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh milestone-edit MILESTONE_NUMBER -f title="SPEC-001: Revised name"
+./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh milestone-close MILESTONE_NUMBER
+```
 
 ### Resolve Project Item ID For An Issue
 
@@ -238,7 +246,13 @@ Use the project item ID whenever you need to update project status or any projec
 Use:
 
 ```bash
-./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh list-items Antpolis 9 "Ready"
+./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh list-items "Ready"
+```
+
+All helper commands are env-only: owner, project number, and repository resolve from `.github-project.env`; there are no positional owner/project arguments. To list repo issues instead of board items:
+
+```bash
+./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh issue-list --label blocked --state open
 ```
 
 All board operations target the canonical `Workflow State` field. Canonical states: `Open`, `Backlog`, `Ready`, `In Progress`, `In Review`, `Ready to Merge`, `Done`, plus exceptions `Need attentions` (founder-only) and `Blocked`. If the remote board still carries a legacy option name (e.g. `Inbox` for `Open`, `Shaping` for `Backlog`), inspect options with `list-statuses` and never rename remote options without explicit founder-approved handling.
@@ -281,22 +295,16 @@ Use both collaboration surfaces when appropriate:
 
 1. move the project item to `Done`
 2. close the issue
-3. optionally add a completion comment
-
-Issue close command:
-
-```bash
-gh issue close ISSUE_NUMBER --repo OWNER/REPO --comment "Completed and validated."
-```
-
-If the workflow requires board-state visibility, do not only close the issue. Also update the project status.
+3. optionally add a completion comment (final outcome only)
 
 Typical sequence:
 
 ```bash
 ./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh set-status ISSUE_NUMBER "Done"
-gh issue close ISSUE_NUMBER --repo "${REPO:-OWNER/REPO}" --comment "Completed and validated."
+./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh issue-close ISSUE_NUMBER --comment "Completed and validated."
 ```
+
+If the workflow requires board-state visibility, do not only close the issue. Also update the project status.
 
 ### Create PR When Issue Is Ready For Code Review
 
@@ -381,19 +389,19 @@ Read [references/command-patterns.md](./references/command-patterns.md) whenever
 
 - issue lookup and triage
 - issue comments
-- issue creation
-- milestone creation
+- issue creation, editing, and closure
+- milestone creation, listing, editing, and closure
 - project listing and schema inspection
 - project item add
 - project item queries
-- todo-list filtering
+- workflow-state filtering
 - status option lookup
 - GraphQL mutation templates
 - PR creation and comments
 - PR review reply mutations
 - reporting filters
 
-Use [scripts/gh_project_helper.sh](./scripts/gh_project_helper.sh) whenever the user asks for repeated GitHub Project operations and the goal is to minimize prompt tokens and avoid repeating raw GraphQL mutations.
+Use [scripts/gh_project_helper.sh](./scripts/gh_project_helper.sh) (the bundled engine; `"$ANT_TEAM_SCRIPTS/gh_project_helper.sh"` is its thin centralized wrapper) whenever the user asks for repeated GitHub Project, issue, or milestone operations and the goal is to minimize prompt tokens, avoid repeating raw GraphQL mutations, and keep the repository resolved from `.github-project.env`.
 
 If the repository is being bootstrapped, recommend creating `.github-project.env` during project initialization so future GitHub issue and project workflows work with minimal prompt overhead.
 
@@ -405,8 +413,8 @@ Input: "what `gh` command should I use to list open issues in this repo with the
 
 Output shape:
 
-- a `gh issue list --json ...` command
-- a `jq` filter if needed
+- the helper command `gh_project_helper.sh issue-list --label blocked` (curated JSON: number, title, state, assignees, labels, milestone, url)
+- a `jq` filter if a tighter shape is needed
 - a short explanation of the selected fields
 
 **Example 2**

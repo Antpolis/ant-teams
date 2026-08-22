@@ -14,12 +14,8 @@
     "evidence": []
   },
   "agent_guidance": {
-    "observed": [
-      "agent.md"
-    ],
-    "evidence": [
-      "agent.md"
-    ]
+    "observed": [],
+    "evidence": []
   },
   "test_infrastructure": {
     "observed": [],

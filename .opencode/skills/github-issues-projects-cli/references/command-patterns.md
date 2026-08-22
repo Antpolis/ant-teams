@@ -1,14 +1,14 @@
 # GitHub Issues And Projects Command Patterns
 
-Adapt these patterns to the current repo, owner, project number, and field names. Prefer explicit `--repo owner/name` when there is any doubt about context.
+Adapt these patterns to the current repo, owner, project number, and field names. Prefer the bundled helper (which resolves the repository from `.github-project.env`) over hand-written `--repo` flags whenever it is available.
 
-For repeated GitHub Project actions, prefer the bundled helper:
+For repeated GitHub issue, milestone, or project actions, prefer the bundled helper:
 
 ```bash
-./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh"
 ```
 
-That keeps prompts smaller and avoids repeating the same `gh api graphql` mutation shapes.
+That keeps prompts smaller, keeps the repository resolved from the env, and avoids repeating the same `gh api graphql` mutation shapes.
 
 Important:
 
@@ -29,7 +29,7 @@ source ./.github-project.env
 # ANT_TEAM_GITHUB_WORKFLOW_STATE_OPTION_<STATE>_ID, ...
 ```
 
-`.github-project.env` is seeded and updated by project initialization itself (`"$ANT_TEAM_SCRIPTS/init-project-docs.sh"` after `scripts/sync-company.sh`; there is no standalone generator and no JSON config): existing values are preserved and missing keys are filled. Edit values directly when verified remote IDs change; the bundled `gh_project_helper.sh` sources the env as its sole local runtime config.
+`.github-project.env` is seeded and updated by project initialization itself (`"$ANT_TEAM_SCRIPTS/init-project.sh"` after `scripts/init-company.sh`; there is no standalone generator and no JSON config): existing values are preserved and missing keys are filled. Edit values directly when verified remote IDs change; the bundled `gh_project_helper.sh` sources the env as its sole local runtime config.
 
 Example `.github-project.env`:
 
@@ -78,41 +78,40 @@ gh repo view OWNER/REPO --json nameWithOwner,defaultBranchRef,url
 
 ## Issues
 
+Prefer the bundled helper for issue operations; it resolves the repository from `.github-project.env` (`ANT_TEAM_GITHUB_REPO`), so no `--repo` is repeated. Use raw `gh issue --repo OWNER/REPO` only outside a repository with `.github-project.env`.
+
 Create a task issue:
 
 ```bash
-gh issue create --repo OWNER/REPO \
-  --title "TASK: short task title" \
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" issue-create "TASK: short task title" \
   --body-file /tmp/issue.md \
   --label type:feature \
   --assignee USERNAME \
   --milestone "SPEC-001"
 ```
 
-Create a comment on an issue:
+Create a comment on an issue (final decisions, status, closure, and review outcomes only):
 
 ```bash
-gh issue comment ISSUE_NUMBER --repo OWNER/REPO \
-  --body "Handoff: implementation is complete, verification passed, ready for review."
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" issue-comment ISSUE_NUMBER \
+  --body "Status: implementation complete and verification passed; ready for review."
 ```
 
-List open issues with useful collaboration fields:
+List open issues with useful collaboration fields (the helper's curated default JSON):
 
 ```bash
-gh issue list --repo OWNER/REPO \
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" issue-list \
   --state open \
-  --limit 100 \
-  --json number,title,state,assignees,labels,milestone,url
+  --limit 100
 ```
 
 List blocked issues in a compact table:
 
 ```bash
-gh issue list --repo OWNER/REPO \
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" issue-list \
   --state open \
   --label blocked \
   --limit 100 \
-  --json number,title,assignees,milestone,url \
   | jq -r '.[] | [
       "#\(.number)",
       .title,
@@ -122,50 +121,59 @@ gh issue list --repo OWNER/REPO \
     ] | @tsv'
 ```
 
-View one issue with the fields that usually matter for collaboration:
+View one issue with the fields that usually matter for collaboration (curated default; pass `--comments` or your own `--json` to change the shape):
 
 ```bash
-gh issue view ISSUE_NUMBER --repo OWNER/REPO \
-  --json number,title,body,state,assignees,labels,milestone,projectItems,url
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" issue-view ISSUE_NUMBER
 ```
 
 Edit labels, assignees, or milestone:
 
 ```bash
-gh issue edit ISSUE_NUMBER --repo OWNER/REPO \
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" issue-edit ISSUE_NUMBER \
   --add-label blocked \
   --add-assignee USERNAME \
   --milestone "SPEC-001"
 ```
 
-Comment with a durable handoff note:
-
-```bash
-gh issue comment ISSUE_NUMBER --repo OWNER/REPO \
-  --body "Handoff: implementation is complete, verification passed, ready for review."
-```
-
 Close an issue and leave a completion note:
 
 ```bash
-gh issue close ISSUE_NUMBER --repo OWNER/REPO \
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" issue-close ISSUE_NUMBER \
   --comment "Completed and validated."
 ```
 
 ## Milestones
 
+The helper wraps the REST milestones API via `gh api` (there is no dedicated `gh milestone` command) and prints a curated summary.
+
 Create a milestone that represents a spec or deliverable:
 
 ```bash
-gh api repos/OWNER/REPO/milestones \
-  -f title="SPEC-001: Deliverable name" \
-  -f description="Short summary with spec link and owner"
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" milestone-create \
+  "SPEC-001: Deliverable name" \
+  "Short summary with spec link and owner"
 ```
 
-List milestones:
+List milestones (default `open`; `closed` and `all` also accepted):
 
 ```bash
-gh api repos/OWNER/REPO/milestones | jq '.[] | { number, title, state, description }'
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" milestone-list
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" milestone-list all
+```
+
+Edit a milestone (pass-through `gh api` `-f` fields):
+
+```bash
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" milestone-edit MILESTONE_NUMBER \
+  -f title="SPEC-001: Revised name" \
+  -f description="Updated summary"
+```
+
+Close a milestone:
+
+```bash
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" milestone-close MILESTONE_NUMBER
 ```
 
 ## Projects
@@ -211,7 +219,7 @@ gh project item-list PROJECT_NUMBER --owner OWNER --format json
 Resolve the project item ID for an issue:
 
 ```bash
-./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh item-id ISSUE_NUMBER
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" item-id ISSUE_NUMBER
 ```
 
 Find the project item for a specific issue number directly:
@@ -261,26 +269,22 @@ gh project item-list PROJECT_NUMBER --owner OWNER --format json \
 List project items in a canonical Workflow State (e.g. `Ready`):
 
 ```bash
-./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh list-items Antpolis 9 "Ready"
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" list-items "Ready"
 ```
 
 List all available Workflow State option names:
 
 ```bash
-./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh list-statuses
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" list-statuses
 ```
 
 List items for any one status:
 
 ```bash
-./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh list-items "In Review"
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" list-items "In Review"
 ```
 
-If you want to override the repo defaults for one call, pass owner and project number explicitly:
-
-```bash
-./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh list-items OWNER PROJECT_NUMBER "In Review"
-```
+All helper commands are env-only: owner, project number, and repository always resolve from `.github-project.env` (`ANT_TEAM_GITHUB_OWNER`, `ANT_TEAM_GITHUB_PROJECT_NUMBER`, `ANT_TEAM_GITHUB_REPO`); there are no positional owner/project arguments. To target a different owner or project for one call, point the helper at a directory whose `.github-project.env` carries those values.
 
 ## GraphQL Lookup Patterns
 
@@ -359,7 +363,7 @@ gh project item-list PROJECT_NUMBER --owner OWNER --format json \
 Transition an issue to the next status using discovered IDs:
 
 ```bash
-./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh set-status ISSUE_NUMBER "In Review"
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" set-status ISSUE_NUMBER "In Review"
 ```
 
 The helper resolves the project item ID from the issue number before calling `gh project item-edit`.
@@ -367,19 +371,19 @@ The helper resolves the project item ID from the issue number before calling `gh
 Direct `gh project item-edit` wrapper using repo config:
 
 ```bash
-./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh gh-item-edit ITEM_ID "$STATUS_FIELD_ID" "$STATUS_OPTION_IN_REVIEW_ID"
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" gh-item-edit ITEM_ID "$STATUS_FIELD_ID" "$STATUS_OPTION_IN_REVIEW_ID"
 ```
 
 Set status by option ID instead of by name:
 
 ```bash
-./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh set-status-id ISSUE_NUMBER "$STATUS_OPTION_IN_REVIEW_ID"
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" set-status-id ISSUE_NUMBER "$STATUS_OPTION_IN_REVIEW_ID"
 ```
 
 When the owner is a user rather than an organization, use `user` instead of `org`:
 
 ```bash
-./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh set-status ISSUE_NUMBER "In Review" user
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" set-status ISSUE_NUMBER "In Review" user
 ```
 
 ## Pull Requests
@@ -429,7 +433,7 @@ mutation($commentId: ID!, $body: String!) {
 Count issues by milestone:
 
 ```bash
-gh issue list --repo OWNER/REPO --state open --limit 200 \
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" issue-list --state open --limit 200 \
   --json number,milestone \
   | jq '
     group_by(.milestone.title // "No milestone")
@@ -442,7 +446,7 @@ gh issue list --repo OWNER/REPO --state open --limit 200 \
 Find issues not on any project:
 
 ```bash
-gh issue list --repo OWNER/REPO --state open --limit 200 \
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" issue-list --state open --limit 200 \
   --json number,title,projectItems,url \
   | jq '.[] | select((.projectItems | length) == 0)
     | { number, title, url }'

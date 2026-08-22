@@ -27,11 +27,11 @@ Read the project notes in the vault before changing product scope, architecture,
 
 ## Worktree Routing
 
-Source .github-project.env before creating a worktree. Use its ANT_TEAM_WORKTREE_ROOT value and create one worktree per issue:
+Source .github-project.env before creating a worktree. Use the centralized helper installed by sync-company.sh:
 
 ```sh
 source ./.github-project.env
-git worktree add "${ANT_TEAM_WORKTREE_ROOT/#\~/$HOME}/__ISSUE_ID__" -b "__BRANCH_NAME__" "__BASE_BRANCH__"
+"$ANT_TEAM_SCRIPTS/create-task-branch.sh" "__ISSUE_ID__" "__BASE_BRANCH__" "__BRANCH_NAME__"
 ```
 
 Do not set core.worktree. Do not create a second project documentation tree in the repository.

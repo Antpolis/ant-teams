@@ -69,9 +69,9 @@ ANT_TEAM_GITHUB_WORKFLOW_STATE_OPTION_<KEY>_ID
 ANT_TEAM_WORKTREE_ROOT                     # default issue-worktree parent
 ANT_TEAM_DOCS_VAULT_PATH                   # central Obsidian vault root
 ANT_TEAM_DOCS_PROJECT_NAME                 # defaults to the git repo name
-ANT_TEAM_DOCS_PROJECT_PATH_TEMPLATE        # template carrying '<project-name>'
 ANT_TEAM_DOCS_REPOSITORY                   # vault remote
-ANT_TEAM_DOCS_PROJECT_PATH                 # derived: template with placeholder resolved
+ANT_TEAM_DOCS_PROJECT_PATH                 # concrete project folder: founder-set value, else
+                                           # VAULT_PATH/02-Architecture-Landscape/projects/PROJECT_NAME
 ```
 
 Option keys normalize to uppercase underscore variable-name fragments (`in-progress` → `IN_PROGRESS`, `need-attentions` → `NEED_ATTENTIONS`, `ready-to-merge` → `READY_TO_MERGE`). Values are single-quoted with `'\''` escaping so any shell metacharacter survives sourcing.
@@ -81,7 +81,7 @@ Option keys normalize to uppercase underscore variable-name fragments (`in-progr
 1. Fresh repo: seed the full canonical set. Operator flags (`--github-owner`, `--github-project-number`) fill values where provided; everything else gets clearly-marked placeholders (`your-github-owner`, `1`, `PVT_kwDOEXAMPLE`, `*-option-id`, `workflow-state-field-id`). The initializer has no network access and never invents real-looking IDs.
 2. Existing env: founder values are preserved verbatim. Only keys that are absent (or empty) are filled; the canonical header is normalized. Nothing already set is ever overwritten.
 3. `ANT_TEAM_DOCS_PROJECT_NAME` defaults to the detected git repository name (basename of the project root); a founder value is never replaced.
-4. `ANT_TEAM_DOCS_PROJECT_PATH` is derived (first-occurrence `<project-name>` resolution) whenever both template and project name exist.
+4. `ANT_TEAM_DOCS_PROJECT_PATH` is the concrete project folder. A founder-set value is preserved verbatim; otherwise it is derived as `<VAULT_PATH>/02-Architecture-Landscape/projects/<PROJECT_NAME>` whenever both vault path and project name exist. The former `ANT_TEAM_DOCS_PROJECT_PATH_TEMPLATE` key is removed — the path structure is fixed, not template-driven.
 5. Founder-added non-canonical exports and unrecognized non-comment lines are preserved verbatim.
 6. Dropped config fields: there is no `identity`, `boundaries`, `initMeta`, or `canonicalWorkflowStates` block anywhere in the config. Repository identity and relationships live in `AGENTS.md` prose (shaped by `--name`, `--description`, `--repo-role`, `--related-repos`); the canonical Workflow State names live as constants in the workflow skills, tests, and docs.
 
@@ -116,6 +116,8 @@ Option keys normalize to uppercase underscore variable-name fragments (`in-progr
 
 **Purpose:** Project-local copies of the three script-bearing skills that all agent prompts depend on via relative paths. Makes the repo self-contained for execution — agents do not need the global `~/.config/opencode` to find these scripts.
 
+**Copy source — sibling managed skills root:** the skills directory the `project-initialization` skill itself lives in. In a source checkout that is `<repo>/.opencode/skills/`; in the managed mirror installed by `scripts/sync-company.sh` it is `~/.agents/skills/`. The initializer resolves this sibling root from its own location (never from a checkout-derived repo root, which would resolve to `$HOME` in the mirror), and preflight validates that all three required skills exist as siblings before any write.
+
 **Required skills (and only these):**
 
 | Skill directory | Required scripts | Why |
@@ -131,7 +133,7 @@ Option keys normalize to uppercase underscore variable-name fragments (`in-progr
 4. Shell scripts under `scripts/` have execute permission.
 5. If the project already has a customized `SKILL.md` for a skill, the local copy is preserved (merge, not overwrite).
 
-**Agent consumption pattern:** Agent prompts use relative paths like `./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh`. These paths resolve correctly because the skills are copied to the project-local `.opencode/skills/` directory. No agent prompt changes are needed.
+**Agent consumption pattern:** Agent prompts use relative paths like `./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh`. These paths resolve correctly because the skills are copied to the project-local `.opencode/skills/` directory. No agent prompt changes are needed. The ant-teams repo additionally ships `scripts/gh_project_helper.sh`, a thin centralized wrapper that invokes the bundled engine with `bash` (mirror execute bits not required), matching the `init-project.sh`, `create-task-branch.sh`, and `cleanup-task-worktree.sh` wrappers.
 
 ### Artifact 4: Project-local `.opencode/opencode.json`
 

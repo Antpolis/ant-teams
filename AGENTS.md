@@ -14,7 +14,7 @@ Test directories: `tests/`
 
 ## Build, Test, and Run Commands
 
-- Run the full test suite (9 suites, includes tests/test_workflow_invariants.js and tests/test_project_env_runtime.js): for f in tests/test_*.js; do node "$f" || exit 1; done
+- Run the full test suite (10 suites, includes tests/test_workflow_invariants.js, tests/test_project_env_runtime.js, and tests/test_mirror_init.js): for f in tests/test_*.js; do node "$f" || exit 1; done
 - Validate AGENTS.md structure (DM-2 contract): bash scripts/validate-agents-md.sh AGENTS.md
 - Syntax-check shell scripts: bash -n scripts/*.sh .opencode/skills/project-initialization/scripts/init_project_docs.sh
 
@@ -25,7 +25,7 @@ Use the `architecture-vault` skill and the central Obsidian vault for product sp
 
 ## Runtime Environment
 
-Agents must source `.github-project.env` (`source ./.github-project.env`) before GitHub API/project operations (gh CLI calls, project-board reads and writes), documentation access (resolving the central vault and project documentation paths), and worktree operations. It exports the `ANT_TEAM_*` runtime metadata and is the sole committed project config source — there is no `.github-project.json`; never parse or create one for runtime values. The canonical Workflow State names live as constants in the workflow skills, tests, and docs.
+Agents must source `.github-project.env` (`source ./.github-project.env`) before GitHub API/project operations (gh CLI calls, project-board reads and writes), documentation access (resolving the central vault and project documentation paths), and worktree operations. It exports the `ANT_TEAM_*` runtime metadata and is the sole committed project config source. The canonical Workflow State names live as constants in the workflow skills, tests, and docs.
 
 Key variables:
 
@@ -35,14 +35,14 @@ Key variables:
 - `ANT_TEAM_WORKTREE_ROOT` — default parent for issue worktrees (may contain a literal `~`; expand it against `$HOME` before use — git does not expand tildes inside variables)
 - `ANT_TEAM_DOCS_VAULT_PATH`, `ANT_TEAM_DOCS_PROJECT_NAME`, `ANT_TEAM_DOCS_PROJECT_PATH`, `ANT_TEAM_DOCS_REPOSITORY` — central documentation vault, this project's documentation folder, and the vault remote
 
-Prerequisite and updates: `.github-project.env` is seeded and updated directly by project initialization (`"$ANT_TEAM_SCRIPTS/init-project-docs.sh"`; there is no standalone generator and no JSON config). `ANT_TEAM_SCRIPTS` itself is installed and exported by `scripts/sync-company.sh` — run it first. Edit env values directly; re-running project initialization preserves values already set and only fills missing keys.
+Prerequisite and updates: `.github-project.env` is seeded and updated directly by project initialization (`"$ANT_TEAM_SCRIPTS/init-project.sh"`; there is no standalone generator and no JSON config). `ANT_TEAM_SCRIPTS` itself is installed and exported by `scripts/init-company.sh` — run it first. Edit env values directly; re-running project initialization preserves values already set and only fills missing keys.
 
 ## Worktree and Documentation Routing
 
 1. Source `.github-project.env` (`source ./.github-project.env`) before creating a task worktree or accessing project documentation (see Runtime Environment for the full rule and key variables).
-2. Use `ANT_TEAM_WORKTREE_ROOT` (from `.github-project.env`) as the default worktree parent; expand a literal `~` against `$HOME` before use.
-3. Create one worktree per issue at `<worktreeRoot>/<issue-id>` using `git worktree add`; do not set `core.worktree`.
-4. Store this project's documentation in `ANT_TEAM_DOCS_PROJECT_PATH` (the `projectPathTemplate` with `<project-name>` resolved to `ant-teams`).
+2. Use the centralized helper `$ANT_TEAM_SCRIPTS/create-task-branch.sh` to create one worktree per issue; do not construct ad-hoc `git worktree add` commands.
+3. The helper reads `ANT_TEAM_WORKTREE_ROOT` and enforces the repository worktree convention; do not set `core.worktree`.
+4. Store this project's documentation in `ANT_TEAM_DOCS_PROJECT_PATH` (resolved as `$ANT_TEAM_DOCS_VAULT_PATH/02-Architecture-Landscape/projects/$ANT_TEAM_DOCS_PROJECT_NAME`, or a configured concrete value when set).
 5. Keep GitHub Issues, PRs, and Project Workflow State as the live execution record (GitHub comments carry only final decisions, status, closure, and code-review results); keep the full agent communication record, role memory, and durable product documentation in the Obsidian vault.
 6. After any documentation-vault task, inspect the diff, stage only task-owned files, commit, and push to the vault remote. Never stage unrelated user changes or secrets.
 
@@ -50,7 +50,7 @@ Example:
 
 ```sh
 source ./.github-project.env
-git worktree add "${ANT_TEAM_WORKTREE_ROOT/#\~/$HOME}/issue-123" -b feat/issue-123 origin/master
+"$ANT_TEAM_SCRIPTS/create-task-branch.sh" 123 master feat/issue-123
 ```
 
 ## Scratch and Log Directories
@@ -71,4 +71,4 @@ Runtime metadata (owner, project/field/option IDs, worktree root, documentation 
 - `.opencode/skills/github-issues-projects-cli/` — GitHub Projects CLI helper scripts (target the canonical `Workflow State` field)
 - `.opencode/skills/do-task/` — Task worktree management scripts
 - `.opencode/skills/project-initialization/` — Re-initialization scripts (this skill)
-- `scripts/` — operational team scripts, installed to `~/.agents/scripts` by `scripts/sync-company.sh` and referenced through `ANT_TEAM_SCRIPTS`
+- `scripts/` — operational team scripts, installed to `~/.agents/scripts` by `scripts/init-company.sh` and referenced through `ANT_TEAM_SCRIPTS`

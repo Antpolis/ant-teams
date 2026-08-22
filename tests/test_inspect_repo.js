@@ -313,12 +313,6 @@ function testAcT1003MultiPm() {
 function testAcT1004LegacyInit() {
   process.stdout.write('Suite: AC-T1-004 (repo-legacy-init detection)\n');
   const actual = runInspectJson(path.join(FIXTURES_DIR, 'repo-legacy-init'));
-  check('AC-T1-004: agent.md detected', () => {
-    assert.ok(
-      actual.agent_guidance.observed.includes('agent.md'),
-      `agent_guidance=${JSON.stringify(actual.agent_guidance.observed)}`
-    );
-  });
   check('AC-T1-004: .github-project.env not detected (no env file)', () => {
     assert.strictEqual(actual.github_project_env.observed, false);
   });

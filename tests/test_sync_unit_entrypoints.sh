@@ -6,9 +6,9 @@
 # Traceability:
 #   - FR-12.1 / CLI-1.2 sync-managed-skills.sh accepts --force and --dry-run.
 #   - CLI-1.3 --force and --dry-run may be combined.
-#   - FR-12.2 / CLI-2.1 sync-company.sh accepts --force and forwards it.
-#   - FR-12.3 / CLI-3.1 init-company.sh and update-company.sh delegate to
-#     sync-company.sh without modification (they `exec`).
+#   - FR-12.2 / CLI-2.1 init-company.sh accepts --force and forwards it.
+#   - FR-12.3 / CLI-3.1 init-company.sh and init-company.sh delegate to
+#     init-company.sh without modification (they `exec`).
 #   - CLI-1.2 unknown flag => usage error exit 1.
 #
 # Part static (grep the real scripts for the delegation + flag handling) and
@@ -35,18 +35,18 @@ assert_file_contains_str "managed usage lists --dry-run" "$OUT" --dry-run
 sync_capture "$OUT" "$SYNC_REAL_SCRIPT" "$HOME_DIR" --bogus
 assert_eq "managed unknown flag => exit 1" "$SYNC_RC" "1"
 
-# --- FR-12.2 / CLI-2.1: sync-company.sh accepts --force (static) -------------
+# --- FR-12.2 / CLI-2.1: init-company.sh accepts --force (static) -------------
 assert_file_contains_str "sync-company usage lists --force" "$SYNC_REAL_COMPANY" --force
 assert_file_contains_str "sync-company forwards --force to managed" "$SYNC_REAL_COMPANY" 'sync-managed-skills.sh" --force'
 
-# --- FR-12.3 / CLI-3.1: wrappers delegate to sync-company.sh unchanged -------
+# --- FR-12.3 / CLI-3.1: wrappers delegate to init-company.sh unchanged -------
 INIT_COMPANY="$SYNC_REPO_ROOT/scripts/init-company.sh"
-UPDATE_COMPANY="$SYNC_REPO_ROOT/scripts/update-company.sh"
+UPDATE_COMPANY="$SYNC_REPO_ROOT/scripts/init-company.sh"
 assert_exists "init-company.sh present" "$INIT_COMPANY"
-assert_exists "update-company.sh present" "$UPDATE_COMPANY"
-# Both must exec/delegate to sync-company.sh and add NO new flags of their own.
-assert_file_contains_str "init-company delegates to sync-company.sh" "$INIT_COMPANY" "sync-company.sh"
-assert_file_contains_str "update-company delegates to sync-company.sh" "$UPDATE_COMPANY" "sync-company.sh"
+assert_exists "init-company.sh present" "$UPDATE_COMPANY"
+# Both must exec/delegate to init-company.sh and add NO new flags of their own.
+assert_file_contains_str "init-company delegates to init-company.sh" "$INIT_COMPANY" "init-company.sh"
+assert_file_contains_str "update-company delegates to init-company.sh" "$UPDATE_COMPANY" "init-company.sh"
 assert_file_not_contains_str "init-company adds no --force handling" "$INIT_COMPANY" --force
 assert_file_not_contains_str "update-company adds no --force handling" "$UPDATE_COMPANY" --force
 

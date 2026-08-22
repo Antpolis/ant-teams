@@ -9,7 +9,7 @@ Metadata:
 | Domain | global workflow installation |
 | Status | active |
 | Owner | operator / tech-lead |
-| Applies To | `scripts/sync-company.sh`, `scripts/sync-managed-skills.sh`, `~/.config/opencode`, `~/.agents/skills/`, `~/.agents/skills/.manifest.json` |
+| Applies To | `scripts/init-company.sh`, `scripts/sync-managed-skills.sh`, `~/.config/opencode`, `~/.agents/skills/`, `~/.agents/skills/.manifest.json` |
 | Keywords | managed sync, two-target install, ~/.config/opencode, ~/.agents/skills, manifest, force, dry-run, collision, command-derived skills, validation |
 | Related Docs | SPEC-002, ARCH-004, SPEC-001, ARCH-003, DOCUMENT_INDEX, README.md |
 | Last Updated | 2026-08-03 |
@@ -20,7 +20,7 @@ Operator-facing runbook for the managed skill sync subsystem introduced in SPEC-
 
 ## Two-Target Install Model
 
-A single `scripts/sync-company.sh` invocation maintains two independent install targets:
+A single `scripts/init-company.sh` invocation maintains two independent install targets:
 
 | Target | Path | Strategy | Owned by this repo? |
 |---|---|---|---|
@@ -70,10 +70,10 @@ Command-derived `SKILL.md` files are derived artifacts: the authoritative source
 ### Standard install (both targets)
 
 ```text
-scripts/sync-company.sh
+scripts/init-company.sh
 ```
 
-Installs `.opencode/` into `~/.config/opencode` (canonical, full replace), then runs the managed sync into `~/.agents/skills/`. `scripts/init-company.sh` and `scripts/update-company.sh` are aliases and inherit this behavior unchanged.
+Installs `.opencode/` into `~/.config/opencode` (canonical, full replace), then runs the managed sync into `~/.agents/skills/`. `scripts/init-company.sh` and `scripts/init-company.sh` are aliases and inherit this behavior unchanged.
 
 ### Managed sync only (canonical target untouched)
 
@@ -87,8 +87,8 @@ Runs only the managed mirror sync. Does not touch `~/.config/opencode`.
 
 | Flag | Where accepted | Effect |
 |---|---|---|
-| `--force` | `sync-company.sh`, `sync-managed-skills.sh` | Overwrite locally modified managed entries with current source content. `sync-company.sh --force` forwards the flag to the managed sync only; it does not change canonical install behavior. |
-| `--dry-run` | `sync-managed-skills.sh` only | Report planned actions prefixed with `[DRY-RUN]` and write nothing. There is intentionally no top-level `sync-company.sh --dry-run` in MVP, because the canonical full-replace install has no safe no-write preview. |
+| `--force` | `init-company.sh`, `sync-managed-skills.sh` | Overwrite locally modified managed entries with current source content. `init-company.sh --force` forwards the flag to the managed sync only; it does not change canonical install behavior. |
+| `--dry-run` | `sync-managed-skills.sh` only | Report planned actions prefixed with `[DRY-RUN]` and write nothing. There is intentionally no top-level `init-company.sh --dry-run` in MVP, because the canonical full-replace install has no safe no-write preview. |
 
 `--force` and `--dry-run` may be combined on `sync-managed-skills.sh` to preview what would be force-overwritten.
 
@@ -121,7 +121,7 @@ Collision handling (exact-name rules):
 
 Idempotency: re-running with no source or target changes performs no file writes and only updates the manifest `last_sync` timestamp. Every entry reports `[NOOP]`.
 
-Exit codes (same for both scripts; `sync-company.sh` reflects the worst outcome):
+Exit codes (same for both scripts; `init-company.sh` reflects the worst outcome):
 
 | Code | Meaning |
 |---|---|
@@ -141,7 +141,7 @@ There is no automatic rollback in MVP. To remove all managed entries manually:
 3. Delete the manifest: `rm ~/.agents/skills/.manifest.json`.
 4. Unmanaged sibling content is never affected by this removal.
 
-To revert `sync-company.sh` to the pre-SPEC-002 single-target behavior, replace it with the earlier version that does not invoke `sync-managed-skills.sh`; the canonical install behavior was not changed by SPEC-002.
+To revert `init-company.sh` to the pre-SPEC-002 single-target behavior, replace it with the earlier version that does not invoke `sync-managed-skills.sh`; the canonical install behavior was not changed by SPEC-002.
 
 `.manifest.json.corrupt.<timestamp>` files are manual-inspection artifacts produced only when manifest validation fails. The sync moves a corrupt manifest aside, warns, and proceeds as if no manifest exists.
 
@@ -151,7 +151,7 @@ The following are explicitly out of scope and not documented as features:
 
 - Orphan-prune automation (cleanup of stale managed entries is manual, via the manifest).
 - Automatic per-file `.bak` rollback files for `--force` overwrites.
-- A top-level `scripts/sync-company.sh --dry-run` (dry-run stays scoped to `sync-managed-skills.sh`).
+- A top-level `scripts/init-company.sh --dry-run` (dry-run stays scoped to `sync-managed-skills.sh`).
 - Any broader `~/.agents` content management beyond `~/.agents/skills/`.
 
 ## Validation Commands

@@ -14,6 +14,12 @@ readonly CANONICAL_FIELD_NAME="Workflow State"
 # top-level item keys named after the field (e.g. "workflow State").
 readonly CANONICAL_ITEM_KEY="workflow State"
 
+# Default JSON field sets for issue read commands: collaboration-shaped,
+# safe output. Callers take over the output shape by passing --json, --jq,
+# --template, --comments, or --web themselves.
+readonly ISSUE_VIEW_FIELDS="number,title,body,state,assignees,labels,milestone,projectItems,url"
+readonly ISSUE_LIST_FIELDS="number,title,state,assignees,labels,milestone,url"
+
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || {
     echo "Missing required command: $1" >&2
@@ -25,13 +31,25 @@ usage() {
   cat <<'EOF'
 Usage:
   gh_project_helper.sh gh-item-edit <item_id> <field_id> <single_select_option_id>
-  gh_project_helper.sh item-id [owner] [project_number] <issue_number>
-  gh_project_helper.sh list-statuses [owner] [project_number]
-  gh_project_helper.sh list-items [owner] [project_number] [state_name]
-  gh_project_helper.sh add-issue [owner] [project_number] <issue_url>
-  gh_project_helper.sh set-status [owner] [project_number] <issue_number> <state_name> [owner_type]
-  gh_project_helper.sh set-status-id [owner] [project_number] <issue_number> <single_select_option_id> [owner_type]
-  gh_project_helper.sh next-status [owner] [project_number] <issue_number> <current_state> <next_state> [owner_type]
+  gh_project_helper.sh item-id <issue_number>
+  gh_project_helper.sh list-statuses
+  gh_project_helper.sh list-items [state_name]
+  gh_project_helper.sh add-issue <issue_url>
+  gh_project_helper.sh set-status <issue_number> <state_name> [owner_type]
+  gh_project_helper.sh set-status-id <issue_number> <single_select_option_id> [owner_type]
+  gh_project_helper.sh next-status <issue_number> <current_state> <next_state> [owner_type]
+
+  gh_project_helper.sh issue-create <title> [gh issue flags...]
+  gh_project_helper.sh issue-view <issue_number> [gh issue flags...]
+  gh_project_helper.sh issue-list [gh issue flags...]
+  gh_project_helper.sh issue-edit <issue_number> [gh issue flags...]
+  gh_project_helper.sh issue-comment <issue_number> [gh issue flags...]
+  gh_project_helper.sh issue-close <issue_number> [gh issue flags...]
+
+  gh_project_helper.sh milestone-create <title> [description]
+  gh_project_helper.sh milestone-list [state]
+  gh_project_helper.sh milestone-edit <milestone_number> [gh api -f flags...]
+  gh_project_helper.sh milestone-close <milestone_number>
 
 Notes:
   - all board operations target the canonical "Workflow State" project field
@@ -40,8 +58,8 @@ Notes:
     Blocked
   - runtime config resolution: .github-project.env (ANT_TEAM_* exports) is
     the sole project config source; it is seeded and updated by
-    init-project ("$ANT_TEAM_SCRIPTS/init-project-docs.sh" after
-    scripts/sync-company.sh). Legacy unprefixed env names (OWNER,
+    init-project ("$ANT_TEAM_SCRIPTS/init-project.sh" after
+    scripts/init-company.sh). Legacy unprefixed env names (OWNER,
     PROJECT_NUMBER, ...) are a last-resort fallback
   - option IDs are resolved from the env config first, then from the remote
     board by exact option name
@@ -49,6 +67,19 @@ Notes:
     option (e.g. legacy "Inbox" -> "Open", "Shaping" -> "Backlog") requires
     explicit founder-approved handling. After such a rename, update the
     .github-project.env option IDs with the verified remote IDs
+  - issue-* and milestone-* are thin wrappers around gh issue / gh api
+    (REST milestones). The target repository always resolves from
+    .github-project.env (ANT_TEAM_GITHUB_REPO, legacy REPO fallback) and
+    is never a positional argument; a pass-through --repo flag cannot
+    override it
+  - extra flags after the required positional argument pass straight
+    through to gh issue / gh api; issue-view and issue-list print curated
+    JSON by default (pass --json, --jq, --template, --comments, or --web
+    to control the output shape yourself)
+  - issue-comment exists for final decisions, status, closure, and
+    code-review outcomes only; durable handoffs live in the central
+    Obsidian project folder
+  - the helper writes no local files and never edits .github-project.env
   - owner_type defaults to "org". Use "user" for personal projects.
   - Requires gh and jq.
 EOF
@@ -109,6 +140,29 @@ resolve_owner_type() {
     printf '%s\n' "$ANT_TEAM_GITHUB_OWNER_TYPE"
   else
     printf '%s\n' "${OWNER_TYPE:-org}"
+  fi
+}
+
+# Target repository for issue-* and milestone-* subcommands. Resolution
+# order: ANT_TEAM_GITHUB_REPO export from .github-project.env (the sole
+# project config source) -> legacy unprefixed REPO. Never a positional
+# argument.
+resolve_repo() {
+  if [[ -n "${ANT_TEAM_GITHUB_REPO:-}" ]]; then
+    printf '%s\n' "$ANT_TEAM_GITHUB_REPO"
+  else
+    printf '%s\n' "${REPO:-}"
+  fi
+}
+
+# Issue and milestone subcommands have no repo argument to fall back to;
+# the env config is the only source.
+require_repo() {
+  local repo="$1"
+  if [[ -z "$repo" ]]; then
+    echo "Missing required value: ANT_TEAM_GITHUB_REPO" >&2
+    echo "Set it in $CONFIG_ENV_FILE (issue and milestone subcommands take no repo argument)" >&2
+    exit 1
   fi
 }
 
@@ -392,130 +446,217 @@ set_status() {
   set_status_id "$owner" "$project_number" "$issue_number" "$option_id" "$owner_type"
 }
 
+# --- issue subcommands (thin gh issue wrappers, env-resolved repo) ------------
+
+# True when the caller already chose an output shape for a gh issue read
+# command, disabling the curated JSON defaults.
+has_format_flag() {
+  local a
+  for a in "$@"; do
+    case "$a" in
+      --json|--jq|--template|--comments|--web)
+        return 0
+        ;;
+    esac
+  done
+  return 1
+}
+
+# The env repo always wins: user flags come first, --repo "$repo" last.
+issue_create() {
+  local repo="$1" title="$2"
+  shift 2
+  gh issue create --title "$title" "$@" --repo "$repo"
+}
+
+issue_view() {
+  local repo="$1" number="$2"
+  shift 2
+  if has_format_flag "$@"; then
+    gh issue view "$number" "$@" --repo "$repo"
+  else
+    gh issue view "$number" --json "$ISSUE_VIEW_FIELDS" "$@" --repo "$repo"
+  fi
+}
+
+issue_list() {
+  local repo="$1"
+  shift
+  if has_format_flag "$@"; then
+    gh issue list "$@" --repo "$repo"
+  else
+    gh issue list --json "$ISSUE_LIST_FIELDS" "$@" --repo "$repo"
+  fi
+}
+
+issue_edit() {
+  local repo="$1" number="$2"
+  shift 2
+  gh issue edit "$number" "$@" --repo "$repo"
+}
+
+issue_comment() {
+  local repo="$1" number="$2"
+  shift 2
+  gh issue comment "$number" "$@" --repo "$repo"
+}
+
+issue_close() {
+  local repo="$1" number="$2"
+  shift 2
+  gh issue close "$number" "$@" --repo "$repo"
+}
+
+# --- milestone subcommands (thin gh api REST wrappers) -------------------------
+
+# Curated, safe JSON shape for REST milestone payloads; the raw payload
+# (node_id, creator, ...) is never echoed.
+milestone_summary_jq() {
+  jq '{ number, title, state, open_issues, closed_issues, due_on, url: .html_url }'
+}
+
+milestone_create() {
+  local repo="$1" title="$2" description="${3:-}"
+  if [[ -n "$description" ]]; then
+    gh api "repos/$repo/milestones" -f title="$title" -f description="$description" | milestone_summary_jq
+  else
+    gh api "repos/$repo/milestones" -f title="$title" | milestone_summary_jq
+  fi
+}
+
+milestone_list() {
+  local repo="$1" state="${2:-open}"
+  case "$state" in
+    open|closed|all) ;;
+    *)
+      echo "Invalid milestone state '$state' (expected open, closed, or all)" >&2
+      exit 1
+      ;;
+  esac
+  gh api "repos/$repo/milestones?state=$state" \
+    | jq '[.[] | { number, title, state, open_issues, closed_issues, due_on, url: .html_url }]'
+}
+
+milestone_edit() {
+  local repo="$1" number="$2"
+  shift 2
+  gh api -X PATCH "repos/$repo/milestones/$number" "$@" | milestone_summary_jq
+}
+
+milestone_close() {
+  local repo="$1" number="$2"
+  gh api -X PATCH "repos/$repo/milestones/$number" -f state=closed | milestone_summary_jq
+}
+
 case "$cmd" in
   gh-item-edit)
     [[ $# -eq 3 ]] || { usage; exit 1; }
     gh_item_edit "$1" "$2" "$3"
     ;;
   item-id)
-    if [[ $# -eq 1 ]]; then
-      owner="$(resolve_owner "")"
-      project_number="$(resolve_project_number "")"
-      issue_number="$1"
-    elif [[ $# -eq 3 ]]; then
-      owner="$(resolve_owner "$1")"
-      project_number="$(resolve_project_number "$2")"
-      issue_number="$3"
-    else
-      usage
-      exit 1
-    fi
-    require_value "OWNER" "$owner"
-    require_value "PROJECT_NUMBER" "$project_number"
-    print_item_id "$owner" "$project_number" "$issue_number"
+    [[ $# -eq 1 ]] || { usage; exit 1; }
+    owner="$(resolve_owner "")"; project_number="$(resolve_project_number "")"
+    require_value "OWNER" "$owner"; require_value "PROJECT_NUMBER" "$project_number"
+    print_item_id "$owner" "$project_number" "$1"
     ;;
   list-statuses)
-    [[ $# -le 2 ]] || { usage; exit 1; }
-    owner="$(resolve_owner "${1:-}")"
-    project_number="$(resolve_project_number "${2:-}")"
-    require_value "OWNER" "$owner"
-    require_value "PROJECT_NUMBER" "$project_number"
+    [[ $# -eq 0 ]] || { usage; exit 1; }
+    owner="$(resolve_owner "")"; project_number="$(resolve_project_number "")"
+    require_value "OWNER" "$owner"; require_value "PROJECT_NUMBER" "$project_number"
     list_statuses "$owner" "$project_number"
     ;;
   list-items)
-    [[ $# -le 3 ]] || { usage; exit 1; }
-    if [[ $# -eq 1 ]]; then
-      owner="$(resolve_owner "")"
-      project_number="$(resolve_project_number "")"
-      state_name="$1"
-    else
-      owner="$(resolve_owner "${1:-}")"
-      project_number="$(resolve_project_number "${2:-}")"
-      state_name="${3:-}"
-    fi
-    require_value "OWNER" "$owner"
-    require_value "PROJECT_NUMBER" "$project_number"
-    list_items "$owner" "$project_number" "$state_name"
+    [[ $# -le 1 ]] || { usage; exit 1; }
+    owner="$(resolve_owner "")"; project_number="$(resolve_project_number "")"
+    require_value "OWNER" "$owner"; require_value "PROJECT_NUMBER" "$project_number"
+    list_items "$owner" "$project_number" "${1:-}"
     ;;
   add-issue)
-    [[ $# -ge 1 && $# -le 3 ]] || { usage; exit 1; }
-    if [[ $# -eq 1 ]]; then
-      owner="$(resolve_owner "")"
-      project_number="$(resolve_project_number "")"
-      issue_url="$1"
-    else
-      owner="$(resolve_owner "$1")"
-      project_number="$(resolve_project_number "$2")"
-      issue_url="$3"
-    fi
-    require_value "OWNER" "$owner"
-    require_value "PROJECT_NUMBER" "$project_number"
-    add_issue "$owner" "$project_number" "$issue_url"
+    [[ $# -eq 1 ]] || { usage; exit 1; }
+    owner="$(resolve_owner "")"; project_number="$(resolve_project_number "")"
+    require_value "OWNER" "$owner"; require_value "PROJECT_NUMBER" "$project_number"
+    add_issue "$owner" "$project_number" "$1"
     ;;
   set-status)
-    if [[ $# -eq 2 || $# -eq 3 ]]; then
-      owner="$(resolve_owner "")"
-      project_number="$(resolve_project_number "")"
-      issue_number="$1"
-      state_name="$2"
-      owner_type="$(resolve_owner_type "${3:-}")"
-    elif [[ $# -eq 4 || $# -eq 5 ]]; then
-      owner="$(resolve_owner "$1")"
-      project_number="$(resolve_project_number "$2")"
-      issue_number="$3"
-      state_name="$4"
-      owner_type="$(resolve_owner_type "${5:-}")"
-    else
-      usage
-      exit 1
-    fi
-    require_value "OWNER" "$owner"
-    require_value "PROJECT_NUMBER" "$project_number"
-    set_status "$owner" "$project_number" "$issue_number" "$state_name" "$owner_type"
+    [[ $# -eq 2 || $# -eq 3 ]] || { usage; exit 1; }
+    owner="$(resolve_owner "")"; project_number="$(resolve_project_number "")"
+    owner_type="$(resolve_owner_type "${3:-}")"
+    require_value "OWNER" "$owner"; require_value "PROJECT_NUMBER" "$project_number"
+    set_status "$owner" "$project_number" "$1" "$2" "$owner_type"
     ;;
   set-status-id)
-    if [[ $# -eq 2 || $# -eq 3 ]]; then
-      owner="$(resolve_owner "")"
-      project_number="$(resolve_project_number "")"
-      issue_number="$1"
-      option_id="$2"
-      owner_type="$(resolve_owner_type "${3:-}")"
-    elif [[ $# -eq 4 || $# -eq 5 ]]; then
-      owner="$(resolve_owner "$1")"
-      project_number="$(resolve_project_number "$2")"
-      issue_number="$3"
-      option_id="$4"
-      owner_type="$(resolve_owner_type "${5:-}")"
-    else
-      usage
-      exit 1
-    fi
-    require_value "OWNER" "$owner"
-    require_value "PROJECT_NUMBER" "$project_number"
-    set_status_id "$owner" "$project_number" "$issue_number" "$option_id" "$owner_type"
+    [[ $# -eq 2 || $# -eq 3 ]] || { usage; exit 1; }
+    owner="$(resolve_owner "")"; project_number="$(resolve_project_number "")"
+    owner_type="$(resolve_owner_type "${3:-}")"
+    require_value "OWNER" "$owner"; require_value "PROJECT_NUMBER" "$project_number"
+    set_status_id "$owner" "$project_number" "$1" "$2" "$owner_type"
     ;;
   next-status)
-    if [[ $# -eq 3 || $# -eq 4 ]]; then
-      owner="$(resolve_owner "")"
-      project_number="$(resolve_project_number "")"
-      issue_number="$1"
-      current_status="$2"
-      next_status="$3"
-      owner_type="$(resolve_owner_type "${4:-}")"
-    elif [[ $# -eq 5 || $# -eq 6 ]]; then
-      owner="$(resolve_owner "$1")"
-      project_number="$(resolve_project_number "$2")"
-      issue_number="$3"
-      current_status="$4"
-      next_status="$5"
-      owner_type="$(resolve_owner_type "${6:-}")"
-    else
-      usage
-      exit 1
-    fi
-    require_value "OWNER" "$owner"
-    require_value "PROJECT_NUMBER" "$project_number"
-    set_status "$owner" "$project_number" "$issue_number" "$next_status" "$owner_type"
+    [[ $# -eq 3 || $# -eq 4 ]] || { usage; exit 1; }
+    owner="$(resolve_owner "")"; project_number="$(resolve_project_number "")"
+    owner_type="$(resolve_owner_type "${4:-}")"
+    require_value "OWNER" "$owner"; require_value "PROJECT_NUMBER" "$project_number"
+    set_status "$owner" "$project_number" "$1" "$3" "$owner_type"
+    ;;
+  issue-create)
+    [[ $# -ge 1 ]] || { usage; exit 1; }
+    repo="$(resolve_repo)"
+    require_repo "$repo"
+    title="$1"; shift
+    issue_create "$repo" "$title" "$@"
+    ;;
+  issue-view)
+    [[ $# -ge 1 ]] || { usage; exit 1; }
+    repo="$(resolve_repo)"
+    require_repo "$repo"
+    issue_view "$repo" "$1" "${@:2}"
+    ;;
+  issue-list)
+    repo="$(resolve_repo)"
+    require_repo "$repo"
+    issue_list "$repo" "$@"
+    ;;
+  issue-edit)
+    [[ $# -ge 1 ]] || { usage; exit 1; }
+    repo="$(resolve_repo)"
+    require_repo "$repo"
+    issue_edit "$repo" "$1" "${@:2}"
+    ;;
+  issue-comment)
+    [[ $# -ge 1 ]] || { usage; exit 1; }
+    repo="$(resolve_repo)"
+    require_repo "$repo"
+    issue_comment "$repo" "$1" "${@:2}"
+    ;;
+  issue-close)
+    [[ $# -ge 1 ]] || { usage; exit 1; }
+    repo="$(resolve_repo)"
+    require_repo "$repo"
+    issue_close "$repo" "$1" "${@:2}"
+    ;;
+  milestone-create)
+    [[ $# -ge 1 && $# -le 2 ]] || { usage; exit 1; }
+    repo="$(resolve_repo)"
+    require_repo "$repo"
+    milestone_create "$repo" "$1" "${2:-}"
+    ;;
+  milestone-list)
+    [[ $# -le 1 ]] || { usage; exit 1; }
+    repo="$(resolve_repo)"
+    require_repo "$repo"
+    milestone_list "$repo" "${1:-}"
+    ;;
+  milestone-edit)
+    [[ $# -ge 1 ]] || { usage; exit 1; }
+    repo="$(resolve_repo)"
+    require_repo "$repo"
+    milestone_edit "$repo" "$1" "${@:2}"
+    ;;
+  milestone-close)
+    [[ $# -eq 1 ]] || { usage; exit 1; }
+    repo="$(resolve_repo)"
+    require_repo "$repo"
+    milestone_close "$repo" "$1"
     ;;
   *)
     usage
