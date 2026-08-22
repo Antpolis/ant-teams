@@ -15,6 +15,7 @@ Test directories: `tests/`
 ## Build, Test, and Run Commands
 
 - Run the full test suite (9 suites, includes tests/test_workflow_invariants.js and tests/test_project_env_runtime.js): for f in tests/test_*.js; do node "$f" || exit 1; done
+- Run the helper CLI and communication recorder tests: bash tests/test_helper_cli.sh && bash tests/test_record_communication.sh
 - Validate AGENTS.md structure (DM-2 contract): bash scripts/validate-agents-md.sh AGENTS.md
 - Syntax-check shell scripts: bash -n scripts/*.sh .opencode/skills/project-initialization/scripts/init_project_docs.sh
 
@@ -71,4 +72,4 @@ Runtime metadata (owner, project/field/option IDs, worktree root, documentation 
 - `.opencode/skills/github-issues-projects-cli/` — GitHub Projects CLI helper scripts (target the canonical `Workflow State` field)
 - `.opencode/skills/do-task/` — Task worktree management scripts
 - `.opencode/skills/project-initialization/` — Re-initialization scripts (this skill)
-- `scripts/` — operational team scripts, installed to `~/.agents/scripts` by `scripts/sync-company.sh` and referenced through `ANT_TEAM_SCRIPTS`
+- `scripts/` — operational team scripts, installed to `~/.agents/scripts` by `scripts/sync-company.sh` and referenced through `ANT_TEAM_SCRIPTS`; `scripts/ant-team-help.sh` lists every installed helper script with its description, and `scripts/record-communication.sh` records/lists agent communication events in the Obsidian project folder
