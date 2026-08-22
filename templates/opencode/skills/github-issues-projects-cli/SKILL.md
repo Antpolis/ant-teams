@@ -194,7 +194,7 @@ When the user asks for a common action, start from these defaults and adapt them
 Use:
 
 ```bash
-./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh issue-comment ISSUE_NUMBER \
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" issue-comment ISSUE_NUMBER \
   --body "Final decision: approved with the follow-up filed as #51."
 ```
 
@@ -205,7 +205,7 @@ Comments carry only final decisions, status, closure, and code-review outcomes; 
 Use:
 
 ```bash
-./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh issue-create "TASK: short task title" \
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" issue-create "TASK: short task title" \
   --body-file /tmp/issue.md \
   --label type:feature \
   --assignee USERNAME \
@@ -219,17 +219,17 @@ The first positional is the required title; every other flag passes straight thr
 Use:
 
 ```bash
-./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh milestone-create "SPEC-001: Deliverable name" \
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" milestone-create "SPEC-001: Deliverable name" \
   "Short summary with spec link and owner"
 ```
 
 The description is optional. The helper wraps the REST milestones API via `gh api` (there is no dedicated `gh milestone create` command) and prints a curated summary (number, title, state, counts, URL). Related commands:
 
 ```bash
-./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh milestone-list            # open milestones
-./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh milestone-list all
-./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh milestone-edit MILESTONE_NUMBER -f title="SPEC-001: Revised name"
-./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh milestone-close MILESTONE_NUMBER
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" milestone-list            # open milestones
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" milestone-list all
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" milestone-edit MILESTONE_NUMBER -f title="SPEC-001: Revised name"
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" milestone-close MILESTONE_NUMBER
 ```
 
 ### Resolve Project Item ID For An Issue
@@ -237,7 +237,7 @@ The description is optional. The helper wraps the REST milestones API via `gh ap
 Use:
 
 ```bash
-./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh item-id ISSUE_NUMBER
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" item-id ISSUE_NUMBER
 ```
 
 Assume issue-to-project linking is usually automatic in this repository workflow. Do not manually link an issue unless the board automation failed or the user explicitly asks for a manual add.
@@ -249,13 +249,13 @@ Use the project item ID whenever you need to update project status or any projec
 Use:
 
 ```bash
-./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh list-items "Ready"
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" list-items "Ready"
 ```
 
 All helper commands are env-only: owner, project number, and repository resolve from `.github-project.env`; there are no positional owner/project arguments. To list repo issues instead of board items:
 
 ```bash
-./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh issue-list --label blocked --state open
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" issue-list --label blocked --state open
 ```
 
 All board operations target the canonical `Workflow State` field. Canonical states: `Open`, `Backlog`, `Ready`, `In Progress`, `In Review`, `Ready to Merge`, `Done`, plus exceptions `Need attentions` (founder-only) and `Blocked`. If the remote board still carries a legacy option name (e.g. `Inbox` for `Open`, `Shaping` for `Backlog`), inspect options with `list-statuses` and never rename remote options without explicit founder-approved handling.
@@ -273,7 +273,7 @@ Do not skip the discovery steps. GitHub Projects v2 status changes depend on opa
 Preferred shortcut:
 
 ```bash
-./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh set-status ISSUE_NUMBER "In Review"
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" set-status ISSUE_NUMBER "In Review"
 ```
 
 The helper resolves the Workflow State field and option IDs from `.github-project.env` (its sole local runtime config), then from the remote board by exact option name. It never creates or renames remote options; if a canonical name has no matching remote option, it fails with guidance instead of mutating the board. When stable IDs are already stored in `.github-project.env`, prefer `gh project item-edit` over raw GraphQL because it uses fewer tokens and matches the installed CLI behavior better.
@@ -289,7 +289,7 @@ If the user hits `unknown flag: --owner`, switch immediately to `gh project item
 For direct low-level editing with pre-resolved IDs, use:
 
 ```bash
-./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh gh-item-edit ITEM_ID STATUS_FIELD_ID STATUS_OPTION_IN_REVIEW_ID
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" gh-item-edit ITEM_ID STATUS_FIELD_ID STATUS_OPTION_IN_REVIEW_ID
 ```
 
 ### Complete Issue
@@ -303,8 +303,8 @@ Use both collaboration surfaces when appropriate:
 Typical sequence:
 
 ```bash
-./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh set-status ISSUE_NUMBER "Done"
-./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh issue-close ISSUE_NUMBER --comment "Completed and validated."
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" set-status ISSUE_NUMBER "Done"
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" issue-close ISSUE_NUMBER --comment "Completed and validated."
 ```
 
 If the workflow requires board-state visibility, do not only close the issue. Also update the project status.
