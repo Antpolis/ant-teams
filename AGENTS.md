@@ -7,21 +7,26 @@ Role: tool
 
 ## Project Structure
 
-Repository-local documentation root: `docs/` (code-adjacent guidance only)
 Central Obsidian documentation vault: `ANT_TEAM_DOCS_VAULT_PATH` from `.github-project.env` (currently `/home/chrissim/Projects/documentation`)
 Project documentation path: `ANT_TEAM_DOCS_PROJECT_PATH` from `.github-project.env` (currently `/home/chrissim/Projects/documentation/02-Architecture-Landscape/projects/ant-teams/`)
+There is no repository-local documentation root. Use the Obsidian project path for all product, architecture, governance, lifecycle, and project documentation.
 Test directories: `tests/`
+Canonical OpenCode source: `templates/opencode/`
+Canonical team-script source: `templates/scripts/`
+Generated local OpenCode runtime: `.opencode/` (created by `scripts/init-company.sh`; do not edit as the source of truth)
 
 ## Build, Test, and Run Commands
 
-- Run the full test suite (10 suites, includes tests/test_workflow_invariants.js, tests/test_project_env_runtime.js, and tests/test_mirror_init.js): for f in tests/test_*.js; do node "$f" || exit 1; done
-- Validate AGENTS.md structure (DM-2 contract): bash scripts/validate-agents-md.sh AGENTS.md
-- Syntax-check shell scripts: bash -n scripts/*.sh .opencode/skills/project-initialization/scripts/init_project_docs.sh
+- Run Node.js tests: for f in tests/test_*.js; do node "$f" || exit 1; done
+- Run managed-skill sync tests: bash tests/run_sync_tests.sh
+- Install the canonical OpenCode configuration and refresh managed skills and team scripts: bash scripts/init-company.sh
+- Validate AGENTS.md structure (DM-2 contract): bash templates/scripts/validate-agents-md.sh AGENTS.md
+- Syntax-check shell scripts: bash -n scripts/*.sh templates/scripts/*.sh templates/opencode/skills/project-initialization/scripts/init_project_docs.sh
 
 ## Documentation
 
-Central product documentation: `ANT_TEAM_DOCS_PROJECT_PATH` from `.github-project.env` (currently `/home/chrissim/Projects/documentation/02-Architecture-Landscape/projects/ant-teams/`)
-Use the `architecture-vault` skill and the central Obsidian vault for product specs, architecture, ADRs, governance, lifecycle, and project documentation.
+All documentation: `ANT_TEAM_DOCS_PROJECT_PATH` from `.github-project.env` (currently `/home/chrissim/Projects/documentation/02-Architecture-Landscape/projects/ant-teams/`)
+Use the central Obsidian vault for product specs, architecture, ADRs, governance, lifecycle, and project documentation. Do not treat repository files as the documentation source of truth.
 
 ## Runtime Environment
 
@@ -67,8 +72,7 @@ Runtime metadata (owner, project/field/option IDs, worktree root, documentation 
 
 - `AGENTS.md` — This file — canonical agent guidance for this repository
 - `.github-project.env` — the sole committed project config source: `ANT_TEAM_*` runtime exports seeded and updated by project initialization — source it for GitHub, documentation, and worktree metadata
-- `.opencode/opencode.json` — OpenCode runtime config (worktree permission, agents, providers)
-- `.opencode/skills/github-issues-projects-cli/` — GitHub Projects CLI helper scripts (target the canonical `Workflow State` field)
-- `.opencode/skills/do-task/` — Task worktree management scripts
-- `.opencode/skills/project-initialization/` — Re-initialization scripts (this skill)
-- `scripts/` — operational team scripts, installed to `~/.agents/scripts` by `scripts/init-company.sh` and referenced through `ANT_TEAM_SCRIPTS`
+- `.opencode/` — generated local OpenCode runtime configuration. Recreate it with `scripts/init-company.sh`; do not treat it as the editable source.
+- `templates/opencode/` — canonical editable OpenCode configuration, commands, and skill source. `scripts/init-company.sh` installs it to `.opencode/` and `~/.config/opencode/`, and syncs its skills to `~/.agents/skills/`.
+- `templates/scripts/` — canonical editable operational script source installed to `~/.agents/scripts`.
+- `scripts/` — company installation and managed-skill synchronization entrypoints

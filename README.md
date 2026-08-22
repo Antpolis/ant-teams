@@ -8,8 +8,7 @@ This repo contains the agentic delivery workflow for this company: project initi
 - GitHub Issues are the canonical execution task records
 - The GitHub Project `Workflow State` field is the canonical workflow board
 - GitHub issue comments and PR comments carry only final decisions, status, closure, and code-review results
-- The central Obsidian project folder is the canonical full agent communication and role-memory record
-- Repository docs (`docs/`) hold code-adjacent guidance: canonical specs, architecture, ADRs, GOV docs, and runbooks
+- The central Obsidian project folder is the canonical documentation, full agent communication, and role-memory record
 
 ## Workflow State Model
 
@@ -22,7 +21,7 @@ Exception states:
 - `Need attentions` — founder-only decision state, entered only after strategist and tech-lead review
 - `Blocked` — exception state; any state may enter, typically `In Progress` or `In Review`
 
-Tech-lead is the only role that merges. After merge, tech-lead owns cleanup: removing the task worktree and local branch once they are no longer needed for review, rollback, or follow-up fixes, using `scripts/cleanup-task-worktree.sh`.
+Tech-lead is the only role that merges. After merge, tech-lead owns cleanup: removing the task worktree and local branch once they are no longer needed for review, rollback, or follow-up fixes, using `$ANT_TEAM_SCRIPTS/cleanup-task-worktree.sh`.
 
 ## Roles
 
@@ -34,11 +33,11 @@ Tech-lead is the only role that merges. After merge, tech-lead owns cleanup: rem
 
 ## Commands
 
-Slash commands live in `.opencode/commands/` and are installed to `~/.config/opencode/commands`:
+Slash command sources live in `templates/opencode/commands/` and are installed to `.opencode/commands/` and `~/.config/opencode/commands`:
 
 - `deliver` — run the full spec, architecture, planning, development, review, and validation flow
 - `new-spec` — collaborative spec shaping with founder, strategist, and tech-lead, then GitHub milestone and task setup
-- `sync-spec` — sync local specs and plans into GitHub milestones and task issues
+- `sync-spec` — sync Obsidian specs and plans into GitHub milestones and task issues
 - `plan-sprint` — review attention items and milestones with the founder to choose the next sprint issues
 - `sprint-clean` — reconcile recent delivered work against specs, tasks, board state, and docs before sprint planning
 - `do-tasks` — continue or finish existing approved tasks
@@ -46,8 +45,8 @@ Slash commands live in `.opencode/commands/` and are installed to `~/.config/ope
 
 ## Start Here
 
-1. Sync company config with `scripts/init-company.sh` (installs `.opencode/` to `~/.config/opencode`, repository-owned skills to `~/.agents/skills/`, and team scripts to `~/.agents/scripts`; `scripts/init-company.sh` and `scripts/init-company.sh` are aliases).
-2. In a project repo, run `scripts/init-project.sh` (or the underlying `scripts/init-project.sh`) to copy project docs, skills, and `AGENTS.md`, and to seed `.github-project.env`.
+1. Sync company config with `scripts/init-company.sh` (installs `templates/opencode/` to `.opencode/` and `~/.config/opencode`, repository-owned skills to `~/.agents/skills/`, and team scripts to `~/.agents/scripts`).
+2. In a project repo, run `"$ANT_TEAM_SCRIPTS/init-project.sh"` to initialize the local agent runtime and seed `.github-project.env`.
 3. Restart opencode after any config changes.
 4. Source `./.github-project.env` before GitHub API/project operations, documentation access, or worktree operations.
 5. Run a delivery request with the `deliver` command, for example:
@@ -69,8 +68,8 @@ opencode deliver "add user activity reporting"
 
 ## Install Model
 
-- `scripts/init-company.sh` copies `.opencode/` into `~/.config/opencode` (the canonical OpenCode install), then runs `scripts/sync-managed-skills.sh`, a managed, non-destructive sync of repository-owned skills into `~/.agents/skills/`.
-- `scripts/init-project.sh` copies the company docs into a project repo and uses the global config; `scripts/init-project.sh` is the underlying initializer and also seeds/updates `.github-project.env` and ensures `opencode.json` or `opencode.jsonc` allows access to the issue-worktree root through `permission.external_directory`.
+- `scripts/init-company.sh` copies `templates/opencode/` into `.opencode/` and `~/.config/opencode`, then runs `scripts/sync-managed-skills.sh`, a managed, non-destructive sync of repository-owned skills into `~/.agents/skills/`.
+- `$ANT_TEAM_SCRIPTS/init-project.sh` initializes a project-local agent runtime, seeds or updates `.github-project.env`, and ensures `opencode.json` or `opencode.jsonc` allows access to the issue-worktree root through `permission.external_directory`.
 - Project initialization sets the default issue-worktree root to `~/Projects/worktree/<repo name>`.
 
 ### Managed Skill Mirror (`~/.agents/skills`)
@@ -80,29 +79,29 @@ opencode deliver "add user activity reporting"
 - Locally modified managed entries are preserved with a warning by default; `--force` is the only path to overwriting them.
 - `scripts/sync-managed-skills.sh --dry-run` previews planned actions without writing. There is no top-level `init-company.sh --dry-run`.
 
-See `docs/runbooks/RB-001-managed-skill-sync.md` for the operator runbook, and `docs/arch/ARCH-004-managed-skill-sync-architecture.md` plus `docs/spec/SPEC-002-managed-global-skill-sync-and-command-derived-skills.md` for the canonical architecture and spec.
+See the central Obsidian project folder for the managed-skill sync runbook, architecture, and specification.
 
 ## Worktree Rule
 
 - Prefer one dedicated git worktree per active issue so multiple tasks can run in parallel safely; create it with `"$ANT_TEAM_SCRIPTS/create-task-branch.sh"`.
 - Reuse the existing issue worktree for normal continuation work.
-- After the issue PR is merged or the task is explicitly abandoned, run `scripts/cleanup-task-worktree.sh` (tech-lead owns post-merge cleanup).
+- After the issue PR is merged or the task is explicitly abandoned, run `$ANT_TEAM_SCRIPTS/cleanup-task-worktree.sh` (tech-lead owns post-merge cleanup).
 
 ## Where The Workflow Lives
 
-- `.opencode/opencode.json` — project config source used by the installer, including inline agent definitions
-- `.opencode/skills/` — reusable workflow skills
-- `.opencode/commands/` — slash commands for the TUI
+- `templates/opencode/` — canonical editable OpenCode configuration, skills, and command source
+- `.opencode/` — generated local OpenCode runtime; recreate it with `scripts/init-company.sh`
+- `templates/scripts/` — canonical editable team-script source installed to `~/.agents/scripts`
 - `.github/ISSUE_TEMPLATE/task.yml` — execution-task issue template (tech-lead owned)
 - `.github-project.env` — sole committed project config source (`ANT_TEAM_*` runtime exports)
-- `docs/` — code-adjacent guidance: architecture decisions, specs, runbooks, and the document index
-- `scripts/` — current operational scripts (company sync, project initialization, worktree helpers, the centralized `gh_project_helper.sh` wrapper, `validate-agents-md.sh`)
+- The central Obsidian project folder — canonical product, architecture, governance, runbook, and project documentation
+- `scripts/` — company installation and managed-skill synchronization entrypoints
 
 ## First Useful Commands
 
 ```text
 scripts/init-company.sh
-scripts/init-project.sh
+"$ANT_TEAM_SCRIPTS/init-project.sh"
 opencode deliver "<your request>"
-bash scripts/validate-agents-md.sh AGENTS.md
+bash templates/scripts/validate-agents-md.sh AGENTS.md
 ```
