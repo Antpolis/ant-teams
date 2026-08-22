@@ -22,8 +22,8 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SOURCE_SKILLS_DIR="$REPO_ROOT/.opencode/skills"
-SOURCE_COMMANDS_DIR="$REPO_ROOT/.opencode/commands"
+SOURCE_SKILLS_DIR="$REPO_ROOT/templates/opencode/skills"
+SOURCE_COMMANDS_DIR="$REPO_ROOT/templates/opencode/commands"
 
 # Exit codes (CLI-1.2)
 EX_OK=0
@@ -523,7 +523,7 @@ SKILL_NAMES_RAW="$TEMP_DIR/skill_names_raw.txt"
     while IFS= read -r src_abs; do
       rel="${src_abs#"$skill_dir"}"
       printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
-        "$name" "source_skill" ".opencode/skills/$name/" "$rel" ".opencode/skills/$name/$rel" "$src_abs"
+        "$name" "source_skill" "templates/opencode/skills/$name/" "$rel" "templates/opencode/skills/$name/$rel" "$src_abs"
     done < <(find "$skill_dir" -type f -not -name '.gitignore')
   done
 } >> "$SOURCE_FILES_TSV"

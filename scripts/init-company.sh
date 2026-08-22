@@ -22,7 +22,7 @@ USAGE
 
 script_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source_dir="$script_root/.opencode"
+source_dir="$script_root/templates/opencode"
 target_dir="${OPENCODE_CONFIG_DIR:-$HOME/.config/opencode}"
 agents_dir="${HOME%/}/.agents"
 team_scripts_dir="$agents_dir/scripts"
@@ -30,7 +30,7 @@ team_scripts_dir="$agents_dir/scripts"
 sync_team_scripts() {
   rm -rf "$team_scripts_dir"
   mkdir -p "$agents_dir"
-  cp -R "$script_root/scripts" "$team_scripts_dir"
+  cp -R "$script_root/templates/scripts" "$team_scripts_dir"
   chmod 0755 "$team_scripts_dir"/*.sh 2>/dev/null || true
 
   local env_line='export ANT_TEAM_SCRIPTS="$HOME/.agents/scripts"'
