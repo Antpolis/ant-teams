@@ -33,7 +33,7 @@ Produce:
 - rollout or validation notes
 - handoff notes for tech-lead or builder
 
-If shaping is happening inside the GitHub delivery workflow, also produce a durable GitHub-ready summary of the shaping discussion so the next role can continue without chat context.
+If shaping is happening inside the GitHub delivery workflow, also record the shaping discussion in the central Obsidian communication record (see the agent-communication-log skill) so the next role can continue without chat context.
 
 ## Scope Rules
 
@@ -56,5 +56,5 @@ Escalate for more user input when:
 - optimize for speed to learning and practical delivery
 - do not write production code
 - do not add speculative scope to make the idea look impressive
-- if strategist and tech-lead discuss scope, tradeoffs, risks, or sequencing in-agent, write the resolved outcome back to the GitHub milestone or shaping issue as a concise durable comment
-- do not let meaningful shaping decisions live only in transient chat if the work will continue in GitHub
+- if strategist and tech-lead discuss scope, tradeoffs, risks, or sequencing in-agent, record the resolved outcome in the central Obsidian communication record and post only the concise final decision to the GitHub milestone or issue when one exists
+- do not let meaningful shaping decisions live only in transient chat if the work will continue in the delivery flow

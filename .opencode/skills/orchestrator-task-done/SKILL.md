@@ -15,6 +15,16 @@ Use do-task for the full queue-driving behavior before and around this decision 
 Use state-transitions, approval-or-escalation, and founder-escalation-preflight for board movement and escalation decisions.
 Use agent-communication-log and role-memory when durable context needs to be checked before routing the next step.
 
+## Optional Ponytail Checkpoint
+
+The orchestrator may use `ponytail-review`, `ponytail-audit`, and `ponytail-debt` as optional read-only cleanup checks after an issue reaches a local stopping point. These checks never replace queue reconciliation, required verification, reviewer approval, tech-lead merge authority, or founder-escalation rules, and they add no workflow state or approval gate.
+
+- Use `ponytail-review` for a task diff when complexity may affect whether the issue is truly settled.
+- Use `ponytail-audit` for broader spec or milestone cleanup when the queue is otherwise ready to continue or close.
+- Use `ponytail-debt` to surface deliberate simplification markers. Only `tech-lead` may turn warranted debt into a GitHub issue or defer task under the existing ownership rules.
+- If a result affects routing, completion, or a follow-up decision, record it in the relevant issue, PR, or milestone comments. Standalone reports do not block continuation.
+- Run this checkpoint only after higher-priority `Ready to Merge`, executable pending work, and `Need attentions` checks are handled; Ponytail must not become a reason to stop a runnable queue.
+
 ## Core Rule
 
 When one issue is done, blocked, or paused, the orchestrator must explicitly decide what happens to the rest of the queue before ending the pass.
@@ -36,10 +46,11 @@ Apply this order every time an issue leaves the active loop:
 3. Check whether any other issue is already pending and executable (`Ready`, `In Progress`, `In Review`).
 4. If yes, continue directly to that pending issue.
 5. If no pending executable issue exists, check whether any issue is in `Need attentions`.
-6. If a `Need attentions` issue exists, inspect the GitHub comment to determine the recipient:
-   - Internal: route to `strategist` for product/scope/prioritization ambiguity, or `tech-lead` for technical/architecture ambiguity.
+6. If a `Need attentions` issue exists, inspect the founder-addressed GitHub comment and the linked Obsidian communication event:
+   - `Need attentions` is founder-only: strategist and tech-lead review must already have been attempted and recorded before the issue entered this state.
+   - Confirm the founder decision is genuinely pending; if strategist or tech-lead resolution was actually still possible, route it back to that role instead.
    - Founder-facing: run `founder-escalation-preflight` then escalate if confirmed.
-7. After the responsible role responds, decide whether the issue can return to `Ready`, must move to `Blocked`, or truly needs founder escalation.
+7. After the founder responds, decide whether the issue can return to its prior state (`Ready`, `In Review`, or `Backlog`), must move to `Blocked`, or still needs the founder decision tracked.
 8. Only after `Ready to Merge`, pending issues, and `Need attentions` issues are all exhausted should the orchestrator consider ending the pass.
 
 ## Pending-Issue Rule
@@ -61,15 +72,17 @@ Do not pause the pass just because the previous issue required effort, produced 
 
 When no pending executable issue remains, inspect issues that need attention before ending the pass.
 
-Use this routing default:
+`Need attentions` is founder-only: it is entered only after strategist and tech-lead review have both been attempted. When you find an issue there:
 
-- send product meaning, scope cuts, success criteria, prioritization, or business tradeoff questions to `strategist`
-- send technical direction, sequencing, feasibility, architecture, or guardrail questions to `tech-lead`
+- confirm the founder decision is genuinely pending from the founder-addressed GitHub comment and the linked Obsidian communication event
+- if strategist or tech-lead resolution was actually still possible, route it back to that role and move the issue out of `Need attentions`
+- send any unresolved product meaning, scope cuts, success criteria, prioritization, or business tradeoff questions to `strategist` first
+- send any unresolved technical direction, sequencing, feasibility, architecture, or guardrail questions to `tech-lead` first
 
-If strategist or tech-lead can resolve the issue safely, record the durable guidance and return the issue to `Ready`.
-If they determine the issue is truly external or approval-bound, move it to `Blocked` or prepare escalation.
+If strategist or tech-lead can still resolve the issue safely, record the durable guidance and return the issue to its prior state.
+If they determine the issue is truly external or approval-bound, move it to `Blocked` or prepare the founder escalation.
 
-Do not escalate to the founder merely because `Need attentions` exists.
+Do not escalate to the founder merely because `Need attentions` exists, and do not leave an issue in `Need attentions` that either role could still resolve.
 
 ## Mid-Pass Escalation Rule
 

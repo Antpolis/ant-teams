@@ -11,8 +11,10 @@
 # always present, every claim traceable to inspection or operator input
 # (FR-5.3), and pre-existing-file handling with overwrite/merge/skip +
 # .bak.<ts> backup on --force (FR-5.5 / ERR-3.2).
-# T5 (issue #6): .github-project.json DM-1 schema extension is consumed
-# unchanged.
+# Env-only configuration contract (founder-confirmed 2026-08): the initializer
+# seeds and updates `.github-project.env` (ANT_TEAM_* exports) directly — it is
+# the sole committed project config source. There is no JSON config and no
+# JSON import/removal path.
 # T6 (issue #7): observability prefixes wired through every emit path (OBS-1),
 # true no-write --dry-run (OBS-2), pre-flight validation (ERR-1), atomic
 # write-temp-then-rename for every generated file (ERR-2.1), trap-based temp
@@ -24,10 +26,9 @@ set -euo pipefail
 
 # Bumped 0.1.0 → 0.2.0 for T2 (CLI expansion). Bumped 0.2.0 → 0.3.0 for T3
 # (AGENTS.md generation): the init now produces a tailored AGENTS.md whose
-# generation comment and initMeta.version carry this stamp per ARCH-003 /
-# DM-1.3. `ensure_github_project_config` (T5) consumes it on first init /
-# material merge. T6 (issue #7) keeps the schema stamp at 0.3.0 because no
-# DM-1/DM-2 field changes — only behavior (observability/dry-run/idempotency).
+# generation comment carries this stamp per ARCH-003 / DM-2.1. The env-only
+# configuration contract (2026-08) keeps the stamp at 0.3.0: the config
+# artifact changed shape (JSON → env), not the AGENTS.md contract.
 readonly INIT_PROJECT_VERSION="0.3.0"
 
 # --- T6 (issue #7): OBS-1.2 counters + ERR-2.3 trap-based temp cleanup -----
@@ -109,15 +110,16 @@ readonly REPO_ROLE_VALID_VALUES="service library infra monorepo-root tool docs o
 usage() {
   cat <<'USAGE'
 Usage:
-  ./.opencode/skills/project-initialization/scripts/init_project_docs.sh [options]
+  "$ANT_TEAM_SCRIPTS/init-project-docs.sh" [options]
 
 Copy the company docs into a project repo and create the local workflow-state
 folder structure. T2 (issue #3) adds interactive/noninteractive mode selection,
 env-var resolution, and full CLI-2 flag surface. T3 (issue #4) adds AGENTS.md
-generation. T5 (issue #6) extends .github-project.json to the DM-1 schema.
-T6 (issue #7) wires structured observability prefixes, true no-write --dry-run,
-pre-flight validation, atomic writes, trap-based temp cleanup, and content-
-level idempotency (--force reruns with identical inputs are no-ops).
+generation. T6 (issue #7) wires structured observability prefixes, true
+no-write --dry-run, pre-flight validation, atomic writes, trap-based temp
+cleanup, and content-level idempotency (--force reruns with identical inputs
+are no-ops). The env-only configuration contract (2026-08) makes
+.github-project.env the sole committed project config source.
 
 Mode (CLI-2.2):
   --interactive       Force interactive mode (prompts for AGENTS.md shaping).
@@ -140,7 +142,7 @@ Repository identity (FR-4.1):
                               fetched (SEC-1.3).
 
 GitHub Project (FR-4.1):
-  --github-owner OWNER        GitHub owner for .github-project.json.
+  --github-owner OWNER        GitHub owner recorded in .github-project.env.
   --github-project-number N   GitHub Project number (positive integer; e.g. 9).
 
 AGENTS.md shaping inputs (FR-4.1):
@@ -155,7 +157,6 @@ Behavior modifiers (CLI-2):
                               intact and creates no new .bak (TR-2.2).
   --merge                     Merge new content instead of overwriting.
                               Default: interactive=on, noninteractive=off.
-  --migrate-agent-md          Migrate legacy agent.md content (noninteractive).
   --skip-inspection           Skip repository inspection; use only provided
                               inputs. (FR-2 / CLI-2.3.)
   --dry-run                   Resolve and validate flags but suppress EVERY
@@ -175,16 +176,16 @@ flag, so explicit flags always win.
 
 Examples:
   # TTY default → interactive
-  ./.opencode/skills/project-initialization/scripts/init_project_docs.sh
+  "$ANT_TEAM_SCRIPTS/init-project-docs.sh"
 
   # Noninteractive, fully specified (AC-T2-002)
-  ./.opencode/skills/project-initialization/scripts/init_project_docs.sh \
+  "$ANT_TEAM_SCRIPTS/init-project-docs.sh" \
       --noninteractive \
       --name my-service --github-owner antpolis --github-project-number 9
 
   # Env var provides default; CLI flag overrides (AC-T2-004)
   INIT_PROJECT_GITHUB_OWNER=antpolis \
-      ./.opencode/skills/project-initialization/scripts/init_project_docs.sh \
+      "$ANT_TEAM_SCRIPTS/init-project-docs.sh" \
       --noninteractive --github-owner override \
       --name t --github-project-number 1
 USAGE
@@ -208,7 +209,7 @@ expand_path() {
 #   1. target project dir exists AND is a git repo (has .git/ or .git file)
 #   2. source repo (this checkout) contains .opencode/skills/
 #   3. node (≥18) is on PATH — required by ensure_opencode_config /
-#      ensure_github_project_config (OBS-3.2)
+#      ensure_project_runtime_env (OBS-3.2)
 #   4. coreutils cp/mkdir/cat/rm/mktemp are on PATH
 #
 # The .git/ existence check (NOT `git rev-parse`) is deliberate: the init
@@ -246,15 +247,15 @@ run_preflight() {
   # which functions require it so the operator knows why.
   if ! command -v node >/dev/null 2>&1; then
     echo "[error] node (≥18) is required but was not found on PATH." >&2
-    echo "[error] node is used by ensure_opencode_config and ensure_github_project_config" >&2
-    echo "[error] for JSON manipulation (OBS-3.2). Install node ≥18 and re-run." >&2
+    echo "[error] node is used by ensure_opencode_config and ensure_project_runtime_env" >&2
+    echo "[error] for config manipulation (OBS-3.2). Install node ≥18 and re-run." >&2
     exit 1
   fi
   local node_major
   node_major="$(node -e 'process.stdout.write(String(Number(process.versions.node.split(".")[0])||0))' 2>/dev/null || echo 0)"
   if [[ ! "$node_major" =~ ^[0-9]+$ || "$node_major" -lt 18 ]]; then
     echo "[error] node ≥18 is required (detected node v${node_major}.x)." >&2
-    echo "[error] ensure_opencode_config and ensure_github_project_config require node ≥18 (OBS-3.2)." >&2
+    echo "[error] ensure_opencode_config and ensure_project_runtime_env require node ≥18 (OBS-3.2)." >&2
     exit 1
   fi
 
@@ -618,7 +619,7 @@ NODE
 # T6 (issue #7) / ERR-2.1 atomic write helper. Writes CONTENT to TARGET via a
 # temp file in the SAME directory (same-filesystem atomic rename), then mv -f.
 # The temp path is registered with the EXIT trap so an interrupt between write
-# and rename is cleaned up (ERR-2.3). Used for opencode.json, .github-project.json,
+# and rename is cleaned up (ERR-2.3). Used for opencode.json, .github-project.env,
 # and AGENTS.md writes so every generated file shares the same atomic guarantee.
 write_file_atomic() {
   local target="$1"
@@ -799,284 +800,259 @@ copy_required_skills() {
   fi
 }
 
-# SPEC-001 T5 / ARCH-003 DM-1: extend `.github-project.json` to the canonical
-# schema (worktreeRoot, identity, boundaries, initMeta) additively. Existing
-# fields are NEVER removed or overwritten (FR-6.3, SEC-2.1, ARCH-003
-# guarantee 2: "strictly additive — new fields may be added but existing
-# required fields are never removed by the initializer").
+# --- Env-only project runtime configuration -------------------------------------
+# Founder-confirmed contract (2026-08): `.github-project.env` (ANT_TEAM_* shell
+# exports) is the SOLE committed project config source. The initializer seeds
+# and updates it DIRECTLY:
 #
-# The merge is computed in `node` as a single read-modify-write that writes
-# ONLY when the desired state differs structurally from the current state.
-# This is what makes AC-T5-005 / TR-2.1 (idempotent rerun produces no
-# changes) work: a no-op rerun leaves the file byte-for-byte identical,
-# including the `initMeta.generatedAt` timestamp from the prior write.
+#   - Fresh repo: seed the full canonical key set. Operator flags fill values
+#     where provided; the rest get clearly-marked placeholders the founder
+#     replaces with verified values (init has no network access and must not
+#     invent real-looking IDs).
+#   - Existing env: FOUNDER VALUES ARE PRESERVED. Only missing keys are filled
+#     (placeholders/defaults); the canonical header is normalized. Nothing the
+#     founder set is ever overwritten.
+#   - There is no JSON config and no legacy `.github-project.json`
+#     import/removal path — the env is the only config the initializer reads or
+#     writes.
+#   - ANT_TEAM_DOCS_PROJECT_NAME defaults to the detected git repository name
+#     (basename of the project root), never overriding a founder value.
 #
-# Identity/boundaries value resolution (issue guardrails + FR-8.5):
-#   - identity.name: opt_name (--name) → detected repo_name (basename) fallback
-#   - identity.description: opt_description, "" when not provided (T3 prompts
-#     will populate interactively; empty string is schema-valid per ARCH-003)
-#   - identity.role: opt_repo_role → "other" fallback (most generic enum value)
-#   - boundaries.owns: "" when not provided (T3 will populate via prompts)
-#   - boundaries.depends_on: ALWAYS [] at T5 scope — no --depends-on flag exists
-#     yet (CLI-2 / FR-4.1); all operator-provided triples route to related_repos
-#   - boundaries.related_repos: parsed from opt_related_repos triples, or []
+# The seed/update is computed in one `node` pass (node is already a hard
+# preflight requirement — no jq). Output is deterministic (no timestamps); an
+# unchanged env is never rewritten (stable mtime, byte-for-byte idempotent).
+#
+# Canonical Workflow State model: the nine option keys below (open, backlog,
+# need-attentions, ready, in-progress, in-review, ready-to-merge, blocked,
+# done) are the canonical state set, mirrored as constants in skills, tests,
+# and docs — not as a config field.
 #
 # Parameter contract:
-#   $1 project_dir       — target project root (already canonicalized)
-#   $2 worktree_root     — canonical absolute worktree root path
-#   $3 repo_name         — detected repo name (basename of project_dir); used
-#                          as identity.name fallback per FR-8.5 / guardrails
-#   $4 opt_name          — --name override (empty → fall back to detected)
-#   $5 opt_description   — --description override (empty → "")
-#   $6 opt_role          — --repo-role override (empty → "other")
-#   $7 opt_related_repos — --related-repos raw triples (empty → [])
-#   $8 version           — INIT_PROJECT_VERSION (for initMeta.version)
-ensure_github_project_config() {
+#   $1 project_dir                — target project root (canonicalized)
+#   $2 worktree_root              — canonical absolute worktree root path
+#   $3 repo_name                  — detected repo name (basename of project root)
+#   $4 opt_github_owner           — --github-owner seed value (may be empty)
+#   $5 opt_github_project_number  — --github-project-number seed value (may be empty)
+ensure_project_runtime_env() {
   local project_dir="$1"
   local worktree_root="$2"
   local repo_name="$3"
-  local opt_name="$4"
-  local opt_description="$5"
-  local opt_role="$6"
-  local opt_related_repos="$7"
-  local version="$8"
-  local config_path="$project_dir/.github-project.json"
+  local opt_github_owner="$4"
+  local opt_github_project_number="$5"
+  local env_path="$project_dir/.github-project.env"
 
-  local identity_name="${opt_name:-$repo_name}"
-  local identity_role="${opt_role:-other}"
-
-  # COMPUTE-ONLY node helper (no writes). It prints one of:
-  #   NO_CHANGE\n                     — structural state unchanged (idempotent)
-  #   CREATE\n<content>               — fresh file needed
-  #   UPDATE\n<content>               — additive merge needed
-  #   MALFORMED\n<message>            — existing file is unparseable
+  # COMPUTE-ONLY node helper (no writes). It prints:
+  #   line 1: DECISION <NO_CHANGE|CREATE|UPDATE>
+  #   line 2: ---
+  #   line 3+: desired env file content (always emitted; bash compares/writes)
   # Bash owns the atomic write + dry-run decision + EXIT-trap temp register
-  # (ERR-2.1 / ERR-2.3 / OBS-2). This mirrors ensure_opencode_config and
-  # keeps every generated file on the same atomic-write path.
+  # (ERR-2.1 / ERR-2.3 / OBS-2), mirroring ensure_opencode_config.
   local decision
   decision="$(node - \
-    "$config_path" \
+    "$env_path" \
     "$worktree_root" \
-    "$identity_name" \
-    "$opt_description" \
-    "$identity_role" \
-    "$opt_related_repos" \
-    "$version" <<'NODE'
+    "$repo_name" \
+    "$opt_github_owner" \
+    "$opt_github_project_number" <<'NODE'
 const fs = require("fs");
 
 const [
-  configPath,
+  envPath,
   worktreeRoot,
-  identityName,
-  identityDescription,
-  identityRole,
-  relatedReposRaw,
-  version,
+  repoName,
+  optOwner,
+  optProjectNumber,
 ] = process.argv.slice(2);
 
-// Parse `name:url:relationship,name:url:relationship,...` into the
-// boundaries.related_repos array. The first colon splits name from url; the
-// last colon splits url from relationship; everything in between is the url
-// field, stored opaque per SEC-1.3 (never fetched). Mirror the bash
-// validator's first/last-colon rule so node and bash agree on shape.
-function parseRelatedRepos(raw) {
-  if (!raw) return [];
-  const out = [];
-  for (const entry of raw.split(",")) {
-    if (!entry.trim()) continue;
-    const firstColon = entry.indexOf(":");
-    const lastColon = entry.lastIndexOf(":");
-    if (firstColon === -1 || lastColon === -1 || firstColon === lastColon) continue;
-    const name = entry.slice(0, firstColon);
-    const url = entry.slice(firstColon + 1, lastColon);
-    const relationship = entry.slice(lastColon + 1);
-    if (!name || !url || !relationship) continue;
-    out.push({ name, url, relationship });
+// jq @sh equivalent: single-quote a value for a sourceable shell file.
+const shq = (v) => "'" + String(v).replace(/'/g, "'\\''") + "'";
+const nonempty = (v) => v !== null && v !== undefined && String(v) !== "";
+
+// Option keys normalize to uppercase underscore variable-name fragments
+// (ASCII-only upcase; non-alphanumerics -> "_"), e.g. "in-progress" ->
+// IN_PROGRESS, "need-attentions" -> NEED_ATTENTIONS.
+const optKey = (k) =>
+  String(k).replace(/[a-z]/g, (c) => c.toUpperCase()).replace(/[^A-Z0-9]/g, "_");
+
+// --- parse the existing env (founder-owned values) ---------------------------
+// Recognized lines: export NAME='<single-quoted value>' (' escaped as '\'').
+// Unrecognized non-comment lines are preserved verbatim at the end so a
+// founder edit is never silently dropped on rewrite.
+const envOrder = [];
+const envMap = {};
+const foreignLines = [];
+if (fs.existsSync(envPath)) {
+  const raw = fs.readFileSync(envPath, "utf8");
+  for (const line of raw.split("\n")) {
+    const m = line.match(/^export ([A-Za-z0-9_]+)='(.*)'$/);
+    if (m) {
+      const name = m[1];
+      const value = m[2].replace(/'\\''/g, "'");
+      if (!(name in envMap)) {
+        envOrder.push(name);
+        envMap[name] = value;
+      }
+      continue;
+    }
+    const t = line.trim();
+    if (t !== "" && !t.startsWith("#")) foreignLines.push(line);
   }
-  return out;
 }
 
-const relatedRepos = parseRelatedRepos(relatedReposRaw);
-
-let parsed;
-let isNew = false;
-if (fs.existsSync(configPath)) {
-  // SEC-2.1 / ERR-2.1 spirit: abort cleanly BEFORE any mutation if the
-  // existing file is malformed. The bash contract for every validation
-  // failure in this script is a controlled `[error]`-prefixed stderr
-  // message + exit 1. Surface as a MALFORMED decision so bash can emit the
-  // same UX instead of leaking a Node SyntaxError stack trace. No write
-  // happens before this point, so the file is preserved byte-for-byte.
-  let raw;
-  try {
-    raw = fs.readFileSync(configPath, "utf8");
-  } catch (readErr) {
-    process.stdout.write("MALFORMED\nFailed to read " + configPath + ": " + readErr.message + "\n");
-    process.exit(0);
-  }
-  try {
-    parsed = JSON.parse(raw);
-  } catch (parseErr) {
-    process.stdout.write("MALFORMED\n" + parseErr.message + "\n");
-    process.exit(0);
-  }
-} else {
-  // Fresh repo: seed the operator-editable baseline fields (owner/project/
-  // fields/status_options) with placeholder values, exactly as the pre-T5
-  // implementation did. The new DM-1 fields (worktreeRoot/identity/
-  // boundaries/initMeta) are then added by the additive merge below, so a
-  // fresh-init file is complete on first write. The placeholders must be
-  // operator-replaced — they cannot be auto-detected without network access
-  // (ARCH-003 guarantee: init must not require network access).
-  parsed = {
-    owner: "your-github-owner",
-    owner_type: "org",
-    repo: "your-github-owner/your-repo",
-    project: { number: 1, id: "PVT_kwDOEXAMPLE" },
-    fields: { status: "PVTSSF_EXAMPLE" },
-    status_options: {
-      todo: "todo-option-id",
-      "in-progress": "in-progress-option-id",
-      "in-review": "in-review-option-id",
-      done: "done-option-id",
-    },
-  };
-  isNew = true;
-}
-
-// Deep-clone the current state so we never mutate the parsed input. The
-// desired state is built field-by-field against this clone; existing fields
-// are preserved verbatim (ARCH-003 guarantee 2 / SEC-2.1).
-const desired = JSON.parse(JSON.stringify(parsed));
-
-// worktreeRoot: required per DM-1; do NOT overwrite pre-existing explicit
-// value (FR-6.3: "The worktreeRoot default must not overwrite a pre-existing
-// explicit value").
-if (!desired.worktreeRoot) {
-  desired.worktreeRoot = worktreeRoot;
-}
-
-// identity block: required per DM-1; each field is additive-only.
-if (!desired.identity || typeof desired.identity !== "object" || Array.isArray(desired.identity)) {
-  desired.identity = {};
-}
-if (!desired.identity.name) {
-  desired.identity.name = identityName;
-}
-if (!desired.identity.description) {
-  desired.identity.description = identityDescription || "";
-}
-if (!desired.identity.role) {
-  desired.identity.role = identityRole;
-}
-
-// boundaries block: required per DM-1; each field is additive-only.
-// depends_on and related_repos MUST be [] when empty (FR-8.5 / AC-T5-007),
-// never absent — this lets agents distinguish "no relationships" from
-// "field missing/legacy file".
-if (!desired.boundaries || typeof desired.boundaries !== "object" || Array.isArray(desired.boundaries)) {
-  desired.boundaries = {};
-}
-if (!desired.boundaries.owns) {
-  desired.boundaries.owns = "";
-}
-if (!Array.isArray(desired.boundaries.depends_on)) {
-  desired.boundaries.depends_on = [];
-}
-if (!Array.isArray(desired.boundaries.related_repos)) {
-  // First init with operator-provided related-repos populates the array.
-  // Subsequent runs preserve whatever is already there (additive-only),
-  // so a re-run with different --related-repos does NOT overwrite.
-  desired.boundaries.related_repos = relatedRepos;
-}
-
-// initMeta block: required per DM-1; additive-only. generatedAt is a
-// write-time stamp set ONLY when bash is about to write — see below
-// (AC-T5-005 / TR-2.1 idempotency).
-if (!desired.initMeta || typeof desired.initMeta !== "object" || Array.isArray(desired.initMeta)) {
-  desired.initMeta = {};
-}
-if (!desired.initMeta.version) {
-  desired.initMeta.version = version;
-}
-
-// Idempotency: report NO_CHANGE when the structural state is unchanged.
-// Compare parsed vs desired with the volatile generatedAt field stripped
-// from both sides, so a true no-op rerun leaves the file (including its
-// existing generatedAt) byte-for-byte identical (AC-T5-005 / TR-2.1).
-const stripGeneratedAt = (obj) => {
-  const c = JSON.parse(JSON.stringify(obj));
-  if (c.initMeta && Object.prototype.hasOwnProperty.call(c.initMeta, "generatedAt")) {
-    delete c.initMeta.generatedAt;
-  }
-  return c;
+// first non-empty source wins: env (founder) -> operator flag ->
+// placeholder/default.
+const pick = (...sources) => {
+  for (const s of sources) if (nonempty(s)) return String(s);
+  return "";
 };
 
-const currentStructural = JSON.stringify(stripGeneratedAt(parsed), null, 2);
-const desiredStructural = JSON.stringify(stripGeneratedAt(desired), null, 2);
+// Canonical option key sets (mirrored in skills/tests/docs constants).
+// The legacy "Status" field and its STATUS_* env keys are retired: the board
+// is driven only by the Workflow State field and its options.
+const WORKFLOW_STATE_OPTION_KEYS = [
+  "open",
+  "backlog",
+  "need-attentions",
+  "ready",
+  "in-progress",
+  "in-review",
+  "ready-to-merge",
+  "blocked",
+  "done",
+];
 
-if (!isNew && currentStructural === desiredStructural) {
-  process.stdout.write("NO_CHANGE\n");
-  process.exit(0);
+const owner = pick(envMap.ANT_TEAM_GITHUB_OWNER, optOwner, "your-github-owner");
+const values = {};
+values.ANT_TEAM_GITHUB_OWNER = owner;
+values.ANT_TEAM_GITHUB_OWNER_TYPE = pick(envMap.ANT_TEAM_GITHUB_OWNER_TYPE, "org");
+values.ANT_TEAM_GITHUB_REPO = pick(envMap.ANT_TEAM_GITHUB_REPO, owner + "/" + repoName);
+values.ANT_TEAM_GITHUB_PROJECT_NUMBER = pick(envMap.ANT_TEAM_GITHUB_PROJECT_NUMBER, optProjectNumber, "1");
+values.ANT_TEAM_GITHUB_PROJECT_ID = pick(envMap.ANT_TEAM_GITHUB_PROJECT_ID, "PVT_kwDOEXAMPLE");
+values.ANT_TEAM_GITHUB_WORKFLOW_STATE_FIELD_ID = pick(envMap.ANT_TEAM_GITHUB_WORKFLOW_STATE_FIELD_ID, "workflow-state-field-id");
+
+// Option maps: canonical keys first (placeholders only when no founder value
+// exists anywhere), then any extra option entries the founder env carried, in
+// first-appearance order, deduplicated by variable name.
+const collectOptions = (envPrefix, canonicalKeys) => {
+  const out = [];
+  const emitted = new Set();
+  const varName = (key) => envPrefix + "_" + optKey(key) + "_ID";
+  for (const key of canonicalKeys) {
+    const name = varName(key);
+    const value = pick(envMap[name], key + "-option-id");
+    out.push([name, value]);
+    emitted.add(name);
+  }
+  // Founder-defined extra option entries in the existing env.
+  for (const name of envOrder) {
+    if (emitted.has(name)) continue;
+    if (name.startsWith(envPrefix + "_") && name.endsWith("_ID") && nonempty(envMap[name])) {
+      out.push([name, envMap[name]]);
+      emitted.add(name);
+    }
+  }
+  return out;
+};
+
+const workflowStateOptionLines = collectOptions("ANT_TEAM_GITHUB_WORKFLOW_STATE_OPTION", WORKFLOW_STATE_OPTION_KEYS);
+for (const [name, value] of workflowStateOptionLines) {
+  values[name] = value;
 }
 
-// Material change (or first creation). generatedAt is set in the desired
-// payload so the file carries "last material init write" once bash writes
-// it. The idempotency check above guarantees generatedAt only advances on a
-// true structural change, never on a no-op rerun (TR-2.1 / TR-2.2).
-desired.initMeta.generatedAt = new Date().toISOString();
-const verb = isNew ? "CREATE" : "UPDATE";
-process.stdout.write(verb + "\n" + JSON.stringify(desired, null, 2) + "\n");
+values.ANT_TEAM_WORKTREE_ROOT = pick(envMap.ANT_TEAM_WORKTREE_ROOT, worktreeRoot);
+// Documentation keys: projectName defaults to the detected git repo name;
+// vault/template/repository are founder-owned and omitted when unset.
+values.ANT_TEAM_DOCS_VAULT_PATH = pick(envMap.ANT_TEAM_DOCS_VAULT_PATH);
+values.ANT_TEAM_DOCS_PROJECT_NAME = pick(envMap.ANT_TEAM_DOCS_PROJECT_NAME, repoName);
+values.ANT_TEAM_DOCS_PROJECT_PATH_TEMPLATE = pick(envMap.ANT_TEAM_DOCS_PROJECT_PATH_TEMPLATE);
+values.ANT_TEAM_DOCS_REPOSITORY = pick(envMap.ANT_TEAM_DOCS_REPOSITORY);
+
+// Canonical output order (stable, deterministic).
+const orderedNames = [
+  "ANT_TEAM_GITHUB_OWNER",
+  "ANT_TEAM_GITHUB_OWNER_TYPE",
+  "ANT_TEAM_GITHUB_REPO",
+  "ANT_TEAM_GITHUB_PROJECT_NUMBER",
+  "ANT_TEAM_GITHUB_PROJECT_ID",
+  "ANT_TEAM_GITHUB_WORKFLOW_STATE_FIELD_ID",
+  ...workflowStateOptionLines.map(([n]) => n),
+  "ANT_TEAM_WORKTREE_ROOT",
+  "ANT_TEAM_DOCS_VAULT_PATH",
+  "ANT_TEAM_DOCS_PROJECT_NAME",
+  "ANT_TEAM_DOCS_PROJECT_PATH_TEMPLATE",
+  "ANT_TEAM_DOCS_REPOSITORY",
+];
+
+const lines = [];
+for (const name of orderedNames) {
+  const value = values[name];
+  if (nonempty(value)) lines.push("export " + name + "=" + shq(value));
+}
+// Derived resolved project path (first-occurrence placeholder resolution).
+if (nonempty(values.ANT_TEAM_DOCS_PROJECT_PATH_TEMPLATE) && nonempty(values.ANT_TEAM_DOCS_PROJECT_NAME)) {
+  const resolved = String(values.ANT_TEAM_DOCS_PROJECT_PATH_TEMPLATE).replace(
+    "<project-name>",
+    String(values.ANT_TEAM_DOCS_PROJECT_NAME)
+  );
+  lines.push("export ANT_TEAM_DOCS_PROJECT_PATH=" + shq(resolved));
+}
+// Preserve founder-added keys that are not part of the canonical set.
+const canonicalSet = new Set([...orderedNames, "ANT_TEAM_DOCS_PROJECT_PATH"]);
+for (const name of envOrder) {
+  if (!canonicalSet.has(name) && nonempty(envMap[name])) {
+    lines.push("export " + name + "=" + shq(envMap[name]));
+  }
+}
+
+const header =
+  "# Project runtime configuration (ANT_TEAM_* exports) — the sole committed project config source.\n" +
+    "# Seeded and updated by init-project: existing values are preserved, missing keys are filled.\n" +
+    "# Edit values directly; re-running init-project never overwrites a value already set here.\n" +
+    "# Safe to commit: shared project metadata only, no secrets.\n";
+
+const content = header + "\n" + lines.join("\n") + "\n" + (foreignLines.length ? foreignLines.join("\n") + "\n" : "");
+
+const existing = fs.existsSync(envPath) ? fs.readFileSync(envPath, "utf8") : null;
+const verdict = existing === null ? "CREATE" : existing === content ? "NO_CHANGE" : "UPDATE";
+
+process.stdout.write("DECISION " + verdict + "\n---\n" + content);
 NODE
   )"
   local node_status=$?
   if [[ "$node_status" -ne 0 ]]; then
-    echo "[error] .github-project.json merge helper exited $node_status" >&2
+    echo "[error] .github-project.env seed helper exited $node_status" >&2
     return 1
   fi
 
-  local first_line
-  first_line="$(printf '%s' "$decision" | sed -n '1p')"
+  local decision_line content
+  decision_line="$(printf '%s' "$decision" | sed -n '1p')"
+  content="$(printf '%s' "$decision" | sed -n '3,$p')"
+  content="${content%$'\n'}"
+  content="$content"$'\n'
 
-  case "$first_line" in
-    NO_CHANGE)
-      # Preserve the T5 message text verbatim (AC-T5-005 test asserts this
-      # exact substring); just add the OBS-1 [summary] prefix.
-      echo "[summary] No changes needed in .github-project.json"
-      return 0
-      ;;
-    MALFORMED)
-      local msg
-      msg="$(printf '%s' "$decision" | sed -n '2p')"
-      echo "[error] Malformed $config_path: $msg" >&2
-      echo "[error] Fix the JSON manually and re-run; init will not overwrite a broken file." >&2
-      exit 1
-      ;;
-    CREATE|UPDATE)
-      if [[ "${opt_dry_run:-0}" == "1" ]]; then
-        if [[ "$first_line" == "CREATE" ]]; then
-          echo "[would-write] .github-project.json (canonical DM-1 schema)"
-        else
-          echo "[would-write] .github-project.json (additive merge)"
-        fi
-        stat_would_write=$((stat_would_write + 1))
-        return 0
-      fi
-      local content
-      content="$(printf '%s' "$decision" | sed -n '2,$p')"
-      write_file_atomic "$config_path" "$content"
-      if [[ "$first_line" == "CREATE" ]]; then
-        emit_write ".github-project.json (canonical DM-1 schema)"
-      else
-        emit_merge ".github-project.json (additive)"
-      fi
-      return 0
-      ;;
+  local verdict="${decision_line#DECISION }"
+  case "$verdict" in
+    NO_CHANGE|CREATE|UPDATE) ;;
     *)
-      echo "[error] Unexpected decision from .github-project.json helper: '$first_line'" >&2
+      echo "[error] Unexpected decision from .github-project.env helper: '$decision_line'" >&2
       exit 1
       ;;
   esac
+
+  if [[ "$verdict" == "NO_CHANGE" ]]; then
+    echo "[summary] .github-project.env already up to date"
+    stat_skipped=$((stat_skipped + 1))
+  elif [[ "${opt_dry_run:-0}" == "1" ]]; then
+    echo "[would-write] .github-project.env (ANT_TEAM_* runtime config)"
+    stat_would_write=$((stat_would_write + 1))
+  else
+    write_file_atomic "$env_path" "$content"
+    if [[ "$verdict" == "CREATE" ]]; then
+      emit_write ".github-project.env (ANT_TEAM_* runtime config)"
+    else
+      emit_merge ".github-project.env (missing keys filled; founder values preserved)"
+    fi
+  fi
 }
 
 # ===========================================================================
@@ -1154,8 +1130,8 @@ display_inspection_summary() {
     if (cicd.length) parts.push("ci/cd: " + cicd.join(", "));
     const ag = list(data.agent_guidance);
     if (ag.length) parts.push("existing agent guidance: " + ag.join(", "));
-    const gh = data.github_project_config && data.github_project_config.observed ? "yes" : "no";
-    parts.push("existing .github-project.json: " + gh);
+    const gh = data.github_project_env && data.github_project_env.observed ? "yes" : "no";
+    parts.push("existing .github-project.env: " + gh);
     const amb = Array.isArray(data.ambiguities) ? data.ambiguities : [];
     if (amb.length) parts.push("ambiguities: " + amb.length);
     if (!parts.length) parts.push("no inspection signals detected; AGENTS.md will be built from operator input");
@@ -1218,21 +1194,27 @@ compute_prompt_defaults() {
       } catch (_e) { /* malformed Makefile — skip */ }
     }
 
-    // FR-3.2 row 6 default: from existing .github-project.json. Placeholder
-    // values from a fresh init (owner="your-github-owner", number=1) are
-    // treated as "no real default" so AGENTS.md omits the section unless the
-    // operator provides real input.
+    // FR-3.2 row 6 default: from the existing .github-project.env (the sole
+    // project config source). Placeholder values from a fresh init
+    // (owner="your-github-owner", number=1) are treated as "no real default"
+    // so AGENTS.md omits the section unless the operator provides real input.
     let ghOwner = "";
     let ghProjectNumber = "";
-    const ghPath = path.join(projectDir, ".github-project.json");
-    if (fs.existsSync(ghPath)) {
+    const envPath = path.join(projectDir, ".github-project.env");
+    if (fs.existsSync(envPath)) {
       try {
-        const gh = JSON.parse(fs.readFileSync(ghPath, "utf8"));
-        if (gh.owner && gh.owner !== "your-github-owner") ghOwner = String(gh.owner);
-        if (gh.project && gh.project.number && gh.project.number !== 1) {
-          ghProjectNumber = String(gh.project.number);
+        const envVars = {};
+        for (const line of fs.readFileSync(envPath, "utf8").split("\n")) {
+          const m = line.match(/^export ([A-Za-z0-9_]+)='(.*)'$/);
+          if (m) envVars[m[1]] = m[2].replace(/'\\''/g, "'");
         }
-      } catch (_e) { /* malformed — skip */ }
+        if (envVars.ANT_TEAM_GITHUB_OWNER && envVars.ANT_TEAM_GITHUB_OWNER !== "your-github-owner") {
+          ghOwner = envVars.ANT_TEAM_GITHUB_OWNER;
+        }
+        if (envVars.ANT_TEAM_GITHUB_PROJECT_NUMBER && envVars.ANT_TEAM_GITHUB_PROJECT_NUMBER !== "1") {
+          ghProjectNumber = envVars.ANT_TEAM_GITHUB_PROJECT_NUMBER;
+        }
+      } catch (_e) { /* unreadable env — skip */ }
     }
 
     const defaults = {
@@ -1509,14 +1491,19 @@ generate_agents_md_content() {
       let vaultPath = "";
       let projectPath = "";
       try {
-        const cfgPath = path.join(projectDir, ".github-project.json");
-        const cfg = JSON.parse(fs.readFileSync(cfgPath, "utf8"));
-        vaultPath = cfg.documentation?.vaultPath || "";
-        projectPath = cfg.documentation?.projectPathTemplate || "";
-      } catch (_e) { /* config may not exist during generation */ }
+        // Read the runtime env (the sole project config source) for the
+        // documentation routing values.
+        const envVars = {};
+        for (const line of fs.readFileSync(path.join(projectDir, ".github-project.env"), "utf8").split("\n")) {
+          const m = line.match(/^export ([A-Za-z0-9_]+)='(.*)'$/);
+          if (m) envVars[m[1]] = m[2].replace(/'\\''/g, "'");
+        }
+        vaultPath = envVars.ANT_TEAM_DOCS_VAULT_PATH || "";
+        projectPath = envVars.ANT_TEAM_DOCS_PROJECT_PATH || envVars.ANT_TEAM_DOCS_PROJECT_PATH_TEMPLATE || "";
+      } catch (_e) { /* env may not exist during generation */ }
       const lines = [];
       if (vaultPath) lines.push(`Central Obsidian documentation vault: \`${vaultPath}\``);
-      if (projectPath) lines.push(`Project documentation: \`${projectPath}\``);
+      if (projectPath) lines.push(`Project documentation path: \`${projectPath}\``);
       lines.push("Product documentation is stored in the central Obsidian vault; this repository keeps only code-adjacent guidance.");
       sections.push({ heading: "Documentation", body: lines.join("\n") });
     }
@@ -1545,12 +1532,22 @@ generate_agents_md_content() {
       }
       const artifacts = [
         { p: "AGENTS.md", d: "This file — canonical agent guidance for this repository" },
-        { p: ".github-project.json", d: "GitHub workflow metadata and multi-repo identity" },
+      ];
+      // Listed only when it exists on disk: under --dry-run the env is not
+      // written yet, and every listed path must exist
+      // (validate-agents-md.sh AC-T8-006).
+      if (fs.existsSync(path.join(projectDir, ".github-project.env"))) {
+        artifacts.push({
+          p: ".github-project.env",
+          d: "ANT_TEAM_* runtime exports — the sole project config source; source it for GitHub, documentation, and worktree metadata",
+        });
+      }
+      artifacts.push(
         { p: ocPath, d: "OpenCode runtime config (worktree permission, agents, providers)" },
         { p: ".opencode/skills/github-issues-projects-cli/", d: "GitHub Projects CLI helper scripts" },
         { p: ".opencode/skills/do-task/", d: "Task worktree management scripts" },
         { p: ".opencode/skills/project-initialization/", d: "Re-initialization scripts (this skill)" },
-      ];
+      );
       sections.push({ heading: "Local Configuration Files", body: artifacts.map((a) => `- \`${a.p}\` — ${a.d}`).join("\n") });
     }
 
@@ -1737,7 +1734,6 @@ opt_scratch_dir="${INIT_PROJECT_SCRATCH_DIR:-}"
 
 # New T2 boolean flags (0/1; empty / "0" / absent = off). Normalize absent → 0.
 opt_force="${INIT_PROJECT_FORCE:-0}"
-opt_migrate_agent_md="${INIT_PROJECT_MIGRATE_AGENT_MD:-0}"
 opt_skip_inspection="${INIT_PROJECT_SKIP_INSPECTION:-0}"
 opt_dry_run="${INIT_PROJECT_DRY_RUN:-0}"
 
@@ -1800,9 +1796,6 @@ while [[ $# -gt 0 ]]; do
       ;;
     --merge)
       opt_merge=1; shift
-      ;;
-    --migrate-agent-md)
-      opt_migrate_agent_md=1; shift
       ;;
     --skip-inspection)
       opt_skip_inspection=1; shift
@@ -1931,22 +1924,40 @@ if [[ "${opt_dry_run:-0}" == "1" ]]; then
 else
   mkdir -p "$worktree_root"
 fi
-ensure_github_project_config \
+ensure_project_runtime_env \
   "$project_dir" \
   "$worktree_root" \
   "$repo_name" \
-  "$opt_name" \
-  "$opt_description" \
-  "$opt_repo_role" \
-  "$opt_related_repos" \
-  "$INIT_PROJECT_VERSION"
+  "$opt_github_owner" \
+  "$opt_github_project_number"
 ensure_opencode_config "$project_dir" "$worktree_root"
 copy_required_skills "$project_dir" "$repo_root"
+
+# --- Local docs root (CLI-1 --docs-root contract) ----------------------------
+# Regression fix (2026-08-22 review finding, AC-T2-005a): the central-Obsidian
+# routing change removed local docs creation entirely, breaking the CLI-1
+# --docs-root contract. Restore the minimal honoring: create ONLY the
+# requested docs root directory. No scaffold is copied — product documentation
+# still lives in the central Obsidian vault (see the routing section below);
+# this directory is the repository's code-adjacent docs area.
+if [[ "${opt_dry_run:-0}" == "1" ]]; then
+  echo "[would-write] local docs root $project_dir/$docs_root (mkdir -p)"
+  stat_would_write=$((stat_would_write + 1))
+else
+  if [[ -d "$project_dir/$docs_root" ]]; then
+    echo "[summary] Local docs root $docs_root already exists; no changes needed"
+    stat_skipped=$((stat_skipped + 1))
+  else
+    mkdir -p "$project_dir/$docs_root"
+    emit_write "$docs_root/ (local docs root)"
+  fi
+fi
 
 # --- Central Obsidian documentation routing -----------------------------------
 # Product documentation is not copied or scaffolded into project repositories.
 # The target repository receives only AGENTS.md guidance pointing to the
-# project-specific path from .github-project.json.documentation.
+# project-specific path resolved from the ANT_TEAM_DOCS_* exports in
+# .github-project.env.
 if [[ "${opt_dry_run:-0}" == "1" ]]; then
   echo "[would-write] central Obsidian documentation routing in AGENTS.md"
   stat_would_write=$((stat_would_write + 1))

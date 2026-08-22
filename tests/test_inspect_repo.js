@@ -279,8 +279,8 @@ function testAcT1002BareRepo() {
       assert.deepStrictEqual(actual[c].observed, [], `${c}.observed=${JSON.stringify(actual[c].observed)}`);
     });
   }
-  check('AC-T1-002: github_project_config.observed false', () => {
-    assert.strictEqual(actual.github_project_config.observed, false);
+  check('AC-T1-002: github_project_env.observed false', () => {
+    assert.strictEqual(actual.github_project_env.observed, false);
   });
   check('AC-T1-002: ambiguities empty', () => {
     assert.deepStrictEqual(actual.ambiguities, []);
@@ -319,8 +319,8 @@ function testAcT1004LegacyInit() {
       `agent_guidance=${JSON.stringify(actual.agent_guidance.observed)}`
     );
   });
-  check('AC-T1-004: .github-project.json detected', () => {
-    assert.strictEqual(actual.github_project_config.observed, true);
+  check('AC-T1-004: .github-project.env not detected (no env file)', () => {
+    assert.strictEqual(actual.github_project_env.observed, false);
   });
   check('AC-T1-004: .opencode/opencode.json detected', () => {
     assert.ok(

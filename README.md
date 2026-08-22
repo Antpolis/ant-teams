@@ -1,178 +1,108 @@
-# one-person-company
+# ant-teams
 
-This repo contains the agentic delivery workflow for this company.
+This repo contains the agentic delivery workflow for this company: project initialization, agent skills, and the GitHub-based multi-agent delivery pipeline.
 
-The workflow is GitHub-first and GitHub-only for task execution:
+## Record Split
 
-- repository docs hold the canonical spec and architecture guidance
-- GitHub Milestones hold spec-level tracking
-- GitHub Issues are the canonical task records
-- GitHub Project status is the canonical workflow board
-- GitHub issue comments and PR comments are the canonical handoff and review log
+- GitHub Milestones are spec-level delivery containers
+- GitHub Issues are the canonical execution task records
+- The GitHub Project `Workflow State` field is the canonical workflow board
+- GitHub issue comments and PR comments carry only final decisions, status, closure, and code-review results
+- The central Obsidian project folder is the canonical full agent communication and role-memory record
+- Repository docs (`docs/`) hold code-adjacent guidance: canonical specs, architecture, ADRs, GOV docs, and runbooks
+
+## Workflow State Model
+
+Canonical happy path:
+
+`Open` -> `Backlog` -> `Ready` -> `In Progress` -> `In Review` -> `Ready to Merge` -> `Done`
+
+Exception states:
+
+- `Need attentions` — founder-only decision state, entered only after strategist and tech-lead review
+- `Blocked` — exception state; any state may enter, typically `In Progress` or `In Review`
+
+Tech-lead is the only role that merges. After merge, tech-lead owns cleanup: removing the task worktree and local branch once they are no longer needed for review, rollback, or follow-up fixes, using `scripts/cleanup-task-worktree.sh`.
+
+## Roles
+
+- `orchestrator` — owns queue-driven execution orchestration across the roles
+- `strategist` — challenges new ideas, sharpens them into practical MVPs, prepares implementation-ready specs
+- `tech-lead` — verifies technical feasibility, shapes architecture and sequencing, sets builder guardrails, owns milestones, issues, merge, and cleanup
+- `builder` — implements approved work with focused code changes and verification
+- `reviewer` — reviews builder output for KISS, separation-of-concerns, and placement violations, plus lightweight smoke verification
+
+## Commands
+
+Slash commands live in `.opencode/commands/` and are installed to `~/.config/opencode/commands`:
+
+- `deliver` — run the full spec, architecture, planning, development, review, and validation flow
+- `new-spec` — collaborative spec shaping with founder, strategist, and tech-lead, then GitHub milestone and task setup
+- `sync-spec` — sync local specs and plans into GitHub milestones and task issues
+- `plan-sprint` — review attention items and milestones with the founder to choose the next sprint issues
+- `sprint-clean` — reconcile recent delivered work against specs, tasks, board state, and docs before sprint planning
+- `do-tasks` — continue or finish existing approved tasks
+- `fix-bug` — investigate and fix bugs or regressions
 
 ## Start Here
 
-1. Sync company config with `scripts/sync-company.sh`.
-2. If you want only project docs plus global config, run `scripts/init-project.sh` in the project repo.
-3. `scripts/init-company.sh` and `scripts/update-company.sh` are aliases to `scripts/sync-company.sh`.
-4. Restart opencode after any config changes.
-5. Run a delivery request with the `deliver` command.
-
-## Install Model
-
-- `scripts/sync-company.sh` copies `.opencode/` into `~/.config/opencode` by default (the canonical OpenCode install), then runs a managed, non-destructive sync of repository-owned skills into `~/.agents/skills/`.
-- `scripts/init-company.sh` and `scripts/update-company.sh` both run `scripts/sync-company.sh`.
-- The global install at `~/.config/opencode` includes `tools/`, `skills/`, `plugins/`, `scripts/`, `docs/`, and `opencode.json`.
-- `scripts/init-project.sh` copies the company docs into a project repo and uses the global config.
-- `scripts/init-project-docs.sh` is the underlying project docs initializer.
-- `scripts/init-project-docs.sh` also ensures `.github-project.json` stores the default issue-worktree root.
-- `scripts/init-project-docs.sh` also ensures `opencode.json` or `opencode.jsonc` allows access to the issue-worktree root through `permission.external_directory`.
-- `scripts/update-company.sh` refreshes the installed company config from this source tree.
-- `.opencode/commands/` holds the slash commands and is copied to `~/.config/opencode/commands`.
-- Project docs are local overrides for repo-specific architecture and workflow state.
-- Global docs act as enterprise defaults.
-- Project docs override global architecture guidance when both exist.
-- When using the global workflow scripts for a project, run them from the project repo and set `DOC_ROOT=docs` (or `DOC_ROOT=.docs`) so they target the local project tree.
-- Project initialization sets the default issue-worktree root to `~/Projects/worktree/<repo name>`.
-
-### Managed Skill Mirror (`~/.agents/skills`)
-
-After the canonical install, `scripts/sync-company.sh` runs `scripts/sync-managed-skills.sh`, which maintains a managed, non-destructive mirror of repository-owned skills at `~/.agents/skills/` for agent runtimes that consume that directory. This mirror is distinct from the canonical `~/.config/opencode` install:
-
-- The canonical target `~/.config/opencode` is repo-owned and fully replaced on each sync.
-- The managed target `~/.agents/skills/` is manifest-tracked: only entries recorded in `~/.agents/skills/.manifest.json` are managed. Unmanaged sibling content is never touched.
-- The mirror contains 34 managed entries: 26 source skill directories (full copy) and 8 command-derived skills generated from `.opencode/commands/<name>.md` into `<name>/SKILL.md` using the exact command name.
-- Locally modified managed entries are preserved with a warning by default; `--force` is the only path to overwriting them.
-- `scripts/sync-managed-skills.sh --dry-run` previews planned actions without writing. There is no top-level `sync-company.sh --dry-run`.
-
-See `docs/runbooks/RB-001-managed-skill-sync.md` for the operator runbook, and `docs/arch/ARCH-004-managed-skill-sync-architecture.md` plus `docs/spec/SPEC-002-managed-global-skill-sync-and-command-derived-skills.md` for the canonical architecture and spec.
-
-Example:
+1. Sync company config with `scripts/sync-company.sh` (installs `.opencode/` to `~/.config/opencode`, repository-owned skills to `~/.agents/skills/`, and team scripts to `~/.agents/scripts`; `scripts/init-company.sh` and `scripts/update-company.sh` are aliases).
+2. In a project repo, run `scripts/init-project.sh` (or the underlying `scripts/init-project-docs.sh`) to copy project docs, skills, and `AGENTS.md`, and to seed `.github-project.env`.
+3. Restart opencode after any config changes.
+4. Source `./.github-project.env` before GitHub API/project operations, documentation access, or worktree operations.
+5. Run a delivery request with the `deliver` command, for example:
 
 ```text
 opencode deliver "add user activity reporting"
 ```
 
-## What It Does
+## Environment-Only Project Config
 
-The workflow runs through:
+`.github-project.env` is the sole committed project config source. It holds `ANT_TEAM_*` runtime exports seeded and updated by project initialization:
 
-- product owner research and spec writing
-- CPO review
-- CTO review
-- architecture review
-- task planning
-- implementation
-- code review
-- QA smoke
+- GitHub owner, repo, project number and ID
+- the canonical `Workflow State` field ID and the nine state option IDs
+- the default issue-worktree root (`ANT_TEAM_WORKTREE_ROOT`; expand a literal `~` against `$HOME` before use)
+- the central Obsidian vault and project documentation paths (`ANT_TEAM_DOCS_*`)
 
-## Work Modes
+There is no `.github-project.json` and no other runtime config file. Edit the env values directly; re-running project initialization preserves values already set and only fills missing keys.
 
-### 1. Start a New Spec
+## Install Model
 
-Use this when the request changes product direction, architecture, or scope.
+- `scripts/sync-company.sh` copies `.opencode/` into `~/.config/opencode` (the canonical OpenCode install), then runs `scripts/sync-managed-skills.sh`, a managed, non-destructive sync of repository-owned skills into `~/.agents/skills/`.
+- `scripts/init-project.sh` copies the company docs into a project repo and uses the global config; `scripts/init-project-docs.sh` is the underlying initializer and also seeds/updates `.github-project.env` and ensures `opencode.json` or `opencode.jsonc` allows access to the issue-worktree root through `permission.external_directory`.
+- Project initialization sets the default issue-worktree root to `~/Projects/worktree/<repo name>`.
 
-```text
-opencode create-spec "<new request>"
-```
+### Managed Skill Mirror (`~/.agents/skills`)
 
-### Command Shortcuts
+- The canonical target `~/.config/opencode` is repo-owned and fully replaced on each sync.
+- The managed target `~/.agents/skills/` is manifest-tracked: only entries recorded in `~/.agents/skills/.manifest.json` are managed. Unmanaged sibling content is never touched.
+- Locally modified managed entries are preserved with a warning by default; `--force` is the only path to overwriting them.
+- `scripts/sync-managed-skills.sh --dry-run` previews planned actions without writing. There is no top-level `sync-company.sh --dry-run`.
 
+See `docs/runbooks/RB-001-managed-skill-sync.md` for the operator runbook, and `docs/arch/ARCH-004-managed-skill-sync-architecture.md` plus `docs/spec/SPEC-002-managed-global-skill-sync-and-command-derived-skills.md` for the canonical architecture and spec.
 
-- `create-spec` for a new spec
-- `deliver` for a new spec plus the full downstream workflow
-- `do-tasks` for continuing an existing approved task or finishing the remaining work
-- `fix-bug` for a regression, defect, or unexpected failure
-- `migrate` for converting legacy specs into the current project-management format
+## Worktree Rule
 
-Defaults:
-
-- `/create-spec` -> `product-owner`
-- `/deliver` -> `product-owner`
-- `/do-tasks` -> `developer`
-- `/fix-bug` -> `developer`
-- `/migrate` -> `delivery-manager`
-
-These are also available in the TUI as `/create-spec`, `/deliver`, `/do-tasks`, `/fix-bug`, and `/migrate`.
-
-### Scripts By Role
-
-- `product-owner`: `scripts/create-spec.sh`, `scripts/create-spec-tasks.sh`
-- `delivery-manager`: `scripts/create-task.sh`, `scripts/create-task-branch.sh`, `scripts/list-tasks.sh`, `scripts/update-task-status.sh`
-- `developer`: `scripts/create-task-branch.sh`, `scripts/cleanup-task-worktree.sh`, `scripts/record-pr.sh`, `scripts/record-review-result.sh`
-- `architect`: `scripts/record-loop-breaker.sh`, `scripts/create-defer-task.sh`, `scripts/close-task.sh`
-- `qa-smoke`: `scripts/record-qa-smoke.sh`
-- `workflow roles`: `scripts/update-document-index.sh`, `scripts/update-task-owner.sh`, `scripts/add-task-dependency.sh`, `scripts/record-merge.sh`, `scripts/record-pr-comment.sh`
-
-Examples:
-
-```text
-opencode create-spec "add user activity reporting"
-opencode do-tasks "TASK-014"
-opencode fix-bug "login fails after deploy"
-```
-
-### 2. Start On An Existing Task
-
-Use this when the spec already exists and the work is already split into tasks.
-
-- Open the GitHub issue for the task
-- Read the linked spec, relevant docs, issue comments, and PR discussion
-- Continue in the existing issue worktree and on the existing task branch
-- Update the GitHub Project status and GitHub handoff notes as you work
-
-### 3. Continue A Task
-
-Use this when you already started work and need to keep going on the same task.
-
-- Stay on the same task branch
-- Stay in the same issue worktree
-- Keep the GitHub Project status updated
-- Add new notes to the GitHub issue or PR
-
-### Worktree Rule
-
-- Prefer one dedicated git worktree per active issue so multiple tasks can run in parallel safely.
+- Prefer one dedicated git worktree per active issue so multiple tasks can run in parallel safely; create it with `scripts/create-task-branch.sh`.
 - Reuse the existing issue worktree for normal continuation work.
-- After the issue PR is merged or the task is explicitly abandoned, run `scripts/cleanup-task-worktree.sh` to remove the no-longer-needed worktree and local branch.
-
-### 4. Bug Found
-
-Use this when you find a regression or defect.
-
-- If it belongs to the current approved spec, add it to the existing GitHub task issue if it is in scope
-- If it changes scope or needs separate handling, create a new bug spec and GitHub task issue
-- If it blocks the current work, record it as a blocker in GitHub
+- After the issue PR is merged or the task is explicitly abandoned, run `scripts/cleanup-task-worktree.sh` (tech-lead owns post-merge cleanup).
 
 ## Where The Workflow Lives
 
-- `.opencode/opencode.json` - project config source used by the installer, including inline agent definitions and config
-- `.opencode/tools/` - TypeScript custom tools for workflow scripts (one file per tool)
-- `.opencode/skills/` - reusable workflow skills
-- `.opencode/plugins/` - config-time plugins
-- `.opencode/commands/` - slash commands for the TUI
-- `docs/` - architecture decisions and project-management docs
-- `scripts/` - workflow automation
-
-## Project Management Files
-
-- `docs/DOCUMENT_INDEX.md` - document index
-- `docs/arch/ARCH-001-skill-delegation.md` - skill delegation policy
-- `.github-project.json` - repository GitHub Project metadata used by the workflow
-- `docs/` - canonical specs, architecture, ADRs, GOV docs, and related repository guidance linked from GitHub workflow artifacts
-
-## Working Rule
-
-Use GitHub issues, milestones, project status, and PR comments as the operational workflow surface. Use repository docs for canonical specs and guidance, not as the task board or handoff log.
+- `.opencode/opencode.json` — project config source used by the installer, including inline agent definitions
+- `.opencode/skills/` — reusable workflow skills
+- `.opencode/commands/` — slash commands for the TUI
+- `.github/ISSUE_TEMPLATE/task.yml` — execution-task issue template (tech-lead owned)
+- `.github-project.env` — sole committed project config source (`ANT_TEAM_*` runtime exports)
+- `docs/` — code-adjacent guidance: architecture decisions, specs, runbooks, and the document index
+- `scripts/` — current operational scripts (company sync, project initialization, worktree helpers, `validate-agents-md.sh`)
 
 ## First Useful Commands
 
 ```text
-scripts/init-company.sh
+scripts/sync-company.sh
 scripts/init-project.sh
-scripts/init-project-docs.sh
-scripts/update-company.sh
 opencode deliver "<your request>"
-scripts/list-tasks.sh
-scripts/validate-project-state.sh
+bash scripts/validate-agents-md.sh AGENTS.md
 ```

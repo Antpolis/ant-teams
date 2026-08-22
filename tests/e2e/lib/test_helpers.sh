@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# test_helpers.sh — shared helpers for SPEC-001-T7 e2e/migration tests (issue #8).
+# test_helpers.sh — shared helpers for SPEC-001-T7 e2e tests (issue #8).
 #
 # Design constraints (per issue #8 tech-lead guardrails):
 #   - Each test script is STANDALONE: it sources this lib via a path computed
@@ -43,7 +43,6 @@ e2e_repo_root() {
 }
 
 e2e_init_script() { printf '%s/.opencode/skills/project-initialization/scripts/init_project_docs.sh' "$1"; }
-e2e_setup_script() { printf '%s/.opencode/skills/project-initialization/scripts/setup_project_docs.sh' "$1"; }
 e2e_fixtures_dir() { printf '%s/tests/fixtures' "$1"; }
 
 # e2e_make_fixture_repo FIXTURE_DIR — copy a fixture into a fresh mktemp -d and
@@ -55,14 +54,6 @@ e2e_make_fixture_repo() {
   local tmp
   tmp="$(mktemp -d)"
   cp -R "$fixture/." "$tmp/"
-  mkdir -p "$tmp/.git"
-  printf '%s' "$tmp"
-}
-
-# e2e_make_empty_repo — fresh mktemp -d + .git marker, no fixture content.
-e2e_make_empty_repo() {
-  local tmp
-  tmp="$(mktemp -d)"
   mkdir -p "$tmp/.git"
   printf '%s' "$tmp"
 }

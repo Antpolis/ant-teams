@@ -34,12 +34,15 @@ assert_not_exists "dry-run: no skills dir created" "$HOME_DIR/.agents/skills/age
 AFTER="$(find "$HOME_DIR" -type f -exec sha256sum {} + 2>/dev/null | sort | sha256sum | cut -d' ' -f1)"
 assert_eq "dry-run: HOME tree identical" "$AFTER" "$BEFORE"
 
-# Dry-run reports all 34 entries as planned installs. The action lines are
-# per-FILE (OBS-1.2), so the exact entry count is read from the summary line.
+# Dry-run reports every planned entry per-NAME (OBS-1.2 lists actions per-FILE),
+# so the exact entry count is read from the summary line. The summary counts
+# every source skill directory — including untracked empty placeholder dirs
+# that yield no installable files — plus every command file. Compute the
+# expectation with the same rule so the assertion stays machine-independent.
 REAL_SKILLS="$(sync_count_dirs "$SYNC_REAL_OPENCODE/skills")"
 REAL_CMDS="$(find "$SYNC_REAL_OPENCODE/commands" -maxdepth 1 -name '*.md' -type f 2>/dev/null | wc -l | tr -d ' ')"
 EXPECTED_TOTAL=$(( REAL_SKILLS + REAL_CMDS ))
-assert_file_contains_str "dry-run: 34 total managed entries in summary" "$OUT" "Total managed entries: 34"
+assert_file_contains_str "dry-run: total managed entries in summary" "$OUT" "Total managed entries: $EXPECTED_TOTAL"
 assert_gt "dry-run: per-file installs exceed entry count" \
   "$(grep -cF '[DRY-RUN] [INSTALL]' "$OUT" || true)" "$EXPECTED_TOTAL"
 

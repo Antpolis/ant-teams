@@ -42,8 +42,8 @@ assert_file_contains "stderr lists github-owner" "$ERR" 'github-owner'
 # original fixture content (+ .git marker + our log files) must be present.
 assert_not_exists "no AGENTS.md written" "$TMP/AGENTS.md"
 assert_not_exists "no .opencode/skills written" "$TMP/.opencode/skills"
-# .github-project.json must NOT have been created by the failed run (the fixture
+# .github-project.env must NOT have been created by the failed run (the fixture
 # copy for repo-node-npm does not ship one).
-assert_not_exists "no .github-project.json written" "$TMP/.github-project.json"
+assert_not_exists "no .github-project.env written" "$TMP/.github-project.env"
 
 e2e_done

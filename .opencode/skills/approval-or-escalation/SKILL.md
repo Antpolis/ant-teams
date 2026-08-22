@@ -27,7 +27,7 @@ The builder does not self-approve final readiness. The issue does not move to `D
 - Rework should stay within approved scope unless the founder or tech-lead expands it.
 - Repeated findings of the same kind are a signal that the spec, task, or guardrails are weak.
 - If the loop stops producing meaningful progress, escalate instead of forcing more churn.
-- Track each review-development loop in the GitHub issue or PR discussion.
+- Track each review-development loop in the Obsidian collaboration record; keep GitHub to status and final outcomes.
 - Do not exceed 8 review-development loops before forcing an escalation decision.
 
 ## Escalation Restraint Rules
@@ -63,7 +63,7 @@ The approving role handling the loop-breaker decision should review:
 - relevant ADR, GOV, and ARCH docs
 - current code direction
 
-Record the loop-breaker decision in the GitHub issue or PR so the next role can continue without chat context.
+Record the loop-breaker decision in the Obsidian collaboration record and post the final outcome as a concise GitHub status comment so the next role can continue without chat context.
 
 Possible loop-breaker decisions:
 
@@ -80,7 +80,7 @@ Use when:
 - the user value is unclear
 - the issue should be split or scope-cut
 - acceptance criteria do not represent the intended product outcome
-- an issue in `Need attentions` requires product, scope, or success-criteria clarification before it can return to `Ready`
+- an issue needs product, scope, or success-criteria clarification before it can safely continue (resolve in Obsidian communication; do not move it to `Need attentions`, which is founder-only)
 
 When escalating to `strategist`, prefer a concrete question such as scope cut, success criteria fix, acceptance rewrite, or product tradeoff choice instead of a generic "please review."
 
@@ -93,7 +93,7 @@ Use when:
 - the reviewer keeps finding the same structural problem
 - the task needs to be re-sequenced or decomposed
 - 8 review loops have been reached and a technical decision is required
-- an issue in `Need attentions` requires technical clarification or guardrail correction before it can return to `Ready`
+- an issue needs technical clarification or guardrail correction before it can safely continue (resolve in Obsidian communication; do not move it to `Need attentions`, which is founder-only)
 
 When escalating to `tech-lead`, include the current implementation direction, reviewer findings if any, and the smallest technical decision needed to continue safely.
 
@@ -134,27 +134,23 @@ Every blocker should say:
 
 ## Need Attentions Rule
 
-`Need attentions` covers two distinct cases. Always label the GitHub comment clearly so the recipient knows which case applies.
+`Need attentions` is a founder-only decision state. An issue may enter it only after strategist and tech-lead review have both been attempted and neither role can resolve the question internally.
 
-### Internal — strategist or tech-lead intervention needed
+Before moving an issue to `Need attentions`:
 
-Use when an issue needs strategist or tech-lead resolution before safe execution can continue, but is not yet a true external blocker.
+- confirm strategist review was attempted and could not resolve the question
+- confirm tech-lead review was attempted and could not resolve the question
+- confirm the remaining question is a real founder decision: product direction, prioritization, approval, credentials, or a tradeoff agents cannot safely make
+- record the full reasoning and what was already attempted in an Obsidian communication event file
+- run `founder-escalation-preflight` to confirm internal paths are exhausted
+- leave a concise founder-addressed GitHub comment explaining what decision is needed and what the smallest unblocking answer looks like
 
-- leave a durable GitHub comment before moving the issue
-- name the question to resolve and which role should take it (strategist for product/scope, tech-lead for technical/architecture)
-- attempt strategist or tech-lead resolution before escalating to the founder
-- move the issue back to `Ready` once the resolution is recorded and the next executable step is clear
-- move the issue to `Blocked` instead when the remaining problem is truly external or approval-bound
+After the founder decision is recorded:
 
-### Founder-facing — founder decision needed
+- move the issue back to the state it came from — typically `Ready`, `In Review`, or `Backlog`
+- move the issue to `Blocked` instead when the founder decision depends on an external condition outside anyone's control
 
-Use when a PR or issue requires a founder decision before it can safely proceed or merge, and internal roles cannot resolve it.
-
-- leave a durable GitHub comment addressed to the founder before moving the issue
-- explain what decision is needed, what was already attempted internally, and what the smallest unblocking answer looks like
-- run `founder-escalation-preflight` before making this transition to confirm internal paths are exhausted
-- move the issue back to `In Review` or `Ready` once the founder decision is recorded
-- move the issue to `Blocked` if the founder decision depends on an external condition outside anyone's control
+Internal strategist or tech-lead questions must not use `Need attentions`. Resolve them in the Obsidian communication record while the issue stays in its current state, and return it to `Ready` once the next executable step is clear.
 
 ## Usage Guidance
 

@@ -118,7 +118,10 @@ echo "operator content" > "$HOME1/.agents/skills/my-custom-skill/keep.md"
 rc=$?
 assert_eq "F1 recovery exit code" "$rc" 0
 assert_count_line "F1 recovery collisions (expect 0)" "$OUT" "[SKIP collision]" 0
-assert_count_line "F1 recovery NOOPs (expect 34)"    "$OUT" "[NOOP]" 34
+# 33 managed entries = 26 source skills + 7 command-derived commands (the
+# /migrate command retirement removed one command-derived entry; matches
+# tests/test_sync_e2e_company_run.sh).
+assert_count_line "F1 recovery NOOPs (expect 33)"    "$OUT" "[NOOP]" 33
 assert_contains    "F1 recovery manifest rewritten" "$HOME1/.agents/skills/.manifest.json" "managed_entries"
 assert_eq "F1 unmanaged content preserved" \
   "$(cat "$HOME1/.agents/skills/my-custom-skill/keep.md" 2>/dev/null || echo MISSING)" \

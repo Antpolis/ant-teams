@@ -230,8 +230,8 @@ check('DM-2.4: "Local Configuration Files" section always present', () => {
   assert.ok(/## Local Configuration Files/.test(agents), 'Local Configuration Files missing');
   // Must list AGENTS.md itself.
   assert.ok(/`AGENTS\.md`/.test(agents), 'AGENTS.md not listed in Local Configuration Files');
-  // Must list .github-project.json.
-  assert.ok(/`\.github-project\.json`/.test(agents), '.github-project.json not listed');
+  // Must list .github-project.env.
+  assert.ok(/`\.github-project\.env`/.test(agents), '.github-project.env not listed');
 });
 
 check('DM-2.4: Local Configuration Files lists all created artifacts', () => {
@@ -240,7 +240,7 @@ check('DM-2.4: Local Configuration Files lists all created artifacts', () => {
   const agents = fs.readFileSync(path.join(tmp, 'AGENTS.md'), 'utf8');
   for (const entry of [
     'AGENTS.md',
-    '.github-project.json',
+    '.github-project.env',
     '.opencode/skills/github-issues-projects-cli/',
     '.opencode/skills/do-task/',
     '.opencode/skills/project-initialization/',

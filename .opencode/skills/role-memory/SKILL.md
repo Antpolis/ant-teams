@@ -1,6 +1,6 @@
 ---
 name: role-memory
-description: Use after each task, review loop, reviewer verification, architecture escalation, or blocker to extract durable role-specific memory for builder, reviewer, and architect roles from the GitHub collaboration record.
+description: Use after each task, review loop, reviewer verification, architecture escalation, or blocker to extract durable role-specific memory for builder, reviewer, and architect roles from the Obsidian collaboration record.
 ---
 
 # Role Memory
@@ -13,7 +13,7 @@ Use the agentic-flow-terms skill as the canonical glossary for custom workflow m
 
 Role memory is durable, project-specific knowledge stored in the central Obsidian vault and read before future work.
 
-It is extracted from the GitHub collaboration record and stores important information relevant to each role:
+It is extracted from the Obsidian collaboration record (communication events plus the GitHub execution trail) and stores important information relevant to each role:
 
 - Builder implementation lessons
 - Reviewer runtime and verification lessons
@@ -23,7 +23,7 @@ This memory helps future agents continue without relying on chat context and hel
 
 ## File Locations
 
-Read `.github-project.json` and resolve `documentation.projectPathTemplate`. Store memory only in the project-specific Obsidian folder:
+Source `./.github-project.env` — the sole committed project config source — and resolve `ANT_TEAM_DOCS_PROJECT_PATH`. Before creating memory, inspect and use the approved Agent Memory template and Base in the central vault. If no suitable template exists, stop and request one. Store memory only in the project-specific Obsidian folder:
 
 - `<project-doc-path>/agent-memory/<role>-memory.md`
 
@@ -31,9 +31,9 @@ Use separate project notes for `builder`, `reviewer`, and `architect` memory. Do
 
 ## Required Behavior
 
-- After every task, builder, reviewer, and tech-lead must review the relevant GitHub issue, PR discussion, and linked GitHub evidence.
+- After every task, builder, reviewer, and tech-lead must review the relevant Obsidian communication events, GitHub issue, PR code-review results, and linked evidence.
 - Each role must update its role memory with information that will matter for future tasks, reviews, reviewer work, or architecture decisions.
-- Do not copy the full GitHub collaboration record into memory.
+- Do not copy the full collaboration record into memory.
 - Store only durable, reusable, role-relevant information.
 - Prefer concise bullets with links to spec IDs, task IDs, branches, docs, files, and decisions.
 - If there is no new durable information, append a short `No new durable memory` entry with the spec/task ID and date.
@@ -122,12 +122,12 @@ Architect memory should capture constraints, accepted tradeoffs, defer tasks, te
 
 ## Update Procedure
 
-1. Read the relevant GitHub issue, PR discussion, and linked evidence.
+1. Read the relevant Obsidian communication events, GitHub issue, PR code-review results, and linked evidence.
 2. Identify entries since the last role-memory update for the spec/task.
 3. Extract durable information relevant to the role.
 4. Append concise entries to the appropriate role memory file.
 5. Link back to the spec, milestone, issue, PR, branch, and related docs where useful.
-6. Update the GitHub issue or PR with a note that role memory was reviewed and updated when that handoff matters for the next role.
+6. Record a link to the updated role memory in the latest Obsidian communication event when that handoff matters for the next role; post a GitHub note only for a final status or closure that depends on it.
 
 ## Use Procedure
 

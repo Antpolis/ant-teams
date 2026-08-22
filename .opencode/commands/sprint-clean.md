@@ -32,7 +32,7 @@ Flow:
    - current open issues
    - current project-board states
 8. Use the github-agentic-delivery-flow, state-transitions, and github-conventions skills to confirm what work is still in shaping, what is blocked, what is ready, and what has drifted.
-9. Use the github-issues-projects-cli skill, `gh`, `jq`, the repo GitHub wrapper, and `./.github-project.json` to review issues, milestone linkage, project-board status, dependencies, completion state, and missing metadata.
+9. Use the github-issues-projects-cli skill, `gh`, `jq`, and the repo GitHub wrapper to review issues, milestone linkage, project-board status, dependencies, completion state, and missing metadata. Source `./.github-project.env` first and use its `ANT_TEAM_*` runtime metadata (owner, project, field/option IDs) — it is the sole committed project config source.
 10. Reconcile the system of record:
    - confirm completed tasks are actually reflected in the spec and task set
    - compare recent default-branch changes from the lookback window against task closure and board status

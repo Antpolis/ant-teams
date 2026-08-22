@@ -1,5 +1,8 @@
 # Init-Project Tailored Repository Bootstrap
 
+> [!WARNING] Superseded config design (2026-08-22)
+> The founder-confirmed env-only configuration contract replaced this spec's `.github-project.json` artifact: the JSON config file was deleted, `.github-project.env` (`ANT_TEAM_*` exports) is the sole committed project config source, the `identity` / `boundaries` / `initMeta` / `canonicalWorkflowStates` config fields were dropped (canonical Workflow State names now live as constants in the workflow skills, tests, and docs), and project-init seeds/updates the env directly with no JSON import/removal path (a stray `.github-project.json` is ignored — never read, never removed). See ARCH-003 for the governing artifact contract. This document is retained as the historical SPEC-001 delivery record; its `.github-project.json` references describe the superseded design, not the current system.
+
 Metadata:
 
 | Field | Value |
@@ -7,13 +10,13 @@ Metadata:
 | ID | SPEC-001 |
 | Type | spec |
 | Domain | project initialization workflow |
-| Status | active |
+| Status | superseded (config design) — AGENTS.md generation behavior still governed by ARCH-003 |
 | Owner | strategist, tech-lead |
 | Applies To | `scripts/init-project.sh`, `scripts/init-project-docs.sh`, `.opencode/skills/project-initialization/`, initialized project repositories |
 | Keywords | init-project, project initialization, AGENTS.md, opencode.json, .github-project.json, repo bootstrap, multi-repo identity, backward-compatible migration |
 | Related Docs | GOV-002, ARCH-001, ARCH-002, ARCH-003, `.opencode/skills/project-initialization/SKILL.md`, `README.md` |
 | Supersedes |  |
-| Last Updated | 2026-07-18 |
+| Last Updated | 2026-08-22 |
 
 ## Summary
 

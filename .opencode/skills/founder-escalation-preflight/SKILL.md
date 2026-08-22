@@ -37,7 +37,7 @@ Apply this pass only when the founder is being asked to unblock or approve deliv
 Before escalating, do all of the following:
 
 1. Read the current task, issue, milestone, PR, or spec that triggered the escalation thought.
-2. Read `.github-project.json`, resolve the central Obsidian project documentation path, and search that vault project folder by topic, feature name, domain terms, file paths, module names, and synonyms. Do not rely on document numbers alone.
+2. Source `./.github-project.env` (`source ./.github-project.env` — the sole committed project config source) and resolve the central Obsidian project documentation path from `ANT_TEAM_DOCS_PROJECT_PATH`. Search that vault project folder by topic, feature name, domain terms, file paths, module names, and synonyms. Do not rely on document numbers alone.
 3. Read the relevant GitHub collaboration record:
    - issue comments
    - PR comments or review threads if code exists

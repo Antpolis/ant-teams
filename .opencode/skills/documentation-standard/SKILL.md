@@ -17,13 +17,17 @@ This skill should also help decide what kind of document to create. In particula
 
 - Treat `/home/chrissim/Projects/documentation` as an Obsidian vault, not as an ordinary repository docs folder.
 - Never create project documentation directly in the vault root `/home/chrissim/Projects/documentation/`.
-- Always resolve the project folder from `.github-project.json.documentation.projectPathTemplate` and write under `/home/chrissim/Projects/documentation/projects/<project-name>/` (or the configured equivalent).
+- Always resolve the project folder by sourcing `./.github-project.env` in the repository (the sole committed project config source) and using `ANT_TEAM_DOCS_PROJECT_PATH`, and write under `/home/chrissim/Projects/documentation/projects/<project-name>/` (or the configured equivalent).
 - Root-level vault files are reserved for vault-wide indexes, governance entry points, and architecture-meta references; they are not valid destinations for project notes.
 - After completing any vault documentation task, inspect the diff, commit only the files changed for that task, and push the commit to the vault remote. Never stage unrelated user changes or secrets.
 - For every vault documentation task, use the Obsidian skills before editing: `obsidian-markdown` for notes and `obsidian-bases` for Bases.
+- Before creating or updating any Obsidian note, inspect the central vault available templates under 01-Architecture-Meta/Templates/ and use the matching template.
+- Before creating or updating any Obsidian Base, inspect the available Bases under 01-Architecture-Meta/Templates/Bases/ and extend the matching Base instead of inventing a parallel one.
+- Never create a new documentation type, note structure, property set, or Base without first checking for an available template. If no suitable template exists, stop and request a template or explicit approval to create one.
+- Preserve template frontmatter, required properties, naming conventions, and linked Base fields; do not silently create incompatible metadata.
 
 - The canonical product documentation root is `/home/chrissim/Projects/documentation`.
-- Resolve the project-specific destination from `.github-project.json.documentation.projectPathTemplate`; for this repository it is `/home/chrissim/Projects/documentation/projects/ant-teams/`.
+- Resolve the project-specific destination from `ANT_TEAM_DOCS_PROJECT_PATH` by sourcing `./.github-project.env` — the sole committed project config source.
 - Use `obsidian-markdown` whenever creating or editing Obsidian Markdown, properties, wikilinks, embeds, callouts, or templates.
 - Use `obsidian-bases` whenever creating or editing `.base` files, Base filters, views, formulas, or summaries.
 - Use `obsidian-cli` only when a running Obsidian instance is available; otherwise edit valid vault files directly and validate their structure.
@@ -34,7 +38,7 @@ This skill should also help decide what kind of document to create. In particula
 - Use `adr` for architecture decision records.
 - Use `gov` for governance, standards, policies, conventions, and required process docs.
 - Use `arch` for customized architecture decisions and architecture guidance specific to the repository.
-- Prefer the central Obsidian vault folder convention defined by `.github-project.json.documentation`.
+- Prefer the central Obsidian vault folder convention defined by the `ANT_TEAM_DOCS_*` exports from `.github-project.env` (the sole committed project config source).
 - Prefer content-based metadata: domain, applies-to, keywords, related docs, and supersedes.
 - Mark stale or replaced docs as `deprecated` or `superseded`; do not silently delete historical docs unless explicitly asked.
 - Keep documentation technical, specific, and actionable.
@@ -289,14 +293,15 @@ When looking for relevant docs:
 
 When documentation work involves the central vault:
 
-1. Read `.github-project.json` to resolve the vault and the exact project folder.
+1. Source `./.github-project.env` — the sole committed project config source — and resolve the vault and the exact project folder from `ANT_TEAM_DOCS_VAULT_PATH` and `ANT_TEAM_DOCS_PROJECT_PATH`.
 2. Confirm the destination is the project-specific folder, never the vault root.
-3. Load `obsidian-markdown` for note authoring and link/property conventions.
-4. Load `obsidian-bases` for portfolio, project, architecture, or memory views.
-5. Create or update the note in the resolved project folder.
-6. Verify frontmatter, internal links, and Base references.
-7. Keep GitHub links as external execution references; do not duplicate live issue status in notes.
+3. Inspect the matching template before editing; stop if none exists.
+4. Load `obsidian-markdown` for note authoring and link/property conventions.
+5. Load `obsidian-bases` for portfolio, project, architecture, or memory views.
+6. Create or update the note in the resolved project folder using the approved template.
+7. Verify frontmatter, internal links, and Base references.
+8. Keep GitHub links as external execution references; do not duplicate live issue status in notes.
 
 ## Preferred Paths
 
-Use `.github-project.json.documentation.projectPathTemplate` for all product, architecture, ADR, governance, lifecycle, and specification documents. Resolve the template to the current project folder under the central Obsidian vault. Do not create these documents in repository `docs/` or `.docs/`.
+Use `ANT_TEAM_DOCS_PROJECT_PATH` (sourced from `./.github-project.env`, the sole committed project config source) for all product, architecture, ADR, governance, lifecycle, and specification documents. Resolve to the current project folder under the central Obsidian vault. Do not create these documents in repository `docs/` or `.docs/`.

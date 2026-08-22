@@ -31,9 +31,10 @@ Use this GitHub mapping consistently:
 |---|---|
 | Spec / Deliverable | GitHub Milestone |
 | Task | GitHub Issue |
-| Workflow State | GitHub Project item status |
+| Workflow State | GitHub Project item status (canonical `Workflow State` field) |
 | Implementation branch / PR | GitHub Branch + Pull Request |
-| Durable delegation / findings / approvals | GitHub issue comments and PR comments |
+| Agent-to-agent communication and role memory | Central Obsidian project folder |
+| Final decisions, status, closure, code-review result | GitHub issue comments and PR comments |
 | Canonical implementation detail | Repository docs linked from the milestone or issue |
 
 Do not rely on GitHub milestone text alone as the full spec. Keep the canonical spec in the repository and link it from the milestone.
@@ -42,10 +43,11 @@ Do not rely on GitHub milestone text alone as the full spec. Keep the canonical 
 
 - The repository spec document is the canonical implementation spec.
 - The GitHub milestone is the tracking container for that spec.
-- GitHub issues are the canonical task records for execution state and task-local discussion.
-- GitHub Projects is the canonical workflow board for state visualization.
-- GitHub issue comments and PR comments are the canonical execution delegation and review record.
-- Local markdown task files, local workflow boards, and local communication logs are legacy artifacts and not part of the active execution flow.
+- GitHub issues are the canonical task records for execution state.
+- GitHub Projects is the canonical workflow board for state visualization, using the canonical `Workflow State` field.
+- The central Obsidian project folder is the canonical full agent communication and role-memory record: handoffs, delegation reasoning, findings, review-loop history, and durable coordination context.
+- GitHub issue comments and PR comments carry only final decisions, status, closure, and code-review results.
+- Local markdown task files, local workflow boards, and chat transcripts are not part of the active execution flow.
 - If GitHub and repo docs disagree, reconcile them instead of silently choosing one.
 
 ## Agent Roles
@@ -103,7 +105,7 @@ Coverage gate (required before any issue moves to `Ready`):
 
 - Tech-lead sets `Current role: builder` and Sequence Position on each issue.
 - Tech-lead moves issues to `Ready` only after the sequencing and coverage gate passes.
-- If no task is actually ready, leave the work in `Shaping` or `Blocked` with an explicit reason recorded in GitHub. Do not pretend the flow has advanced.
+- If no task is actually ready, leave the work in `Backlog` or `Blocked` with an explicit reason recorded in the Obsidian communication record. Do not pretend the flow has advanced.
 
 ### 5. Run the build-review loop
 
@@ -128,11 +130,12 @@ If the check passes:
 - `tech-lead` merges the PR.
 - Moves the issue to `Done`.
 - Posts a merge confirmation comment on the PR.
+- Cleans up the task worktree and local branch once they are no longer needed for review, rollback, or follow-up fixes, using `$ANT_TEAM_SCRIPTS/cleanup-task-worktree.sh`.
 
 If the check fails:
 - `tech-lead` posts specific findings on the PR as comments.
-- Moves the issue back to `Need attentions` with a durable GitHub comment naming the findings and directing builder to pick it up.
-- Builder picks up the issue from `Need attentions`, fixes the findings on the same branch, and the review loop restarts from `In Review`.
+- Moves the issue back to `Need attentions` only when a founder decision is required; otherwise records the findings in the Obsidian communication record and returns the issue to builder rework on the same branch.
+- Builder picks up the findings, fixes them on the same branch, and the review loop restarts from `In Review`.
 
 ### 6. Close the work
 
@@ -142,37 +145,29 @@ If the check fails:
 
 ## State Machine
 
-Use a small, explicit workflow state machine. Prefer these states unless the repository already has an established equivalent:
+Use a small, explicit workflow state machine. The canonical happy path is:
 
-- `Inbox`
-- `Shaping`
-- `Need attentions`
-- `Ready`
-- `In Progress`
-- `In Review`
-- `Ready to Merge`
-- `Blocked`
-- `Done`
+`Open` -> `Backlog` -> `Ready` -> `In Progress` -> `In Review` -> `Ready to Merge` -> `Done`
 
-State changes should be meaningful, not decorative.
+Two exception states exist outside the happy path: `Need attentions` (founder-only) and `Blocked` (exception). State changes should be meaningful, not decorative.
 
 Use them like this:
 
-- `Inbox`: captured but not yet shaped
-- `Shaping`: being refined by strategist and/or founder
-- `Need attentions`: waiting for internal role resolution (strategist/tech-lead) or for a founder decision; a durable GitHub comment must exist before moving here naming who needs to act and what they need to decide
+- `Open`: captured but not yet shaped
+- `Backlog`: being refined by strategist and/or founder
+- `Need attentions`: founder-only decision state, entered only after strategist and tech-lead review have both been attempted and neither can resolve the question; a founder-addressed GitHub comment naming the exact decision must exist before moving here
 - `Ready`: approved for implementation with clear scope
 - `In Progress`: builder is actively executing
 - `In Review`: waiting for reviewer review or re-review
 - `Ready to Merge`: reviewer has approved with no blockers and posted an explicit approval comment on the PR; waiting for tech-lead final check and merge
-- `Blocked`: cannot safely proceed without a dependency or decision
-- `Done`: PR merged and validated
+- `Blocked`: exception state entered when tech-lead and strategist cannot resolve a dependency, decision, credential, permission, or external condition; any state may enter it, typically `In Progress` or `In Review`
+- `Done`: PR merged and validated by tech-lead
 
 Additional rule:
 
 - A spec-level milestone should not be treated as execution-ready until it has concrete child issues, and at least one non-blocked child issue is in `Ready` when execution can begin.
 - During execution, prioritize issues by spec group before jumping across specs. Break that rule only for explicit dependencies, blockers, or human-intervention waits.
-- During sprint planning, inspect issues in `Need attentions` before pulling fresh `Ready` work. Resolve them through strategist or tech-lead when safe, then move them back to `Ready` or escalate only if no safe internal path remains.
+- During sprint planning, inspect issues in `Need attentions` before pulling fresh `Ready` work. Confirm strategist and tech-lead review were both attempted, surface the founder decision if one is genuinely pending, then move resolved issues back to their prior state.
 
 ## Required Issue Quality Bar
 
@@ -205,14 +200,14 @@ Every internal delegation should record:
 - open findings, blockers, or risks
 - exact next expected action
 
-For builder-owned implementation handoffs, the delegated agent should also record the branch, PR, verification evidence, and review focus so the next role can continue from GitHub alone.
+For builder-owned implementation handoffs, the delegated agent should also record the branch, PR, verification evidence, and review focus so the next role can continue from the Obsidian communication record plus the GitHub issue and PR alone.
 
 When an agent moves an issue to `Need attentions`:
 
-- leave a durable GitHub comment first
-- explain what attention is needed
-- name whether strategist or tech-lead should resolve it first
-- state the smallest decision or clarification needed to move the issue back toward `Ready`
+- strategist and tech-lead review must both have been attempted first
+- record the full reasoning in an Obsidian communication event file
+- leave a concise founder-addressed GitHub comment naming the exact decision needed
+- state the smallest decision or clarification needed to move the issue back toward its prior state
 
 When `tech-lead` asks `strategist` to clarify a spec or issue during execution:
 
@@ -262,6 +257,21 @@ Do not use that preflight as a gate on normal strategist-founder planning, spec 
 - `reviewer` decides whether builder output is approved for merge readiness, returned for rework, or blocked. Approval means: posting an explicit approval comment on the PR and moving the issue to `Ready to Merge`. The reviewer does not merge.
 - `tech-lead` owns the final spec-alignment check and the merge decision. Tech-lead is the only role that merges. Tech-lead either merges and marks the issue `Done`, or posts findings and moves the issue to `Need attentions` for builder to address.
 - Merge must not happen before reviewer approval (`Ready to Merge`) and tech-lead final check. No role bypasses this sequence.
+
+## Optional Ponytail Simplification Tools
+
+The repository ships optional Ponytail skills: `ponytail`, `ponytail-review`, `ponytail-audit`, `ponytail-debt`, and `ponytail-gain`. They complement this flow as optional aids, not flow components.
+
+Hard precedence: ponytail tools never override correctness, security, architecture guardrails, required tests, role ownership, GitHub audit records, review gates, or merge approval. They add no new required state and no new approval gate.
+
+Optional integration points:
+
+- **Shaping / tech-lead planning**: `strategist` and `tech-lead` may apply the core `ponytail` ladder to challenge YAGNI, reuse of existing code, new dependencies, and task size. Record meaningful deliberate simplifications with a `ponytail:` code marker naming the ceiling and the upgrade trigger.
+- **Before builder completion**: `builder` may run the core ponytail self-check. One focused executable check remains required for non-trivial changes; ponytail does not waive it.
+- **During reviewer pass**: normal correctness/architecture/security review stays authoritative. `reviewer` may additionally run `ponytail-review` as a separate complexity-only pass; its findings are actionable only when they do not conflict with requirements or guardrails.
+- **Milestone close / periodic maintenance**: `tech-lead` may run `ponytail-audit`. `tech-lead` may use `ponytail-debt` to inspect deferred `ponytail:` markers and convert warranted debt into GitHub issues/tasks under the existing issue-ownership rules — never silently hide it. `ponytail-gain` is informational benchmark context only and must not be used as a project metric.
+
+When a ponytail tool invocation affects an existing task or decision, record the invocation and outcome in the normal issue/PR or milestone comments; standalone informational runs need no new record. One-shot skills (audit, debt, gain) stay one-shot; do not turn them into standing modes.
 
 ## Usage Guidance
 

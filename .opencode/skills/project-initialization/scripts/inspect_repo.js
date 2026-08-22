@@ -16,7 +16,7 @@
  *     test_infrastructure:    { observed, evidence },
  *     cicd:                   { observed, evidence },
  *     opencode_config:        { observed, evidence },
- *     github_project_config:  { observed, evidence },
+ *     github_project_env:      { observed, evidence },
  *     repo_origin:            { observed, evidence },
  *     app_boundaries:         { observed, evidence },
  *     ambiguities:            [ { category, message, signals } ]
@@ -405,10 +405,10 @@ function detectOpencodeConfig(projectDir) {
   return { observed, evidence: observed.slice() };
 }
 
-// --- Detection: .github-project.json -----------------------------------------
+// --- Detection: .github-project.env -------------------------------------------
 
-function detectGithubProjectConfig(projectDir) {
-  const rel = '.github-project.json';
+function detectGithubProjectEnv(projectDir) {
+  const rel = '.github-project.env';
   const found = exists(path.join(projectDir, rel));
   return {
     observed: found,
@@ -611,7 +611,7 @@ function inspect(projectDir) {
   const test_infrastructure = detectTestInfrastructure(resolved);
   const cicd = detectCicd(resolved);
   const opencode_config = detectOpencodeConfig(resolved);
-  const github_project_config = detectGithubProjectConfig(resolved);
+  const github_project_env = detectGithubProjectEnv(resolved);
   const repo_origin = detectRepoOrigin(resolved);
   const app_boundaries = detectAppBoundaries(resolved);
   const ambiguities = detectAmbiguities(resolved, language, package_manager);
@@ -624,7 +624,7 @@ function inspect(projectDir) {
     test_infrastructure,
     cicd,
     opencode_config,
-    github_project_config,
+    github_project_env,
     repo_origin,
     app_boundaries,
     ambiguities,

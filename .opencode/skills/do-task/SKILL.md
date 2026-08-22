@@ -17,11 +17,11 @@ Use founder-escalation-preflight before asking the founder for a decision.
 
 Bundled helpers for issue-isolated development live in:
 
-- `scripts/create_task_worktree.sh`
-- `scripts/cleanup_task_worktree.sh`
+- `$ANT_TEAM_SCRIPTS/create-task-branch.sh`
+- `$ANT_TEAM_SCRIPTS/cleanup-task-worktree.sh`
 
-Use these helpers instead of inventing ad hoc `git worktree` commands when the builder needs to start or clean up issue workspaces.
-These helpers read the default issue-worktree root from top-level `worktreeRoot` in `.github-project.json` when it is present.
+Use these helpers instead of inventing ad hoc `git worktree` commands when the builder needs to start or clean up issue workspaces. `ANT_TEAM_SCRIPTS` is installed and configured by `sync-company.sh`.
+These helpers read the default issue-worktree root from `ANT_TEAM_WORKTREE_ROOT` in `.github-project.env` (source it: `source ./.github-project.env` — the sole committed project config source) when it is present.
 
 ## Issue Done Definition
 
@@ -56,16 +56,16 @@ Bring in `tech-lead` when technical interpretation, sequencing, guardrails, or l
 2. First inspect any issues in `Ready to Merge` and route them immediately to `tech-lead` for the final spec-alignment check and merge decision. Do not pull fresh `Ready` work while a `Ready to Merge` issue is waiting.
 3. Inspect any issues already in `In Progress`.
 4. Inspect any issues already in `In Review` before pulling fresh work so reviewer-gated work does not stall behind new execution.
-5. Inspect any issues in `Need attentions` before pulling fresh `Ready` work — route all of them to `tech-lead` first regardless of what caused the attention (see step 8 routing rules).
+5. Inspect any issues in `Need attentions` before pulling fresh `Ready` work — `Need attentions` is founder-only, so confirm strategist and tech-lead review were both attempted, then surface the founder decision (see step 8 routing rules).
 6. Invoke `tech-lead` to produce the ordered issue list, current spec focus, sequencing rationale, and execution guardrails for this pass.
 7. Use the `tech-lead` ordered list as the execution plan unless a blocker, completed task, or new evidence requires refreshing the plan.
 8. For each active issue in `Ready to Merge`, `In Progress`, `In Review`, or `Need attentions`:
    - if the issue is in `Ready to Merge`: route to `tech-lead` for final check and merge (see Tech-Lead Merge Gate)
    - if the issue is `In Progress`: review with `builder` whether implementation is done or still in flight; if done, verify builder left the required handover note and PR linkage, then delegate `reviewer`
    - if the issue is `In Review`: delegate `reviewer` before pulling fresh queue work
-   - if the issue is in `Need attentions`: route to `tech-lead` first regardless of the source of the attention flag; `tech-lead` reads the GitHub comment, attempts to resolve, and communicates with `strategist` if product or scope clarity is needed
-   - if `tech-lead` (with or without `strategist`) resolves the issue, record the resolution in a GitHub comment and move the issue back to `Ready` for builder to pick up
-   - if `tech-lead` and `strategist` cannot resolve the issue internally, run `founder-escalation-preflight` before escalating to the founder, or move to `Blocked` if the remaining problem is an external dependency or approval
+   - if the issue is in `Need attentions`: it is a founder decision state; verify from the founder-addressed GitHub comment and linked Obsidian event that strategist and tech-lead review were both attempted, run `founder-escalation-preflight`, and surface the founder decision
+   - if review shows strategist or tech-lead resolution was actually still possible, route it back to that role, record the resolution in the Obsidian communication record, and return the issue to its prior state (`Ready`, `In Review`, or `Backlog`)
+   - once the founder decides, record the decision in the Obsidian communication record, post the final decision as a concise GitHub comment, and return the issue to its prior state, or move to `Blocked` if the remaining problem is an external dependency or approval
    - if `builder` has questions about product intent or scope, invoke `strategist` as needed and record the discussion in GitHub comments
    - if `builder` has questions about technical direction or guardrails, invoke `tech-lead` and continue the pass after the answer
    - if the issue is blocked for any reason, move it to `Blocked`, add a GitHub comment explaining the blocker, and notify the user
@@ -95,7 +95,7 @@ Before ending a `do-task` pass, explicitly exhaust this checklist:
 1. route any `Ready to Merge` issues to `tech-lead` for final check and merge
 2. reconcile any `In Progress` issues with `builder`
 3. reconcile any `In Review` issues with `reviewer`
-4. reconcile any `Need attentions` issues through `strategist`, `tech-lead`, or founder escalation as appropriate
+4. reconcile any `Need attentions` issues: verify strategist and tech-lead review were attempted, route anything still internally resolvable back to those roles, and surface genuine founder decisions
 5. process any `Ready` issues in the current spec group
 6. inspect open repo issues or milestone work that may need project-board triage
 7. decide whether a missing executable task can be created or clarified safely through `tech-lead` or `strategist`
@@ -122,8 +122,8 @@ For each issue:
 - if product intent, scope meaning, or execution meaning is unclear, clear it with `strategist`
 - if technical interpretation, sequencing, or guardrails are unclear, resolve them with `tech-lead`
 - record each clarification discussion as an Obsidian communication event file for auditability; update GitHub only for status or final closure
-- if the issue has a blocker or needs human intervention, record that in GitHub and skip to the next executable issue
-- if the issue needs strategist or tech-lead resolution before safe execution can continue, record a durable GitHub comment and move it to `Need attentions`
+- if the issue has a blocker or needs human intervention, record it in the Obsidian communication record with a concise GitHub status note and skip to the next executable issue
+- if the issue needs strategist or tech-lead resolution before safe execution can continue, request that resolution through the Obsidian communication record and keep the issue in its current state; `Need attentions` is reserved for founder decisions after both reviews were attempted
 - once the technical requirement is clear, invoke `builder` and record that delegation in GitHub
 - after delegating, expect `builder` to own issue worktree creation or reuse, branch creation or reuse inside that worktree, implementation-state transitions, PR creation or update, and the builder handover note
 - do not create the issue worktree, task branch, open the PR, or write the builder's implementation handover note unless the user explicitly asks the current role to do emergency manual recovery
@@ -140,12 +140,21 @@ For each issue:
 - if `reviewer` approves with no blockers, `reviewer` posts an explicit approval comment on the PR and moves the issue to `Ready to Merge`
 - builder completion is not final completion; reviewer approval is not final completion
 
+## Optional Ponytail Simplification Passes
+
+The repository ships optional Ponytail skills: `ponytail`, `ponytail-review`, `ponytail-audit`, `ponytail-debt`, and `ponytail-gain`. They are optional aids and never override correctness, security, architecture guardrails, required tests, role ownership, GitHub audit records, review gates, or merge approval. They add no new required state or approval gate, and they do not change any gate in this skill.
+
+- Before completing implementation, `builder` may run the core ponytail self-check for minimal-diff simplicity. This is additive: one focused executable check remains required for non-trivial changes. Mark meaningful deliberate simplifications with a `ponytail:` code marker naming the ceiling and upgrade trigger.
+- During the review pass, normal correctness/architecture/security review stays authoritative. `reviewer` may additionally run `ponytail-review` as a separate complexity-only pass; its findings are actionable only when they do not conflict with the issue's requirements or tech-lead guardrails.
+- The tech-lead merge gate is unchanged: no ponytail finding by itself blocks or accelerates merge approval.
+- When a ponytail invocation affects an existing task or decision, record the invocation and outcome in the normal issue/PR comments; standalone informational runs need no new record. One-shot skills stay one-shot.
+
 ## Tech-Lead Merge Gate
 
 - every issue in `Ready to Merge` must be routed to `tech-lead` by `orchestrator` before it is considered done
 - `tech-lead` reads the linked central Obsidian project documentation, GitHub issue, and PR diff to verify that implementation matches approved scope and satisfies architecture guardrails (KISS, separation of concerns, folder/package/namespace)
 - if the check passes: `tech-lead` merges the PR, moves the issue to `Done`, and posts a merge confirmation comment on the PR
-- if the check fails: `tech-lead` posts specific findings as PR comments and moves the issue to `Need attentions` with a durable GitHub comment summarising the findings; in the next reconciliation pass, `tech-lead` reviews the `Need attentions` comment, confirms the findings are builder-actionable, and moves the issue back to `Ready`; builder then picks up from `Ready`, fixes the findings on the same branch, moves to `In Progress` then `In Review`, and the review loop continues
+- if the check fails: `tech-lead` posts the code-specific findings as PR comments and records the full reasoning in the Obsidian communication record; builder picks the findings up on the same branch and the review loop continues through `In Progress` and `In Review`; `tech-lead` moves the issue to `Need attentions` only when a founder decision is required before the findings can be addressed
 - a tech-lead final check failure that results in builder rework counts as a continuation of the same review loop — the 8-loop cap applies across all review passes for the issue including those triggered by tech-lead findings; if the cap is hit, treat it as a loop-breaker and escalate to founder
 - `tech-lead` is the only role that merges; no other role may merge without an explicit recovery exception recorded in GitHub
 - an issue is `Done` only after `tech-lead` has merged the PR following a passed final check
@@ -171,7 +180,7 @@ For each issue:
 
 - `orchestrator` owns queue selection, cross-role coordination, and verification that required GitHub artifacts exist.
 - `strategist` owns product framing, scope clarity, success criteria, and product-level resolution of ambiguous work.
-- `tech-lead` owns technical interpretation, architecture guardrails, sequencing, loop-breaker technical decisions, all `Need attentions` resolution (routing to `strategist` if needed), the final spec-alignment check, the merge decision, and the transition from `Ready to Merge` to `Done`.
+- `tech-lead` owns technical interpretation, architecture guardrails, sequencing, loop-breaker technical decisions, verifying `Need attentions` founder-decision readiness (routing back to `strategist` when internal resolution is still possible), the final spec-alignment check, the merge decision, the transition from `Ready to Merge` to `Done`, and post-merge cleanup of the task worktree and local branch.
 - `builder` owns the issue worktree, task branch, implementation, implementation-state transitions into active work and review, PR creation or update, and builder handover event files in Obsidian.
 - `reviewer` owns review findings, review approvals, return-to-builder decisions, reviewer verification notes, and the transition from `In Review` to `Ready to Merge` on approval or back to `In Progress` on findings. Reviewer does not merge and does not move issues to `Done`.
 - A role should not perform another role's normal workflow mutation just because it has tool access. If recovery is necessary, record why the usual owner could not perform the action.
@@ -182,7 +191,7 @@ For each issue:
 - during `do-tasks`, `builder` should continue in the existing issue worktree, on the existing task branch, and on the existing PR when those artifacts already exist
 - during `do-tasks`, `builder` must not start a fresh worktree, fresh branch, or replacement PR as part of normal continuation work
 - if the existing worktree, branch, or PR is unusable, `builder` may create a replacement only after recording why recovery is necessary and linking the old and new artifacts in GitHub
-- after merge or explicit task closure, `builder` should clean up the issue worktree and local branch once the PR no longer needs them
+- after merge or explicit task closure, `tech-lead` cleans up the issue worktree and local branch with `$ANT_TEAM_SCRIPTS/cleanup-task-worktree.sh` once they are no longer needed for review, rollback, or follow-up fixes
 - `reviewer` must not silently fix builder work as a substitute for findings unless the workflow explicitly assigns reviewer implementation for a special recovery case.
 - `orchestrator` should not close the loop based on verbal assurances; it should verify the branch, PR, state, and comments.
 - `strategist` and `tech-lead` should resolve ambiguity with durable guidance, then return execution to `builder` or `reviewer` rather than carrying the implementation loop themselves.
@@ -209,7 +218,7 @@ Every builder-to-reviewer handover should include:
 ## Stop And Skip Rules
 
 - if an issue needs human intervention, record it and skip to the next executable issue
-- if an in-progress issue is blocked, move it to `Blocked`, add a GitHub comment, and notify the user
+- if an active issue is blocked after tech-lead and strategist resolution was attempted, move it to `Blocked`, add a concise GitHub status note linking the Obsidian blocker event, and notify the user
 - if a spec is too unclear to proceed safely, record the clarification need in GitHub before pausing or switching
 - if the executable queue is empty, treat that as a triage trigger, not as completion of the pass
 - do not start a new spec unless the remaining work changes scope

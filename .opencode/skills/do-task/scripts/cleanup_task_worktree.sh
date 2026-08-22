@@ -1,37 +1,59 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-source "$(dirname "$0")/../../../../scripts/pm-lib.sh"
+# Remove a merged issue worktree and its local task branch (git-only helper).
+#
+# Workflow state is owned by the GitHub Project board and communication
+# records by the central Obsidian project folder — this script intentionally
+# performs no board-status or communication-log writes.
 
 usage() { cat <<'USAGE'
 Usage:
-  ./.opencode/skills/do-task/scripts/cleanup_task_worktree.sh SPEC_ID TASK_ID [BASE_BRANCH] [BRANCH_NAME] [WORKTREE_PATH]
+  cleanup_task_worktree.sh ISSUE_ID [BASE_BRANCH] [BRANCH_NAME] [WORKTREE_PATH]
+
+Removes the issue worktree and local task branch after the branch is merged
+into the base branch. Refuses to delete anything that is not fully merged.
+
+  ISSUE_ID       GitHub issue identifier used to resolve defaults, e.g. issue-123
+  BASE_BRANCH    production base branch (default: main)
+  BRANCH_NAME    task branch (default: feat/<ISSUE_ID>)
+  WORKTREE_PATH  worktree location (default: $ANT_TEAM_WORKTREE_ROOT/<ISSUE_ID>
+                 from .github-project.env, else <repo-parent>/<repo-name>-<ISSUE_ID>)
+
+Source ./.github-project.env first so ANT_TEAM_WORKTREE_ROOT is honored.
 USAGE
 }
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then usage; exit 0; fi
-if [[ $# -lt 2 || $# -gt 5 ]]; then usage >&2; exit 1; fi
+if [[ $# -lt 1 || $# -gt 4 ]]; then usage >&2; exit 1; fi
 
-spec_id="$1"; task_id="$2"; base="${3:-main}"; branch="${4:-task/${task_id}}"; today="$(pm_today)"
+issue_id="$1"; base="${2:-main}"; branch="${3:-feat/${issue_id}}"
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "Not inside a git worktree" >&2; exit 1; }
 
 repo_root="$(git rev-parse --show-toplevel)"
 repo_parent="$(dirname "$repo_root")"
 repo_name="$(basename "$repo_root")"
-project_config="$repo_root/.github-project.json"
 default_worktree_root=""
 
-if [[ -f "$project_config" ]]; then
-  default_worktree_root="$(node -e 'const fs=require("fs"); const p=process.argv[1]; try { const v=JSON.parse(fs.readFileSync(p,"utf8")).worktreeRoot || ""; process.stdout.write(v); } catch (err) { process.exit(1); }' "$project_config" 2>/dev/null || true)"
+# Source .github-project.env (sole project config source) in an isolated
+# subshell for ANT_TEAM_WORKTREE_ROOT. A literal ~ must be expanded against
+# $HOME — git does not expand tildes inside variables.
+if [[ -f "$repo_root/.github-project.env" ]]; then
+  default_worktree_root="$(
+    # shellcheck disable=SC1090
+    . "$repo_root/.github-project.env"
+    printf '%s' "${ANT_TEAM_WORKTREE_ROOT:-}"
+  )"
 fi
+default_worktree_root="${default_worktree_root/#\~/$HOME}"
 
 if [[ -n "$default_worktree_root" ]]; then
-  worktree_path_default="${default_worktree_root%/}/${task_id}"
+  worktree_path_default="${default_worktree_root%/}/${issue_id}"
 else
-  worktree_path_default="${repo_parent}/${repo_name}-${task_id}"
+  worktree_path_default="${repo_parent}/${repo_name}-${issue_id}"
 fi
 
-worktree_path="${5:-$worktree_path_default}"
+worktree_path="${4:-$worktree_path_default}"
 
 git fetch origin "$base" >/dev/null 2>&1 || true
 if git show-ref --verify --quiet "refs/remotes/origin/${base}"; then
@@ -56,9 +78,4 @@ fi
 
 git branch -d "$branch"
 
-pm_append_log "$spec_id" "Branch Lifecycle" "### $today - $task_id - worktree cleaned
-
-- Base Branch: $base
-- Task Branch: $branch
-- Worktree Path: $worktree_path"
 printf 'cleaned branch=%s\ncleaned worktree=%s\n' "$branch" "$worktree_path"

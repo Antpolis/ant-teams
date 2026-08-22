@@ -58,7 +58,7 @@ assert_exit_zero "run 1 exit code" "$RC1"
 # AFTER the first run produced the post-init state, so any drift on run 2 is
 # detected. (The OLD test took both samples after run 2 → no drift detection.)
 SNAP_AFTER_RUN1=$(e2e_snapshot_files "$TMP" | sha256sum | cut -d' ' -f1)
-GH_MD5_AFTER_RUN1=$(md5sum "$TMP/.github-project.json" | cut -d' ' -f1)
+GH_MD5_AFTER_RUN1=$(md5sum "$TMP/.github-project.env" | cut -d' ' -f1)
 AGENTS_MD5_AFTER_RUN1=$(md5sum "$TMP/AGENTS.md" | cut -d' ' -f1)
 
 # --- Tamper sentinel — prove the snapshot is non-vacuous ----------------------
@@ -93,13 +93,13 @@ set -e
 assert_exit_zero "run 2 exit code (idempotent)" "$RC2"
 
 # --- Compare run 1 → run 2 state (real idempotency contract) ------------------
-GH_MD5_AFTER_RUN2=$(md5sum "$TMP/.github-project.json" | cut -d' ' -f1)
+GH_MD5_AFTER_RUN2=$(md5sum "$TMP/.github-project.env" | cut -d' ' -f1)
 AGENTS_MD5_AFTER_RUN2=$(md5sum "$TMP/AGENTS.md" | cut -d' ' -f1)
 SNAP_AFTER_RUN2=$(e2e_snapshot_files "$TMP" | sha256sum | cut -d' ' -f1)
 
 # AC-SPEC-005 / TR-2.1: every artifact (incl. .opencode/skills/*, opencode.json,
 # .opencode/.gitignore) byte-identical between run 1 and run 2.
-assert_eq ".github-project.json byte-identical across runs 1→2" \
+assert_eq ".github-project.env byte-identical across runs 1→2" \
   "$GH_MD5_AFTER_RUN1" "$GH_MD5_AFTER_RUN2"
 assert_eq "AGENTS.md byte-identical across runs 1→2" \
   "$AGENTS_MD5_AFTER_RUN1" "$AGENTS_MD5_AFTER_RUN2"

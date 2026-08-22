@@ -1,18 +1,12 @@
 # Obsidian Vault
 
-This repository does not own project documentation. Its canonical specs, architecture records, runbooks, project-management notes, and role memory live in an Obsidian vault.
+This repository does not own project documentation. Its canonical specs, architecture records, runbooks, project-management notes, agent communication records, and role memory live in the central Obsidian vault.
 
-Set `OBSIDIAN_VAULT_PATH` to the absolute path of this repository's documentation folder inside that vault. The Git-managed vault for this repository is:
+Resolve the vault and this project's documentation folder by sourcing `./.github-project.env` (the sole committed project config source) and using:
 
-```text
-/Users/chrissim/Projects/Docs
-```
+- `ANT_TEAM_DOCS_VAULT_PATH` — the central vault root
+- `ANT_TEAM_DOCS_PROJECT_PATH` — this project's folder inside the vault (seeded from `ANT_TEAM_DOCS_PROJECT_PATH_TEMPLATE` with the project name resolved by project initialization)
 
-`DOC_ROOT` remains an explicit per-command override. Both variables refer to the documentation root itself, which contains `DOCUMENT_INDEX.md`, `arch/`, `gov/`, `spec/`, and `proj-management/`.
+Update the vault documents directly and link their vault-relative paths from GitHub issues, milestones, and pull requests.
 
-```bash
-export OBSIDIAN_VAULT_PATH="/Users/chrissim/Projects/Docs"
-scripts/setup-doc-structure.sh "$OBSIDIAN_VAULT_PATH"
-```
-
-Do not add a `docs/` or `.docs/` directory to this repository. Update the vault documents directly and link their vault-relative paths from GitHub issues, milestones, and pull requests.
+Repository-local `docs/` in this repo holds code-adjacent guidance only (see AGENTS.md). Do not reintroduce the legacy `OBSIDIAN_VAULT_PATH`/`DOC_ROOT` variables or the retired local-doc scaffolding scripts; project initialization seeds and updates the `ANT_TEAM_DOCS_*` values instead.

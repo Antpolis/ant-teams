@@ -8,7 +8,7 @@
 # REVIEWER FINDING (PR #19 loop 1): the previous implementation materialised a
 # `git archive HEAD` snapshot of ant-teams into a throwaway temp dir and ran
 # --dry-run against THAT copy. Because `git archive HEAD` excludes untracked
-# files, the smoke test silently excluded `.github-project.json` whenever it
+# files, the smoke test silently excluded `.github-project.env` whenever it
 # was untracked at HEAD (which it is today pending issue #11 self-init), so
 # the test could pass with false confidence. This rewrite exercises the LIVE
 # ant-teams checkout directly and independently proves zero mutation via:
@@ -21,12 +21,12 @@
 #   3. `git ls-files --others --exclude-standard` list BEFORE and AFTER —
 #      catches any new untracked non-ignored file init might create.
 #   4. Direct sha256 of every init-managed artifact (AGENTS.md if present,
-#      .github-project.json if present, the entire .opencode/skills/ tree)
+#      .github-project.env if present, the entire .opencode/skills/ tree)
 #      BEFORE and AFTER — catches mutations even when the path is untracked
 #      or ignored (e.g. .opencode/.gitignore'd entries), where git status
 #      would be silent.
-#   5. JSON schema validation of `.github-project.json` when present
-#      (AC-SPEC-008 / DM-1): required top-level keys present and parseable.
+#   5. sourceable-env validation of `.github-project.env` when present
+#      (AC-SPEC-008): sourceable with canonical ANT_TEAM_* keys present.
 #
 # Safety: init is invoked with `--dry-run`, which the script guarantees writes
 # nothing (OBS-2). The init helper's own TEMP_DIR is allocated under the OS
@@ -41,7 +41,7 @@
 # sees. The init script only uses it for path computation in dry-run.
 #
 # Regression evidence this rewrite provides (vs the OLD `git archive` test):
-#   * OLD: dry-run mutating the untracked `.github-project.json` → MISSED
+#   * OLD: dry-run mutating the untracked `.github-project.env` → MISSED
 #     (git archive excludes untracked). NEW: caught by check #4 (direct hash).
 #   * OLD: dry-run creating a new untracked artifact in the live checkout →
 #     MISSED (test ran against a temp copy). NEW: caught by checks #1 and #3.
@@ -111,7 +111,7 @@ GIT_STATUS_BEFORE=$( cd "$REPO_ROOT" && git status --porcelain=v1 | sort | sha25
 #     artifacts are NOT silently missed. AGENTS.md may not exist yet
 #     (issue #11 self-init pending); hash when present.
 AGENTS_PATH="$REPO_ROOT/AGENTS.md"
-GH_PATH="$REPO_ROOT/.github-project.json"
+GH_PATH="$REPO_ROOT/.github-project.env"
 SKILLS_TREE_BEFORE=$( e2e_snapshot_files "$REPO_ROOT/.opencode/skills" \
   | sha256sum | cut -d' ' -f1 )
 AGENTS_HASH_BEFORE=""
@@ -119,45 +119,25 @@ if [[ -f "$AGENTS_PATH" ]]; then
   AGENTS_HASH_BEFORE=$( sha256sum "$AGENTS_PATH" | cut -d' ' -f1 )
 fi
 GH_HASH_BEFORE=""
-GH_JSON_VALID_BEFORE="(no .github-project.json)"
+GH_ENV_VALID_BEFORE="(no .github-project.env)"
 if [[ -f "$GH_PATH" ]]; then
   GH_HASH_BEFORE=$( sha256sum "$GH_PATH" | cut -d' ' -f1 )
 fi
 
-# (5) JSON conformance pre-flight (AC-SPEC-008 / DM-1). When present, the
-#     file MUST parse and carry the DM-1 required top-level keys
-#     (owner, repo, project, identity, boundaries, initMeta). This is the
-#     "validate .github-project.json when present" half of TEST-5.1: the
-#     prior implementation conditionally SKIPPED this file, so a malformed
-#     config would not have failed the smoke.
-if [[ -n "$GH_HASH_BEFORE" ]] && command -v node >/dev/null 2>&1; then
-  GH_VALIDATION_ERR="$LOG.gh-validate"
-  if node -e '
-    const fs = require("fs");
-    const j = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-    const required = ["owner", "owner_type", "repo", "project", "fields",
-                      "status_options", "workflow_state_options",
-                      "worktreeRoot", "identity", "boundaries", "initMeta"];
-    const missing = required.filter((k) => !(k in j));
-    if (missing.length) {
-      console.error("missing keys:", missing.join(","));
-      process.exit(1);
-    }
-    if (typeof j.project !== "object" || !("number" in j.project)) {
-      console.error("project.number missing");
-      process.exit(1);
-    }
-  ' "$GH_PATH" >"$GH_VALIDATION_ERR" 2>&1; then
-    rm -f "$GH_VALIDATION_ERR"
-    check OK ".github-project.json conforms to DM-1 schema (AC-SPEC-008)"
-    GH_JSON_VALID_BEFORE="valid"
+# (5) Env conformance pre-flight (AC-SPEC-008). When present, the committed
+#     .github-project.env must source cleanly under `set -euo pipefail` and
+#     carry the canonical ANT_TEAM_* keys (owner + Workflow State field +
+#     option IDs). This is the "validate .github-project.env when present"
+#     half of TEST-5.1: the prior implementation conditionally SKIPPED this
+#     file, so a malformed config would not have failed the smoke.
+if [[ -n "$GH_HASH_BEFORE" ]]; then
+  if bash -c "set -euo pipefail; source '$GH_PATH'; test -n \"\${ANT_TEAM_GITHUB_OWNER:-}\" && test -n \"\${ANT_TEAM_GITHUB_WORKFLOW_STATE_FIELD_ID:-}\" && test -n \"\${ANT_TEAM_GITHUB_WORKFLOW_STATE_OPTION_READY_ID:-}\"" >/dev/null 2>&1; then
+    check OK ".github-project.env sourceable with canonical keys (AC-SPEC-008)"
+    GH_ENV_VALID_BEFORE="valid"
   else
-    check FAIL ".github-project.json DM-1 schema validation failed (detail in $GH_VALIDATION_ERR)"
-    GH_JSON_VALID_BEFORE="invalid"
+    check FAIL ".github-project.env missing canonical ANT_TEAM_* keys"
+    GH_ENV_VALID_BEFORE="invalid"
   fi
-elif [[ -n "$GH_HASH_BEFORE" ]]; then
-  check FAIL ".github-project.json present but node unavailable for schema validation"
-  GH_JSON_VALID_BEFORE="unvalidated"
 fi
 
 # --- Run init --dry-run against the LIVE checkout -----------------------------
@@ -211,23 +191,19 @@ fi
 
 if [[ -n "$GH_HASH_BEFORE" ]]; then
   GH_HASH_AFTER=$( sha256sum "$GH_PATH" | cut -d' ' -f1 )
-  assert_eq ".github-project.json byte-identical (live checkout)" \
+  assert_eq ".github-project.env byte-identical (live checkout)" \
     "$GH_HASH_BEFORE" "$GH_HASH_AFTER"
-  # Re-validate JSON post-run: a dry-run must not corrupt the file even if a
-  # future regression attempted a partial write. (Old test conditionally
-  # SKIPPED this file entirely — this is the explicit non-skip.)
-  if [[ "$GH_JSON_VALID_BEFORE" == "valid" ]] && command -v node >/dev/null 2>&1; then
-    if node -e '
-      const fs = require("fs");
-      JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-    ' "$GH_PATH" >/dev/null 2>&1; then
-      check OK ".github-project.json still valid JSON after dry-run"
+  # Re-source the env post-run: a dry-run must not corrupt it even if a future
+  # regression attempted a partial write.
+  if [[ "$GH_ENV_VALID_BEFORE" == "valid" ]]; then
+    if bash -c "set -euo pipefail; source '$GH_PATH'; test -n \"\${ANT_TEAM_GITHUB_OWNER:-}\"" >/dev/null 2>&1; then
+      check OK ".github-project.env still sourceable after dry-run"
     else
-      check FAIL ".github-project.json corrupted by dry-run (JSON parse failed)"
+      check FAIL ".github-project.env corrupted by dry-run"
     fi
   fi
 else
-  check OK "no .github-project.json in live checkout (issue #11 self-init pending) — smoke scope is dry-run zero-change"
+  check OK "no .github-project.env in live checkout — smoke scope is dry-run zero-change"
 fi
 
 # Dry-run must emit would-write lines + dry-run summary (OBS-2).
@@ -238,10 +214,10 @@ assert_file_contains "dry-run summary line" "$LOG" '\[summary\] Dry run complete
 # specifically reference an ant-teams-shaped would-write. The init source
 # skills tree is already present, so would-write lines must NOT include a
 # would-write of `init_project_docs.sh` (it's already there); they SHOULD
-# reference AGENTS.md (which issue #11 will commit) and/or .github-project.json
+# reference AGENTS.md (which issue #11 will commit) and/or .github-project.env
 # (untracked today) and/or .opencode/.gitignore. This is a smoke-grade
 # sanity check, not an exact-shape assertion, so it stays loose.
-if grep -qE '\[would-write\] (AGENTS\.md|\.github-project\.json|\.opencode/)' "$LOG"; then
+if grep -qE '\[would-write\] (AGENTS\.md|\.github-project\.env|\.opencode/)' "$LOG"; then
   check OK "would-write lines reference init-managed ant-teams artifacts"
 else
   check FAIL "would-write lines did not reference any init-managed ant-teams artifact"

@@ -16,11 +16,11 @@ Flow:
 2. Review the current GitHub project board state with emphasis on:
    - issues in `Need attentions`
    - existing milestones and the issues linked to them
-   - issues already in `Ready`, `Blocked`, `Shaping`, or `In Progress` when they affect what can fit in the sprint
+   - issues already in `Open`, `Backlog`, `Ready`, `Blocked`, or `In Progress` when they affect what can fit in the sprint
 3. Use the github-agentic-delivery-flow, state-transitions, and github-conventions skills to confirm what work is still shaping, what is blocked, what needs clarification, and what is realistically selectable for the sprint.
-4. Use the github-issues-projects-cli skill, `gh`, `jq`, the repo GitHub wrapper, and `./.github-project.json` to inspect milestone linkage, project-board status, issue dependencies, and missing planning metadata.
+4. Use the github-issues-projects-cli skill, `gh`, `jq`, and the repo GitHub wrapper to inspect milestone linkage, project-board status, issue dependencies, and missing planning metadata. Source `./.github-project.env` first and use its `ANT_TEAM_*` runtime metadata (owner, project, field/option IDs) — it is the sole committed project config source.
 5. Work through past or current `Need attentions` issues first:
-   - read the durable GitHub comment that explains why the issue was moved to `Need attentions`
+   - read the concise GitHub status comment and Obsidian communication record that explain why the issue was moved to `Need attentions`
    - identify whether the issue needs product clarification, scope clarification, sequencing help, acceptance clarification, or a decision to defer
    - use strategist judgment to suggest the cleanest resolution path
    - bring the founder into the decision when prioritization, product intent, or sprint tradeoffs need founder input

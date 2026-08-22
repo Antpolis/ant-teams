@@ -28,29 +28,29 @@ Use `jq` to shape JSON outputs so the user gets the exact answer or exact mutati
 
 ## Repository Configuration
 
-Prefer storing repository-specific defaults in:
+Repository-specific defaults live in the sole committed project config source:
 
-`./.github-project.json`
+`./.github-project.env`
 
-Use `./.github-project.env` only as a fallback for older repos.
+```bash
+source ./.github-project.env
+```
 
-Use that file for:
+That file stores every config value with the `ANT_TEAM_` prefix (`ANT_TEAM_GITHUB_OWNER`, `ANT_TEAM_GITHUB_PROJECT_NUMBER`, `ANT_TEAM_GITHUB_PROJECT_ID`, `ANT_TEAM_GITHUB_WORKFLOW_STATE_FIELD_ID`, `ANT_TEAM_GITHUB_WORKFLOW_STATE_OPTION_IN_REVIEW_ID`, `ANT_TEAM_WORKTREE_ROOT`, `ANT_TEAM_DOCS_PROJECT_PATH`, and so on), covering:
 
-- owner
-- repo
-- owner type
+- owner, repo, owner type
 - project number and project ID
-- field IDs
-- status option IDs
-- any future structured GitHub metadata that benefits from arrays or nested objects
+- field IDs (including the canonical `Workflow State` field)
+- Workflow State option IDs (one `ANT_TEAM_GITHUB_WORKFLOW_STATE_OPTION_<STATE>_ID` per canonical state)
+- the default `ANT_TEAM_WORKTREE_ROOT` and the `ANT_TEAM_DOCS_*` documentation routing exports
 
-This keeps prompts shorter and lets the helper script run without repeating the same owner and project number in every command.
+Prefer sourcing it over any other config lookup. The env is seeded and updated by project initialization itself (`"$ANT_TEAM_SCRIPTS/init-project-docs.sh"` after `scripts/sync-company.sh`; there is no standalone generator and no JSON config): existing values are preserved and missing keys are filled. The bundled `gh_project_helper.sh` sources the env as its sole local runtime config.
 
-This file is intended to be committed to the repository because it stores shared GitHub collaboration metadata rather than secrets.
+The env file is intended to be committed to the repository because it stores shared GitHub collaboration metadata rather than secrets.
 
-Prefer JSON over env because GitHub project metadata often grows into structured mappings such as:
+Keep the JSON as the structured source of truth because GitHub project metadata often grows into structured mappings such as:
 
-- status name to option ID
+- Workflow State name to option ID
 - field name to field ID
 - arrays of common workflow states
 - repo-level workflow defaults such as top-level `worktreeRoot`
@@ -63,8 +63,8 @@ Be concrete when the user asks for any of these common GitHub collaboration acti
 - create an issue that represents a task
 - create a milestone that represents a spec or deliverable
 - find the GitHub Project item ID for an issue
-- list `Todo` issues in a project board
-- transition an issue to the next project-board status
+- list issues in a given Workflow State on a project board
+- transition an issue to the next Workflow State
 - complete an issue
 - create a PR when an issue is ready for code review
 - comment on a PR
@@ -102,8 +102,8 @@ Prefer structured output over human-formatted output:
 - use `--jq` for simple extraction
 - use external `jq` for more involved transforms
 - for repeated GitHub Project operations, prefer the bundled script `scripts/gh_project_helper.sh` to save tokens and avoid re-deriving GraphQL details
-- prefer repo-local defaults from `.github-project.json` before asking the user again for owner or project number
-- prefer repo-local IDs from `.github-project.json` before calling GitHub endpoints to rediscover stable field IDs and option IDs
+- prefer repo-local defaults (source `./.github-project.env` — the sole committed project config source — for `ANT_TEAM_*` values) before asking the user again for owner or project number
+- prefer repo-local IDs from the sourced env before calling GitHub endpoints to rediscover stable field IDs and option IDs
 
 ## Required Behavior
 
@@ -144,7 +144,7 @@ Use this flow when the user wants to understand a GitHub Project board:
 
 1. Identify owner type and owner login.
 2. List projects and confirm the correct project number.
-3. Read project fields and status options.
+3. Read project fields and Workflow State options.
 4. List project items in JSON.
 5. Use `jq` to extract item titles, statuses, assignees, and linked issue URLs.
 6. When a mutation targets a specific issue on the board, resolve the project item ID from the issue number before editing status fields.
@@ -157,7 +157,7 @@ Use this flow when the user wants to move issues across board states:
 
 1. Find the project.
 2. Find the project item for the issue.
-3. Read the field schema and locate the status field.
+3. Read the field schema and locate the canonical `Workflow State` field.
 4. Find the option ID for the target state.
 5. Execute the mutation.
 6. Re-read the item or project listing to confirm the new state.
@@ -233,22 +233,22 @@ Assume issue-to-project linking is usually automatic in this repository workflow
 
 Use the project item ID whenever you need to update project status or any project field for that issue.
 
-### List `Todo` Issues In Project Board
+### List Issues In A Workflow State
 
 Use:
 
 ```bash
-./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh list-todo
+./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh list-items Antpolis 9 "Ready"
 ```
 
-If the board uses `Inbox`, `Ready`, or another equivalent instead of `Todo`, inspect status options first and then adapt the filter.
+All board operations target the canonical `Workflow State` field. Canonical states: `Open`, `Backlog`, `Ready`, `In Progress`, `In Review`, `Ready to Merge`, `Done`, plus exceptions `Need attentions` (founder-only) and `Blocked`. If the remote board still carries a legacy option name (e.g. `Inbox` for `Open`, `Shaping` for `Backlog`), inspect options with `list-statuses` and never rename remote options without explicit founder-approved handling.
 
 ### Transition Issue To Next Status On Project Board
 
 Use a three-step flow:
 
 1. discover the project item ID for the issue
-2. discover the status field ID and target option ID
+2. discover the Workflow State field ID and target option ID
 3. update the item with GraphQL
 
 Do not skip the discovery steps. GitHub Projects v2 status changes depend on opaque IDs.
@@ -259,7 +259,7 @@ Preferred shortcut:
 ./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh set-status ISSUE_NUMBER "In Review"
 ```
 
-When stable IDs are already stored in `.github-project.env`, prefer `gh project item-edit` over raw GraphQL because it uses fewer tokens and matches the installed CLI behavior better.
+The helper resolves the Workflow State field and option IDs from `.github-project.env` (its sole local runtime config), then from the remote board by exact option name. It never creates or renames remote options; if a canonical name has no matching remote option, it fails with guidance instead of mutating the board. When stable IDs are already stored in `.github-project.env`, prefer `gh project item-edit` over raw GraphQL because it uses fewer tokens and matches the installed CLI behavior better.
 
 Important:
 

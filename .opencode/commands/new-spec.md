@@ -15,10 +15,10 @@ Role ownership — non-negotiable:
 Flow:
 1. Orchestrator drives the full shaping loop from start to stop. Do not treat the founder's first prompt as a complete spec.
 2. Strategist leads: extract the founder goal, urgency, business value, success metrics, constraints, assumptions, and open questions. Do not proceed to step 3 until strategist can articulate the business problem, business value, and success metrics clearly.
-3. Read `.github-project.json`, resolve the central Obsidian project documentation path, and research the relevant vault notes, code context, existing GitHub milestones, issues, and project history needed to ground the conversation in real repo context. Search by topic, feature name, domain terms, paths, module names, and synonyms. Do not rely on document numbering.
+3. Source `.github-project.env` (`source ./.github-project.env`) for the GitHub owner/project metadata and the resolved central Obsidian project documentation path (`ANT_TEAM_DOCS_PROJECT_PATH`) — it is the sole committed project config source — then research the relevant vault notes, code context, existing GitHub milestones, issues, and project history needed to ground the conversation in real repo context. Search by topic, feature name, domain terms, paths, module names, and synonyms. Do not rely on document numbering.
 4. Strategist pressure-tests the idea with the founder: challenge assumptions, suggest better variants, cut scope to the smallest viable slice, and surface product tradeoffs, risks, and missing decisions.
 5. Tech-lead pressure-tests before the spec is finalized: feasibility, architecture fit, integration points, sequencing, operational burden, technical tradeoffs, and risk. Tech-lead must identify gaps, not rubber-stamp the draft.
-6. Any discussion between strategist and tech-lead that changes scope, assumptions, tradeoffs, sequencing, constraints, or the recommended path must be written back as a durable GitHub comment before the flow moves on. Do not leave shaping decisions only in transient chat.
+6. Any discussion between strategist and tech-lead that changes scope, assumptions, tradeoffs, sequencing, constraints, or the recommended path must be recorded in the central Obsidian communication record (see the agent-communication-log skill) before the flow moves on, with the resolved final decision posted as a concise GitHub comment once the milestone or issue exists. Do not leave shaping decisions only in transient chat.
 7. Synthesize back to the founder with:
    - problem statement and business value
    - recommended MVP scope and explicit non-goals
@@ -68,7 +68,7 @@ Flow:
 
     If any check fails, create the missing issues or record the gap in the milestone before marking anything Ready.
 
-11. Move confirmed executable issues to `Ready`. Leave non-executable work in `Shaping` or `Blocked` with the exact reason recorded in GitHub.
+11. Move confirmed executable issues to `Ready`. Leave non-executable work in `Backlog` or `Blocked` with the exact reason recorded in the Obsidian communication record and reflected in the GitHub issue or milestone.
 12. Confirm at least one builder-ready issue exists. If not, record why in GitHub and tell the founder exactly what is missing before stopping.
 13. Recommend `do-tasks` only after GitHub is updated and at least one builder-ready issue exists.
 

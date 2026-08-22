@@ -10,7 +10,7 @@
 #     skills + command-derived skills.
 #   - FR-12.2 sync-company invokes sync-managed-skills after the canonical
 #     install; exit code reflects the worst outcome (here 0).
-#   - AC-1.1 / AC-2.1 exactly 34 managed entries (26 source + 8 command-derived,
+#   - AC-1.1 / AC-2.1 exactly 33 managed entries (26 source + 7 command-derived;
 #     0 name collisions in the real source tree); unmanaged content untouched.
 #
 # Runs the REAL repo scripts against a temp HOME so neither the real
@@ -43,8 +43,13 @@ assert_exit_zero "sync-company.sh exit 0" "$SYNC_RC"
 
 # FR-1: canonical install target populated.
 assert_exists "canonical opencode.json installed" "$HOME_DIR/.config/opencode/opencode.json"
-assert_exists "canonical skills dir installed" "$HOME_DIR/.config/opencode/skills"
+assert_not_exists "canonical skills dir is not installed" "$HOME_DIR/.config/opencode/skills"
 assert_exists "canonical commands dir installed" "$HOME_DIR/.config/opencode/commands"
+assert_exists "team scripts installed" "$HOME_DIR/.agents/scripts/sync-company.sh"
+assert_file_contains_str "bash config exports team scripts" \
+  "$HOME_DIR/.bashrc" 'export ANT_TEAM_SCRIPTS="$HOME/.agents/scripts"'
+assert_file_contains_str "zsh config exports team scripts" \
+  "$HOME_DIR/.zshrc" 'export ANT_TEAM_SCRIPTS="$HOME/.agents/scripts"'
 assert_file_contains_str "sync-company reports canonical sync" "$OUT" "Synced"
 
 # Copilot agents are generated from the inline OpenCode role definitions.
@@ -61,9 +66,9 @@ assert_file_contains_str "sync-company reports Copilot agents" "$OUT" "Synced Op
 # managed count is verified via the manifest; the dir count is a lower bound.
 assert_ge "managed dir count >= skills + commands" \
   "$(sync_count_dirs "$HOME_DIR/.agents/skills")" "$EXPECTED_TOTAL"
-assert_eq "manifest records 34 managed entries" \
+assert_eq "manifest records 33 managed entries" \
   "$(sync_manifest_count_entries "$MANIFEST")" "$EXPECTED_TOTAL"
-assert_eq "expected total is 34 (26+8)" "$EXPECTED_TOTAL" "34"
+assert_eq "expected total is 33 (26+7)" "$EXPECTED_TOTAL" "33"
 assert_eq "manifest present" "$(sync_manifest_is_valid_json "$MANIFEST")" "yes"
 
 # A representative source skill and a command-derived skill are present.

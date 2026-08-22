@@ -2,6 +2,15 @@
 
 ## Active Lessons
 
+### 2026-08-22 - project-env / env-first helper re-review
+
+- Context: Re-reviewed the gh_project_helper env-first fix for malformed `.github-project.json` sessions with already-sourced `ANT_TEAM_*` variables.
+- Smoke Result: Pass; env-primary path no longer emits jq parse errors, and JSON fallback still resolves values when the env is absent.
+- Runtime Requirement: Validate with `tests/test_project_env_runtime.js`; use a temp HOME / fake `gh` shim so the helper path is exercised without touching the live board.
+- Verification Command: `node tests/test_project_env_runtime.js`; `for f in tests/test_*.js; do node "$f"; done`; `bash tests/run_e2e_tests.sh`
+- Known Gap: No GitHub issue/PR was linked in the workspace for this local re-review.
+- Related Docs: `docs/arch/ARCH-003-project-local-initialization-artifacts.md`, `docs/memory/builder-memory.md`
+
 ### 2026-08-03 - SPEC-002 / #25 (PR #29, approval)
 
 - Context: Reviewed docs-only PR #29 for the final SPEC-002 documentation task.

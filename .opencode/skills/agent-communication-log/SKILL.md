@@ -17,23 +17,19 @@ After completing a communication-log task, commit and push only the communicatio
 
 Keep agent-to-agent collaboration in the central Obsidian project folder so the workflow does not depend on one continuous chat context. Keep GitHub as the authoritative status and execution system.
 
-The communication record is stored in Obsidian; GitHub remains the shared execution and status record for:
+The full agent communication and role-memory record is stored in Obsidian. GitHub issue and PR comments carry only:
 
-- Product/spec decisions
-- Tech-lead guardrails
-- Task planning decisions
-- Builder implementation notes
-- Code review findings
-- Reviewer verification results
-- Review-development loop count
-- Hard blockers needing human intervention
-- Tech-lead escalation decisions
-- Defer tasks for architecture decisions or technical debt
-- Links to project-specific Obsidian communication and role-memory notes when durable context is needed
+- Final decisions (product/spec, guardrail, planning, defer, escalation outcomes)
+- Status changes and closure confirmations
+- Code-review results: code-specific findings, approval evidence, merge confirmation
+- Concise founder decision requests
+- Links to the project-specific Obsidian communication and role-memory notes for durable context
+
+Working conversation, implementation notes, verification detail, review-loop history, and loop counts belong in the Obsidian event files, not GitHub comments.
 
 ## Collaboration Location
 
-Use the central Obsidian project folder for agent-to-agent communication. Resolve it from `.github-project.json.documentation.projectPathTemplate`.
+Use the central Obsidian project folder for agent-to-agent communication. Resolve it by sourcing `./.github-project.env` (the sole committed project config source) and using `ANT_TEAM_DOCS_PROJECT_PATH`. Before creating an event file, inspect and use the approved communication template and Base in the central vault. If no template exists, stop and request one; do not invent the format.
 
 Store communication records under:
 

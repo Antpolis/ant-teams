@@ -30,7 +30,7 @@ Before making strong implementation decisions:
 
 Useful repo guidance often lives in:
 
-- the central Obsidian project documentation path from `.github-project.json`
+- the central Obsidian project documentation path from `ANT_TEAM_DOCS_PROJECT_PATH` in `.github-project.env` — the sole committed project config source (source `./.github-project.env`)
 - project-specific architecture, governance, and ADR notes in that vault path
 - related skill docs and workflow docs under `.opencode/skills/`
 
@@ -178,6 +178,18 @@ If the answer exposes unnecessary complexity, simplify before finishing.
 6. Was architecture or cleanup bundled into a feature change without being explicitly called out?
 
 If yes to any of these, raise it as a finding — not a suggestion. Leniency on these principles is a reviewer failure.
+
+## Optional Ponytail Tools
+
+The repository ships optional Ponytail skills: `ponytail`, `ponytail-review`, `ponytail-audit`, `ponytail-debt`, and `ponytail-gain`. They complement this skill but never override correctness, security, architecture guardrails, required tests, role ownership, GitHub audit records, review gates, or merge approval.
+
+- `ponytail` (core): optionally apply to hygiene-sensitive work to challenge YAGNI, reuse what already exists in the repo, avoid new dependencies, and prefer the smallest working diff. It aligns with the goals above; use it as an aid, never as a reason to skip required verification.
+- `ponytail-review`: optionally run as an additional complexity-only review pass. It replaces nothing — the reviewer's scope/architecture/placement checks above remain mandatory, and its findings are actionable only when they do not conflict with requirements or guardrails.
+- Mark meaningful deliberate simplifications that cut a real corner (a known ceiling such as a global lock, O(n²) scan, or naive heuristic) with a `ponytail:` comment naming the ceiling and the upgrade trigger.
+- `ponytail-audit` may be run periodically or at milestone close for a one-shot repo-wide complexity listing; it applies nothing.
+- `ponytail-debt` harvests `ponytail:` markers into a ledger. Debt that warrants follow-up must be converted into GitHub issues/tasks by `tech-lead`, under the existing issue-ownership rules — never silently hidden. Markers without an upgrade trigger are rot risks.
+- `ponytail-gain` is informational benchmark context only and must not be used as a project metric.
+- These tools are optional and one-shot where their skill says so. When an invocation affects an existing task or decision, record it in the normal issue/PR or milestone comments; standalone informational runs need no new record.
 
 ## Refactor Guidance
 

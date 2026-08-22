@@ -9,113 +9,91 @@ Metadata:
 | Domain | project initialization workflow |
 | Status | active |
 | Owner | tech-lead |
-| Applies To | `scripts/init-project.sh`, `.github-project.json`, `AGENTS.md`, project-local `.opencode/skills/`, all initialized project repositories |
-| Keywords | init-project, AGENTS.md, .github-project.json, project-local skills, multi-repo identity, boundaries, backward-compatible migration, initialization artifacts |
+| Applies To | `scripts/init-project.sh`, `.github-project.env`, `AGENTS.md`, project-local `.opencode/skills/`, all initialized project repositories |
+| Keywords | init-project, AGENTS.md, .github-project.env, env-only configuration, ANT_TEAM_* exports, project-local skills, initialization artifacts |
 | Related Docs | SPEC-001, ARCH-001, ARCH-002, GOV-002, `.opencode/skills/project-initialization/SKILL.md`, `DOCUMENT_INDEX.md` |
-| Supersedes |  |
-| Last Updated | 2026-07-18 |
+| Supersedes | The `.github-project.json` project-config model (removed 2026-08; see the env-only configuration contract below) |
+| Last Updated | 2026-08-22 |
 
 ## Summary
 
-This document is the canonical technical reference for the project-local initialization artifacts produced by `init-project`. It defines the contract that every initialized repository must fulfill and that every downstream agent can rely on. It supersedes the two inconsistent partial schemas currently embedded in `init_project_docs.sh` and `setup_project_docs.sh`.
+This document is the canonical technical reference for the project-local initialization artifacts produced by `init-project`. It defines the contract that every initialized repository must fulfill and that every downstream agent can rely on. Since the founder-confirmed env-only configuration contract (2026-08), the sole committed project config source is `.github-project.env`. There is no JSON config and no JSON import/removal path — the former `.github-project.json` config artifact is ignored (never read, never removed).
 
 ## Purpose
 
-Define the stable artifact contract (`AGENTS.md`, `.github-project.json`, project-local `.opencode/skills/`) so that agent prompts, downstream tooling, and migration logic have a single source of truth about what an initialized repository contains and what guarantees those artifacts make.
+Define the stable artifact contract (`AGENTS.md`, `.github-project.env`, project-local `.opencode/skills/`) so that agent prompts, downstream tooling, and upgrade logic have a single source of truth about what an initialized repository contains and what guarantees those artifacts make.
 
 ## Scope
 
 This document covers:
-- The `.github-project.json` canonical schema (single source of truth)
+- The `.github-project.env` canonical export set (single source of truth)
 - The `AGENTS.md` generation contract (structure, guarantees, content bounds)
 - The project-local skills copy model (which skills, why those three, merge rules)
-- The multi-repo identity/boundary model (thin, static, non-resolving)
+- The env-only configuration contract (no JSON import/removal path)
 - The backward-compatibility contract (what survives, what coexists, what is deprecated)
 
 Out of scope:
 - The interactive prompting UX (defined in SPEC-001)
 - The repository inspection algorithm (defined in SPEC-001 FR-2)
-- Agent prompt updates to consume these artifacts (no changes required — existing prompts already reference `./.github-project.json` and `./.opencode/skills/`)
+- The canonical Workflow State names — they live as constants in the workflow skills, tests, and docs, not as a config field
 
 ## Audience
 
 - **Builders** implementing or modifying the `init-project` pipeline
 - **Reviewers** verifying init output correctness
 - **Downstream agents** (orchestrator, tech-lead, strategist, builder, reviewer) consuming initialized repo context
-- **Multi-repo maintainers** reasoning about repo boundaries
 
 ## Artifacts And Their Contracts
 
-### Artifact 1: `.github-project.json`
+### Artifact 1: `.github-project.env`
 
-**Location:** `<REPO_ROOT>/.github-project.json`
+**Location:** `<REPO_ROOT>/.github-project.env`
 
-**Purpose:** The single local source for shared GitHub workflow metadata and thin multi-repo identity. Every agent prompt that references `./.github-project.json` must be able to rely on this file's structure.
+**Purpose:** The sole local source for shared GitHub workflow and routing metadata, expressed as sourceable `ANT_TEAM_*` shell exports. Every agent prompt and helper script that needs stable project metadata sources this file; nothing parses a JSON config at runtime because no JSON config exists.
 
-**Canonical schema:**
+**Canonical export set (deterministic order):**
 
-```json
-{
-  "owner": "string (required)",
-  "owner_type": "org | user (required)",
-  "repo": "string (required, format owner/repo)",
-  "project": {
-    "number": "integer (required)",
-    "id": "string (optional, GraphQL global ID)"
-  },
-  "fields": {
-    "status": "string (required, GraphQL field ID)"
-  },
-  "status_options": {
-    "todo": "string (required)",
-    "in-progress": "string (required)",
-    "in-review": "string (required)",
-    "done": "string (required)",
-    "blocked": "string (optional)",
-    "need-attentions": "string (optional)",
-    "ready": "string (optional)",
-    "ready-to-merge": "string (optional)",
-    "inbox": "string (optional)",
-    "shaping": "string (optional)"
-  },
-  "worktreeRoot": "string (required, absolute or ~-prefixed path)",
-  "identity": {
-    "name": "string (required)",
-    "description": "string (required)",
-    "role": "service | library | infra | monorepo-root | tool | docs | other (required)"
-  },
-  "boundaries": {
-    "owns": "string (required)",
-    "depends_on": [
-      {
-        "name": "string",
-        "url": "string",
-        "relationship": "string"
-      }
-    ],
-    "related_repos": [
-      {
-        "name": "string",
-        "url": "string",
-        "relationship": "string"
-      }
-    ]
-  },
-  "initMeta": {
-    "version": "string (required)",
-    "generatedAt": "string (required, ISO 8601)"
-  }
-}
+```text
+ANT_TEAM_GITHUB_OWNER                      # GitHub owner
+ANT_TEAM_GITHUB_OWNER_TYPE                 # 'org' | 'user'
+ANT_TEAM_GITHUB_REPO                       # 'owner/repo'
+ANT_TEAM_GITHUB_PROJECT_NUMBER             # GitHub Project number
+ANT_TEAM_GITHUB_PROJECT_ID                 # GraphQL global ID (optional value)
+ANT_TEAM_GITHUB_STATUS_FIELD_ID            # legacy Status field ID
+ANT_TEAM_GITHUB_WORKFLOW_STATE_FIELD_ID    # canonical Workflow State field ID
+ANT_TEAM_GITHUB_STATUS_OPTION_<KEY>_ID     # one per carried status option key
+ANT_TEAM_GITHUB_WORKFLOW_STATE_OPTION_<KEY>_ID
+                                           # one per canonical state: OPEN, BACKLOG,
+                                           # NEED_ATTENTIONS, READY, IN_PROGRESS,
+                                           # IN_REVIEW, READY_TO_MERGE, BLOCKED, DONE
+ANT_TEAM_WORKTREE_ROOT                     # default issue-worktree parent
+ANT_TEAM_DOCS_VAULT_PATH                   # central Obsidian vault root
+ANT_TEAM_DOCS_PROJECT_NAME                 # defaults to the git repo name
+ANT_TEAM_DOCS_PROJECT_PATH_TEMPLATE        # template carrying '<project-name>'
+ANT_TEAM_DOCS_REPOSITORY                   # vault remote
+ANT_TEAM_DOCS_PROJECT_PATH                 # derived: template with placeholder resolved
 ```
 
-**Guarantees:**
-1. If this file exists at the repo root, all required fields listed above are present.
-2. The schema is strictly additive — new fields may be added but existing required fields are never removed by the initializer.
-3. The `worktreeRoot` field points to a directory that `create_task_worktree.sh` can use.
-4. The `identity` and `boundaries` blocks reflect operator-provided or detected metadata. They are authoritative for this repo's self-description.
-5. The `initMeta.version` field enables migration tooling to detect stale configs.
+Option keys normalize to uppercase underscore variable-name fragments (`in-progress` → `IN_PROGRESS`, `need-attentions` → `NEED_ATTENTIONS`, `ready-to-merge` → `READY_TO_MERGE`). Values are single-quoted with `'\''` escaping so any shell metacharacter survives sourcing.
 
-**Agent consumption pattern:** All agent prompts already reference `./.github-project.json`. The new `identity`, `boundaries`, and `initMeta` fields are passively available — agents may read them but the absence of code that reads them does not cause failures. The fields are described in `AGENTS.md` for agent discoverability.
+**Seeding and update rules (init-project is the only writer besides the founder):**
+
+1. Fresh repo: seed the full canonical set. Operator flags (`--github-owner`, `--github-project-number`) fill values where provided; everything else gets clearly-marked placeholders (`your-github-owner`, `1`, `PVT_kwDOEXAMPLE`, `*-option-id`, `workflow-state-field-id`). The initializer has no network access and never invents real-looking IDs.
+2. Existing env: founder values are preserved verbatim. Only keys that are absent (or empty) are filled; the canonical header is normalized. Nothing already set is ever overwritten.
+3. `ANT_TEAM_DOCS_PROJECT_NAME` defaults to the detected git repository name (basename of the project root); a founder value is never replaced.
+4. `ANT_TEAM_DOCS_PROJECT_PATH` is derived (first-occurrence `<project-name>` resolution) whenever both template and project name exist.
+5. Founder-added non-canonical exports and unrecognized non-comment lines are preserved verbatim.
+6. Dropped config fields: there is no `identity`, `boundaries`, `initMeta`, or `canonicalWorkflowStates` block anywhere in the config. Repository identity and relationships live in `AGENTS.md` prose (shaped by `--name`, `--description`, `--repo-role`, `--related-repos`); the canonical Workflow State names live as constants in the workflow skills, tests, and docs.
+
+**Guarantees:**
+
+1. If this file exists at the repo root, every canonical key above is present (possibly with a placeholder value).
+2. Re-running init-project is byte-for-byte idempotent: an unchanged env is never rewritten (stable mtime).
+3. The file is deterministic — no timestamps, stable key order.
+4. `ANT_TEAM_WORKTREE_ROOT` points to a directory `create_task_worktree.sh` can use (may carry a literal `~`; consumers expand it against `$HOME`).
+5. The file is safe to commit: shared project metadata only, never secrets.
+
+**Agent consumption pattern:** source it (`source ./.github-project.env`) before GitHub API/project operations, documentation access, and worktree operations. `gh_project_helper.sh` and the do-task worktree helpers source it as their sole local config; remote board discovery remains the fallback for values the env does not carry.
 
 ### Artifact 2: `AGENTS.md`
 
@@ -130,7 +108,7 @@ Out of scope:
 4. At minimum, the "Local Configuration Files" section lists every initialization artifact present.
 5. The file uses Markdown format with UTF-8 encoding and LF line endings.
 
-**Agent consumption pattern:** Agents read `AGENTS.md` as part of their initial repository context. The file provides structured sections that match the agent's context-gathering needs (stack, commands, conventions, boundaries). No agent parses `AGENTS.md` programmatically — it is a human-and-agent-readable document.
+**Agent consumption pattern:** Agents read `AGENTS.md` as part of their initial repository context. The file provides structured sections that match the agent's context-gathering needs (stack, commands, conventions, relationships). No agent parses `AGENTS.md` programmatically — it is a human-and-agent-readable document.
 
 ### Artifact 3: Project-local `.opencode/skills/`
 
@@ -168,42 +146,14 @@ Out of scope:
 
 **Agent consumption pattern:** OpenCode runtime reads this file automatically. No agent prompt changes needed.
 
-## Multi-Repo Identity And Boundary Model
-
-### Design principle: thin, static, non-resolving
-
-The multi-repo identity model deliberately avoids:
-- Live URL resolution (no network calls, no credential surface)
-- Automatic discovery (operator or init provides the information)
-- Schema that implies a canonical multi-repo directory service
-- Dependencies that require sibling repos to be present or reachable
-
-Instead, it stores operator-provided, human-maintained metadata as static JSON strings. This is sufficient to prevent repo confusion (the primary goal) without creating an operational dependency on external repos being available.
-
-### When agents should use boundary metadata
-
-Agents should consult `.github-project.json` → `boundaries` when:
-- A task references a service or component that may live in a sibling repo
-- Cross-repo coordination is needed
-- The agent is unsure whether a change should be made in this repo or another
-
-Agents should **not** use boundary metadata for:
-- Automatic code fetching or resolution
-- Build-time dependency resolution
-- Inferring API contracts or schemas
-
-### Relationship to GOV-002
-
-The `identity` and `boundaries` blocks in `.github-project.json` are project-level local metadata. They do not duplicate or mirror the master enterprise architecture (stored in Google Drive per GOV-002). They describe *this repo's* place in the multi-repo family, not enterprise-wide architecture. No GOV-002 conflict exists.
-
 ## Backward-Compatibility Contract
 
-### What the upgraded initializer preserves
+### What the initializer preserves
 
 | Existing artifact | Behavior |
 |---|---|
-| `agent.md` (lowercase) | Never deleted. Coexists with `AGENTS.md`. Content may be read for migration (interactive mode only) but the file is not modified. |
-| `.github-project.json` (old schema) | Existing fields (`owner`, `owner_type`, `repo`, `project`, `fields`, `status_options`) are preserved verbatim. New fields (`worktreeRoot`, `identity`, `boundaries`, `initMeta`) are added if missing. |
+| `agent.md` (lowercase) | Never deleted. Coexists with `AGENTS.md`. |
+| `.github-project.env` founder values | Preserved verbatim; only missing keys are filled. |
 | `.opencode/opencode.json` / `.opencode/opencode.jsonc` | Existing entries preserved. Only `external_directory` is added if missing. |
 | Docs folders (`docs/adr/`, `docs/arch/`, etc.) | Never modified or deleted. |
 | Project-local custom skills | Preserved; never overwritten. |
@@ -213,27 +163,23 @@ The `identity` and `boundaries` blocks in `.github-project.json` are project-lev
 | Deprecated artifact | Status |
 |---|---|
 | `agent.md` (lowercase) | Deprecated as canonical path. `AGENTS.md` is preferred. `agent.md` remains for backward compatibility but is no longer generated by the upgraded init. |
-| `setup_project_docs.sh` | Still available and functional. Not upgraded. For new initializations, `init_project_docs.sh` is the preferred path. |
+| `setup_project_docs.sh` | Still available and functional. Not upgraded beyond seeding a placeholder `.github-project.env`. For new initializations, `init_project_docs.sh` is the preferred path. |
 | `agent-md-template.md` asset | Still present in source repo. No longer used by the upgraded init for `AGENTS.md` generation. |
+| `.github-project.json` | Removed as a config artifact. Ignored entirely: there is no JSON import/removal path. |
 
 ### Migration states
 
 ```
-Fresh repo → upgraded init:
-  Creates: AGENTS.md, .github-project.json (full schema), .opencode/skills/ (3 skills),
+Fresh repo → init:
+  Creates: AGENTS.md, .github-project.env (full canonical seed), .opencode/skills/ (3 skills),
            .opencode/opencode.json (minimal)
 
-Legacy-initialized repo → upgraded init:
-  Preserves: agent.md, existing .github-project.json fields, existing .opencode/opencode.json
-  Adds: AGENTS.md, worktreeRoot to .github-project.json, identity+boundaries+initMeta,
-        .opencode/skills/ (3 skills)
-
-Already-upgraded repo → rerun upgraded init:
+Already-initialized repo → rerun init:
   Idempotent: no changes. --force regenerates AGENTS.md, re-copies skills. --merge
   adds new sections to existing AGENTS.md without overwriting.
 
-Already-upgraded repo → run old init (setup_project_docs.sh):
-  Old script detects existing files (agent.md, .github-project.json) and skips them.
+Already-initialized repo → run old init (setup_project_docs.sh):
+  Old script detects existing files (agent.md, .github-project.env) and skips them.
   No damage, no regression.
 ```
 
@@ -241,41 +187,43 @@ Already-upgraded repo → run old init (setup_project_docs.sh):
 
 ### For builders implementing init changes
 
-1. The `.github-project.json` schema defined here is the single source of truth. Do not introduce a second schema in script code.
-2. The three skills copied are non-negotiable. Do not add `skill-creator`, `webapp-testing`, or any other skill unless this ARCH document is updated.
-3. `AGENTS.md` must never contain fabricated facts. If you cannot trace a claim to inspection evidence or operator input, remove it.
-4. Never delete the legacy `agent.md` file automatically. Coexistence is mandatory.
-5. The init must not require network access. No API calls, no URL resolution, no external validation.
-6. The init must not create files outside the target project directory except for the temp directory used during generation (cleaned up by trap on EXIT).
+1. The `.github-project.env` export set defined here is the single source of truth. Do not introduce a second config format, a JSON config, or a standalone env generator command.
+2. Founder values in the env are never overwritten by the initializer. Only missing keys are filled.
+3. The three skills copied are non-negotiable. Do not add `skill-creator`, `webapp-testing`, or any other skill unless this ARCH document is updated.
+4. `AGENTS.md` must never contain fabricated facts. If you cannot trace a claim to inspection evidence or operator input, remove it.
+5. Never delete the legacy `agent.md` file automatically. Coexistence is mandatory.
+6. The init must not require network access. No API calls, no URL resolution, no external validation.
+7. The init must not create files outside the target project directory except for the temp directory used during generation (cleaned up by trap on EXIT).
+8. Never resurrect `identity`, `boundaries`, `initMeta`, or `canonicalWorkflowStates` config fields — those concerns live in `AGENTS.md` prose and workflow-skill constants respectively.
 
 ### For reviewers verifying init output
 
-1. Verify `.github-project.json` contains all required fields.
-2. Verify `AGENTS.md` has no placeholder text.
-3. Verify exactly three skills are copied, no more.
-4. Verify legacy `agent.md` is still present if it existed before.
-5. Verify `.opencode/opencode.json` retains all pre-existing entries.
-6. Verify idempotency: second run produces no file changes.
-7. Verify `--dry-run` writes zero files.
+1. Verify `.github-project.env` exists, sources cleanly, and carries every canonical key.
+2. Verify a stray `.github-project.json` is left untouched (init never reads or removes it).
+3. Verify `AGENTS.md` has no placeholder text.
+4. Verify exactly three skills are copied, no more.
+5. Verify legacy `agent.md` is still present if it existed before.
+6. Verify `.opencode/opencode.json` retains all pre-existing entries.
+7. Verify idempotency: second run produces no file changes.
+8. Verify `--dry-run` writes zero files.
 
 ### For agents consuming initialized repo context
 
 1. Read `AGENTS.md` first; fall back to `agent.md` only if `AGENTS.md` is absent.
-2. Read `.github-project.json` for GitHub workflow metadata. Assume `worktreeRoot` is present.
+2. Source `.github-project.env` for GitHub workflow metadata and worktree/documentation routing. Assume `ANT_TEAM_WORKTREE_ROOT` is present.
 3. Reference project-local skills via `./.opencode/skills/<name>/scripts/<script>.sh`.
-4. Use `.github-project.json` → `boundaries` for repo-identity questions but do not resolve URLs or fetch sibling repos.
-5. The absence of a section in `AGENTS.md` means "no information available," not "default behavior applies."
+4. Canonical Workflow State names come from the workflow skills (`state-transitions`), not from config.
 
 ## Enforcement
 
 - ARCH-003 is the architecture review reference for all init-project changes.
 - Any PR that modifies the init scripts must be checked against the guarantees and guardrails in this document.
-- Changes to the `.github-project.json` schema, the skills copy list, or the `AGENTS.md` generation contract require an ARCH-003 update.
-- SPEC-001 acceptance criteria are the verification standard for initial delivery. This ARCH document is the ongoing maintenance standard. When they conflict, the ARCH document governs structure; the spec governs behavior.
+- Changes to the `.github-project.env` export set, the skills copy list, or the `AGENTS.md` generation contract require an ARCH-003 update.
+- SPEC-001 defined the original delivery behavior; where its `.github-project.json` design conflicts with this document, ARCH-003 governs. The env-only configuration contract (2026-08) supersedes the JSON artifact design entirely — there is no JSON config and no JSON import/removal path.
 
 ## Related Documents
 
-- `docs/spec/SPEC-001-init-project-tailored-repo-bootstrap.md`
+- `docs/spec/SPEC-001-init-project-tailored-repo-bootstrap.md` (superseded config design)
 - `docs/arch/ARCH-001-skill-delegation.md`
 - `docs/arch/ARCH-002-agent-task-delegation.md`
 - `docs/gov/GOV-002-master-enterprise-architecture-reference-and-local-application.md`

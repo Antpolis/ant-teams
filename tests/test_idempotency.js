@@ -120,21 +120,21 @@ check('AC-T6-006a: second run exits 0', () => {
   assert.strictEqual(r2.status, 0, `second run failed: ${r2.stderr}`);
 });
 
-check('AC-T6-006b: second run emits "No changes needed" wording', () => {
+check('AC-T6-006b: second run emits idempotent no-change wording', () => {
   const tmp = mkdtempRepo('ac006b');
   runInit(noninteractive({ projectDir: tmp }));
   const r2 = runInit(noninteractive({ projectDir: tmp }));
-  assert.ok(/No changes needed/.test(r2.stdout),
-    `expected 'No changes needed' on stdout:\n${r2.stdout}`);
+  assert.ok(/already up to date|no changes needed/i.test(r2.stdout),
+    `expected idempotent no-change wording on stdout:\n${r2.stdout}`);
 });
 
-check('AC-T6-006c: .github-project.json is byte-for-byte identical across reruns', () => {
+check('AC-T6-006c: .github-project.env is byte-for-byte identical across reruns', () => {
   const tmp = mkdtempRepo('ac006c');
   runInit(noninteractive({ projectDir: tmp }));
-  const h1 = hashFile(path.join(tmp, '.github-project.json'));
+  const h1 = hashFile(path.join(tmp, '.github-project.env'));
   runInit(noninteractive({ projectDir: tmp }));
-  const h2 = hashFile(path.join(tmp, '.github-project.json'));
-  assert.strictEqual(h1, h2, '.github-project.json changed on idempotent rerun');
+  const h2 = hashFile(path.join(tmp, '.github-project.env'));
+  assert.strictEqual(h1, h2, '.github-project.env changed on idempotent rerun');
 });
 
 check('AC-T6-006d: AGENTS.md is byte-for-byte identical across reruns (no --force)', () => {
@@ -238,10 +238,10 @@ process.stdout.write('Suite: ERR-2.3 temp cleanup\n');
 check('ERR-2.3: no leaked temp files in target dir after a normal run', () => {
   const tmp = mkdtempRepo('err23');
   runInit(noninteractive({ projectDir: tmp }));
-  // Atomic-write temps are hidden files matching .AGENTS.md.* / .github-project.json.*
+  // Atomic-write temps are hidden files matching .AGENTS.md.* / .github-project.env.*
   // in the target dir. They MUST be renamed away (mv -f) on successful completion.
   const leaked = fs.readdirSync(tmp).filter(
-    (f) => f.startsWith('.AGENTS.md.') || f.startsWith('.github-project.json.'),
+    (f) => f.startsWith('.AGENTS.md.') || f.startsWith('.github-project.env.'),
   );
   assert.deepStrictEqual(leaked, [], `leaked atomic-write temps: ${leaked.join(', ')}`);
 });
@@ -251,7 +251,7 @@ check('ERR-2.3: no leaked temp files after a --force --merge run', () => {
   runInit(noninteractive({ projectDir: tmp, description: 'first' }));
   runInit(noninteractive({ projectDir: tmp, description: 'second', force: true, merge: true }));
   const leaked = fs.readdirSync(tmp).filter(
-    (f) => f.startsWith('.AGENTS.md.') || f.startsWith('.github-project.json.'),
+    (f) => f.startsWith('.AGENTS.md.') || f.startsWith('.github-project.env.'),
   );
   assert.deepStrictEqual(leaked, [], `leaked atomic-write temps after merge: ${leaked.join(', ')}`);
 });

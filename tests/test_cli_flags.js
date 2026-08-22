@@ -26,7 +26,7 @@
  *                uses the inline text verbatim; @missing-file is a hard error.
  *
  * Scope note (issue #3): the downstream AGENTS.md generation (T3 / issue #4),
- * .github-project.json schema extension (T5 / issue #6), and OBS-2 dry-run /
+ * .github-project.env schema extension (T5 / issue #6), and OBS-2 dry-run /
  * idempotency (T6 / issue #7) consume the same `opt_*` variables resolved by
  * T2 but are not asserted here. T2's contract is parsing + resolution +
  * validation only.
@@ -589,7 +589,7 @@ check('guardrail: --related-repos malformed triple rejected', () => {
   assert.ok(r.stderr.includes("Invalid --related-repos entry: 'just-a-name'"));
 });
 
-check('guardrail: --force / --skip-inspection / --dry-run / --migrate-agent-md accepted in noninteractive', () => {
+check('guardrail: --force / --skip-inspection / --dry-run accepted in noninteractive; retired --migrate-agent-md rejected', () => {
   const tmp = mkdtempRepo('gr-bool');
   const r = runInit(
     [
@@ -599,10 +599,20 @@ check('guardrail: --force / --skip-inspection / --dry-run / --migrate-agent-md a
       '--force',
       '--skip-inspection',
       '--dry-run',
-      '--migrate-agent-md',
     ],
   );
   assert.strictEqual(r.status, 0, `boolean flags should be accepted; got ${r.status}\nstderr:\n${r.stderr}`);
+
+  const retired = runInit(
+    [
+      '--project-dir', tmp,
+      '--worktree-root', path.join(tmp, 'wt'),
+      ...noninteractiveRequired(),
+      '--migrate-agent-md',
+    ],
+  );
+  assert.strictEqual(retired.status, 1, 'retired --migrate-agent-md must be rejected');
+  assert.ok(retired.stderr.includes('Unknown argument: --migrate-agent-md'));
 });
 
 check('guardrail: INIT_PROJECT_SKIP_INSPECTION=1 + INIT_PROJECT_DRY_RUN=1 accepted via env', () => {
@@ -621,7 +631,7 @@ check('guardrail: INIT_PROJECT_SKIP_INSPECTION=1 + INIT_PROJECT_DRY_RUN=1 accept
 // --- Regression: --github-project-number must be a positive integer ----------
 // Reviewer finding (PR #14 review loop 2): the CLI-2 table types this flag as
 // `Integer`, but `--github-project-number nope` was accepted and would poison
-// .github-project.json downstream. These tests assert the strict positive-
+// .github-project.env downstream. These tests assert the strict positive-
 // integer contract before any file is written.
 
 process.stdout.write('Suite: regression --github-project-number positive integer\n');

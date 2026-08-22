@@ -62,15 +62,22 @@ Avoid giant issues that hide multiple major decisions.
 
 ## Project States
 
-Recommended states:
+Canonical happy path:
 
-- `Inbox`
-- `Shaping`
+- `Open`
+- `Backlog`
 - `Ready`
 - `In Progress`
 - `In Review`
-- `Blocked`
+- `Ready to Merge`
 - `Done`
+
+Exception states:
+
+- `Need attentions` — founder-only decision state, entered only after strategist and tech-lead review
+- `Blocked` — exception state after tech-lead/strategist resolution failed; any state may enter it, typically `In Progress` or `In Review`
+
+The canonical board field is `Workflow State`. Legacy option names such as `Inbox` (now `Open`) and `Shaping` (now `Backlog`) may still exist on the remote board; do not rename remote options without explicit founder-approved handling.
 
 If the repository already uses equivalent project states, preserve the established system rather than inventing a competing one.
 
@@ -93,18 +100,19 @@ Use labels to improve filtering and routing, not as a substitute for clear issue
 
 ## Comments
 
-Use issue comments for:
+Use issue comments only for:
 
-- agent handoffs
-- shaping discussion summaries and clarified decisions
-- findings
-- blocker notes
-- approval notes
-- deferred follow-up decisions
+- final decisions and status-critical updates
+- blocker and escalation status
+- closure and completion confirmations
+- concise founder decision requests
+- links to the Obsidian communication record
 
-Use PR comments for code-specific findings and review discussion.
+Use PR comments only for code-specific findings, review threads, approval evidence, and merge confirmation.
 
-When strategist and tech-lead discuss a spec during shaping, they may do the live reasoning in-agent, but they must post the durable result of that discussion back to the milestone or shaping issue before handing work forward.
+Working agent-to-agent discussion, delegation reasoning, shaping conclusions, and review-loop history live in the central Obsidian communication record, not in GitHub comments.
+
+When strategist and tech-lead discuss a spec during shaping, they record the durable result of that discussion in the Obsidian communication record and post only the final decision summary to the milestone or shaping issue before handing work forward.
 
 ## Source Of Truth Rules
 

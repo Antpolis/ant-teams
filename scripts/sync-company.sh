@@ -6,12 +6,13 @@ usage() {
 Usage:
   scripts/sync-company.sh [--target-dir PATH] [--force]
 
-Copy the repository .opencode folder into target config directory,
-then perform managed syncs of repository-owned skills and agent definitions.
+Copy the repository .opencode configuration into the target config directory,
+then sync repository-owned skills, scripts, and agent definitions.
 
 Defaults:
   target-dir: ~/.config/opencode
   Copilot agents: ~/.copilot/agents
+  Team scripts: ~/.agents/scripts
 
 Flags:
   --target-dir PATH   Override the canonical OpenCode install target.
@@ -23,6 +24,26 @@ script_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source_dir="$script_root/.opencode"
 target_dir="${OPENCODE_CONFIG_DIR:-$HOME/.config/opencode}"
+agents_dir="${HOME%/}/.agents"
+team_scripts_dir="$agents_dir/scripts"
+
+sync_team_scripts() {
+  rm -rf "$team_scripts_dir"
+  mkdir -p "$agents_dir"
+  cp -R "$script_root/scripts" "$team_scripts_dir"
+  chmod 0755 "$team_scripts_dir"/*.sh 2>/dev/null || true
+
+  local env_line='export ANT_TEAM_SCRIPTS="$HOME/.agents/scripts"'
+  local rc_file
+  for rc_file in "$HOME/.bashrc" "$HOME/.zshrc"; do
+    touch "$rc_file"
+    if ! grep -Fqx "$env_line" "$rc_file"; then
+      printf '\n%s\n' "$env_line" >> "$rc_file"
+    fi
+  done
+
+  echo "Synced team scripts -> $team_scripts_dir"
+}
 
 # SPEC-002 FR-12.2 / CLI-2.1: --force is passed through to sync-managed-skills.sh
 # only when supplied. It does not affect the canonical OpenCode install.
@@ -155,6 +176,7 @@ temp_dir="$(mktemp -d)"
 trap 'rm -rf "$temp_dir"' EXIT
 
 cp -R "$source_dir"/. "$temp_dir"/
+rm -rf "$temp_dir/skills"
 merge_provider_config "$temp_dir/opencode.json" "$existing_config"
 
 mkdir -p "$(dirname "$target_dir")"
@@ -163,6 +185,7 @@ mkdir -p "$target_dir"
 cp -R "$temp_dir"/. "$target_dir"/
 
 echo "Synced $source_dir -> $target_dir"
+sync_team_scripts
 sync_copilot_agents "$source_dir/opencode.json"
 
 # SPEC-002 FR-12.2 / INT-3.2: managed sync runs only after the canonical install

@@ -50,7 +50,7 @@ assert_eq "zero file changes (snapshot identical)" "$BEFORE" "$AFTER"
 # OBS-2.1: no AGENTS.md / skills / config written.
 assert_not_exists "no AGENTS.md written" "$TMP/AGENTS.md"
 assert_not_exists "no skills copied" "$TMP/.opencode/skills"
-assert_not_exists "no .github-project.json created" "$TMP/.github-project.json"
+assert_not_exists "no .github-project.env created" "$TMP/.github-project.env"
 
 # OBS-2: [would-write] lines present and a dry-run summary emitted.
 assert_file_contains "would-write lines present" "$LOG" '\[would-write\]'

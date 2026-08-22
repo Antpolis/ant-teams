@@ -11,7 +11,7 @@ Flow:
 1. Ask the strategist agent to research repository documents relevant to this deliverable and produce a technical product/enhancement spec. Search by topic, feature name, domain terms, paths, module names, and synonyms. Do not rely on document numbering.
 2. Ask the strategist agent to review the product direction and spec correctness before architecture or task planning begins.
 3. Ask the tech-lead agent to review the technical viability of the spec after strategist approval and before architecture or task planning begins.
-4. Create or update the GitHub milestone and use the agent-communication-log skill to treat GitHub issue comments and PR comments as the durable handoff surface for all agents.
+4. Create or update the GitHub milestone and use the agent-communication-log skill to keep the full agent communication record in the central Obsidian project folder; GitHub issue comments and PR comments carry only final decisions, status, closure, and code-review results.
 5. Ask the tech-lead agent to review viability, architecture fit, risks, and builder guardrails using the relevant docs, spec, GitHub collaboration record, and role memory after strategist approval.
 6. Ask the tech-lead agent to use the how-to-create-task skill and create builder-ready GitHub tasks for this spec. The tasks must contain scope, dependencies, definition of done, acceptance tests, and verification commands, and must point to the canonical spec and relevant docs.
 7. Run execution through the `do-task` skill. Tech-lead should drive the queue, group issues by spec, clarify unclear issues when needed, and delegate technically clear issues to builder one by one.

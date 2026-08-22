@@ -25,7 +25,7 @@ All tasks for one spec live as separate GitHub issues linked to the same GitHub 
 
 Do not use local markdown task files as the execution surface.
 Do not stop at comments if the intended next role is builder — create the actual GitHub issues.
-If strategist and tech-lead refine scope or sequencing, write the resolved outcome to the milestone as a durable GitHub comment before creating issues. Do not create issues from unresolved discussion.
+If strategist and tech-lead refine scope or sequencing, record the discussion in the central Obsidian communication record (see the agent-communication-log skill) and post the resolved outcome as a concise final decision on the milestone before creating issues. Do not create issues from unresolved discussion.
 
 ## Required Inputs — Hard Gate
 
@@ -58,7 +58,7 @@ Also confirm:
 - [ ] Relevant architecture docs in the central Obsidian project folder have been read and inform the guardrails for this spec
 - [ ] No open shaping discussion remains unresolved in chat or comments
 
-If any checkbox cannot be checked, record which items are missing as a GitHub comment on the milestone, leave the milestone in `Shaping`, and stop. Do not create issues from an incomplete spec.
+If any checkbox cannot be checked, record which items are missing as a GitHub comment on the milestone, leave the milestone in `Backlog`, and stop. Do not create issues from an incomplete spec.
 
 ## Milestone Template
 
@@ -212,7 +212,7 @@ Every task must also be builder-activatable:
 
 - a builder should be able to start from the issue without reconstructing scope from scattered comments or re-reading the full spec
 - if the issue is ready now, set the owner role to builder and move it to `Ready` — but only after tech-lead has sequenced all issues for this spec pass
-- if it is not ready, say exactly what is missing and leave it in `Shaping` or `Blocked`
+- if it is not ready, say exactly what is missing and leave it in `Backlog` or `Blocked`
 
 ## Sequencing and Coverage — Hard Gate
 
@@ -221,7 +221,7 @@ Tech-lead must complete all sequencing and coverage checks before any issue is m
 Sequencing (tech-lead):
 - [ ] All issues for this spec are created
 - [ ] Each issue has a Sequence Position assigned
-- [ ] The full sequence is recorded in a durable GitHub comment on the milestone
+- [ ] The full sequence is recorded as a final decision on the milestone, with the reasoning kept in the Obsidian communication record
 - [ ] Parallelism conflicts are identified and resolved or called out
 
 Coverage (tech-lead confirms, strategist co-signs):
@@ -238,11 +238,12 @@ Strategist sign-off:
 
 If any checkbox fails, create the missing issue or record the gap in a GitHub milestone comment. Do not move any issue to `Ready` until every checkbox above is checked. Partial sequencing and partial coverage are not acceptable stopping points.
 
-## GitHub-Only Rule
+## Execution Record Rule
 
 - GitHub issues are the only execution task records for this workflow.
-- GitHub Project status is the only canonical task board for workflow state.
-- GitHub issue comments and PR comments are the only canonical collaboration log for task execution.
+- The GitHub Project `Workflow State` field is the only canonical task board for workflow state.
+- GitHub issue comments and PR comments carry only final decisions, status, closure, and code-review results.
+- The central Obsidian project folder is the canonical full agent communication and role-memory record (see the agent-communication-log skill).
 - Repository docs remain the canonical place for specs, architecture, ADRs, GOV docs, and other reusable guidance.
 
 ## Required Task Types — Hard Gate

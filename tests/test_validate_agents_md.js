@@ -106,7 +106,7 @@ function goodAgentsMd(extra) {
     '## Local Configuration Files',
     '',
     '- `AGENTS.md` — canonical agent guidance for this repository',
-    '- `.github-project.json` — GitHub workflow metadata',
+    '- `.github-project.env` — ANT_TEAM_* runtime exports (sole project config source)',
     '- `.opencode/skills/project-initialization/` — re-initialization scripts',
   ];
   if (extra) lines.push(...extra);
@@ -115,7 +115,7 @@ function goodAgentsMd(extra) {
 
 // Files the known-good fixture claims exist (AC-T8-006 happy path).
 function materializeGoodArtifacts(dir) {
-  fs.writeFileSync(path.join(dir, '.github-project.json'), '{}\n');
+  fs.writeFileSync(path.join(dir, '.github-project.env'), "export ANT_TEAM_GITHUB_OWNER='o'\n");
   fs.mkdirSync(path.join(dir, '.opencode', 'skills', 'project-initialization'), {
     recursive: true,
   });

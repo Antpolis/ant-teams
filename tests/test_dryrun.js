@@ -140,7 +140,7 @@ check('AC-T6-002c: --dry-run creates NO files in target (only .git marker remain
   assert.strictEqual(r.status, 0, `dry-run failed: ${r.stderr}`);
   const entries = fs.readdirSync(tmp).sort();
   // Only the .git marker created by mkdtempRepo should be present. No
-  // AGENTS.md, no .opencode/, no .github-project.json, no docs/.
+  // AGENTS.md, no .opencode/, no .github-project.env, no docs/.
   assert.deepStrictEqual(entries, ['.git'],
     `dry-run wrote files: ${entries.join(', ')}\nstdout:\n${r.stdout}`);
 });
@@ -159,7 +159,7 @@ check('AC-T6-002d: --dry-run does NOT create the worktree-root dir', () => {
   assert.ok(!fs.existsSync(wt), `dry-run created worktree root ${wt}`);
 });
 
-check('AC-T6-002e: --dry-run does NOT create .opencode/ or .github-project.json', () => {
+check('AC-T6-002e: --dry-run does NOT create .opencode/ or .github-project.env', () => {
   const tmp = mkdtempRepo('ac002e');
   const r = runInit([
     '--noninteractive',
@@ -170,7 +170,7 @@ check('AC-T6-002e: --dry-run does NOT create .opencode/ or .github-project.json'
   ]);
   assert.strictEqual(r.status, 0);
   assert.ok(!fs.existsSync(path.join(tmp, '.opencode')), '.opencode/ must not exist');
-  assert.ok(!fs.existsSync(path.join(tmp, '.github-project.json')), '.github-project.json must not exist');
+  assert.ok(!fs.existsSync(path.join(tmp, '.github-project.env')), '.github-project.env must not exist');
   assert.ok(!fs.existsSync(path.join(tmp, 'AGENTS.md')), 'AGENTS.md must not exist');
 });
 
@@ -311,7 +311,7 @@ check('AC-T6-004: when node is absent from PATH, exit 1 with [error] naming ≥1
   assert.strictEqual(r.status, 1, `expected exit 1, got ${r.status}`);
   assert.ok(/node/.test(r.stderr), `expected 'node' mention:\n${r.stderr}`);
   assert.ok(/≥18|>=18/.test(r.stderr), `expected '≥18' version requirement:\n${r.stderr}`);
-  assert.ok(/ensure_opencode_config|ensure_github_project_config/.test(r.stderr),
+  assert.ok(/ensure_opencode_config|ensure_project_runtime_env/.test(r.stderr),
     `expected function name that requires node:\n${r.stderr}`);
 });
 

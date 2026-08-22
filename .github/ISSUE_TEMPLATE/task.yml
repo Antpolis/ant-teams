@@ -155,14 +155,15 @@ body:
     id: workflow_state
     attributes:
       label: Workflow State
-      description: Current project board state for this issue.
+      description: Current project board state for this issue (canonical Workflow State field).
       options:
-        - Shaping
+        - Open
+        - Backlog
+        - Need attentions
         - Ready
         - In Progress
         - In Review
         - Ready to Merge
-        - Need attentions
         - Blocked
         - Done
     validations:

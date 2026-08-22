@@ -66,6 +66,21 @@ A task can be marked `completed` only when all are true:
 
 Use the GitHub workflow skills to record review results, verification outcomes, defer decisions, blocker state, and completion decisions.
 
+## Optional Complexity Checks (ponytail-review, ponytail-audit, ponytail-debt)
+
+Before marking a task `Done`, the reviewer may optionally:
+
+- run `ponytail-review` on the task diff to surface over-engineering in the changed code
+- run `ponytail-audit` for broader task- or milestone-level cleanup context
+- use `ponytail-debt` to harvest deliberate simplification markers left in the work
+
+All three are one-shot, read-only reports per their own skill definitions; none of them writes code automatically.
+
+- Record results only when they affect a completion decision; otherwise no record is required.
+- Any warranted follow-up becomes a GitHub issue or defer task only through the existing tech-lead ownership of defer decisions.
+- These checks do not block completion unless the existing completion criteria require it or a real risk demands it.
+- The definition of done, acceptance gates, 8-loop cap, role memory rules, and GitHub-only rules stay unchanged.
+
 ## Tech-Lead Escalation
 
 When escalated after 8 loops or persistent architecture conflict:
@@ -119,6 +134,6 @@ Report:
 
 ## GitHub-Only Rule
 
-- Treat GitHub issue state, GitHub Project status, issue comments, PR comments, and PR review as the authoritative task workflow surface.
+- Treat GitHub issue state, GitHub Project Workflow State, final decision and closure comments, and PR code-review results as the authoritative task workflow surface; the full working record lives in the Obsidian collaboration record.
 - Do not close or validate work based on local task-file state alone.
 - Use the central Obsidian project folder for canonical spec and architecture context that GitHub issues and milestones link back to.

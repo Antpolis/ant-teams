@@ -2,7 +2,7 @@
 #
 # test_e2e_noninteractive_node.sh — SPEC-001 TEST-2.1 `test-e2e-noninteractive-node`.
 # Traceability: AC-SPEC-003 (noninteractive single-command), AC-SPEC-008
-# (.github-project.json canonical schema), AC-SPEC-007 (skills copy), and the
+# (.github-project.env env-only config), AC-SPEC-007 (skills copy), and the
 # issue #8 known-edge-case from #5 (exec-bit invariant).
 #
 set -euo pipefail
@@ -49,15 +49,17 @@ assert_file_contains "AGENTS.md generation comment" "$TMP/AGENTS.md" 'Generated 
 assert_file_contains "AGENTS.md reflects Node/npm detection" "$TMP/AGENTS.md" '[Nn]ode'
 assert_file_contains "AGENTS.md reflects npm detection" "$TMP/AGENTS.md" 'npm'
 
-# AC-SPEC-008: .github-project.json valid JSON with worktreeRoot + identity.
-assert_exists ".github-project.json" "$TMP/.github-project.json"
-assert_file_contains "worktreeRoot present" "$TMP/.github-project.json" '"worktreeRoot"'
-assert_file_contains "identity.name matches --name" "$TMP/.github-project.json" '"node-demo"'
-if node -e 'JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"))' "$TMP/.github-project.json" >/dev/null 2>&1; then
-  check OK ".github-project.json is valid JSON"
+# AC-SPEC-008 (env-only): .github-project.env carries the owner and worktree root.
+assert_exists ".github-project.env" "$TMP/.github-project.env"
+assert_file_contains "github owner recorded" "$TMP/.github-project.env" "ANT_TEAM_GITHUB_OWNER='antpolis'"
+assert_file_contains "worktree root present" "$TMP/.github-project.env" 'ANT_TEAM_WORKTREE_ROOT='
+if bash -c "set -euo pipefail; source '$TMP/.github-project.env'; test -n \"\${ANT_TEAM_WORKTREE_ROOT:-}\"" >/dev/null 2>&1; then
+  check OK ".github-project.env is sourceable"
 else
-  check FAIL ".github-project.json is not valid JSON"
+  check FAIL ".github-project.env is not sourceable"
 fi
+# No JSON config is created under the env-only contract.
+assert_not_exists ".github-project.json absent" "$TMP/.github-project.json"
 
 # .opencode config gets the worktree external_directory entry (ARCH-003 Artifact 4).
 OC_JSON="$TMP/.opencode/opencode.json"

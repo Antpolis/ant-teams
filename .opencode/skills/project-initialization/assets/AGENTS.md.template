@@ -27,11 +27,11 @@ Read the project notes in the vault before changing product scope, architecture,
 
 ## Worktree Routing
 
-Read .github-project.json before creating a worktree. Use its worktreeRoot value and create one worktree per issue:
+Source .github-project.env before creating a worktree. Use its ANT_TEAM_WORKTREE_ROOT value and create one worktree per issue:
 
 ```sh
-config=$(node -e 'const fs=require("fs"); const c=JSON.parse(fs.readFileSync(".github-project.json")); console.log(JSON.stringify({worktreeRoot:c.worktreeRoot, documentation:c.documentation}, null, 2))'
-git worktree add "__WORKTREE_ROOT__/__ISSUE_ID__" -b "__BRANCH_NAME__" "__BASE_BRANCH__"
+source ./.github-project.env
+git worktree add "${ANT_TEAM_WORKTREE_ROOT/#\~/$HOME}/__ISSUE_ID__" -b "__BRANCH_NAME__" "__BASE_BRANCH__"
 ```
 
 Do not set core.worktree. Do not create a second project documentation tree in the repository.
@@ -39,5 +39,5 @@ Do not set core.worktree. Do not create a second project documentation tree in t
 ## Local Configuration Files
 
 - AGENTS.md — repository-specific agent guidance
-- .github-project.json — GitHub project, worktree, and central documentation metadata
+- .github-project.env — sole committed project config source (ANT_TEAM_* runtime exports for GitHub metadata, worktree root, and documentation paths)
 - .opencode/opencode.json — OpenCode runtime configuration

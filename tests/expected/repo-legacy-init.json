@@ -37,12 +37,6 @@
       ".opencode/opencode.json"
     ]
   },
-  "github_project_config": {
-    "observed": true,
-    "evidence": [
-      ".github-project.json"
-    ]
-  },
   "repo_origin": {
     "observed": "not detected",
     "evidence": []
@@ -51,5 +45,9 @@
     "observed": [],
     "evidence": []
   },
-  "ambiguities": []
+  "ambiguities": [],
+  "github_project_env": {
+    "observed": false,
+    "evidence": []
+  }
 }

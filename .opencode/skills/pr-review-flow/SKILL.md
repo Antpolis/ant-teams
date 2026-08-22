@@ -1,6 +1,6 @@
 ---
 name: pr-review-flow
-description: Use when creating pull requests, starting code review, responding to review comments, running review loops, or syncing builder and reviewer conversation. Enforces PR-created review start and PR comments as the review conversation record.
+description: Use when creating pull requests, starting code review, responding to review comments, running review loops, or syncing builder and reviewer conversation. Enforces PR-created review start, Obsidian event files as the working review conversation record, and PR comments for code-specific findings and final code-review results.
 ---
 
 # PR Review Flow
@@ -14,21 +14,21 @@ If `agentic-flow-terms` is available, use it as the canonical glossary for devel
 - **loop-breaker** — an escalation that exits the review loop because progress is blocked (hard blocker, unresolvable disagreement, loop cap hit)
 - **defer task** — work explicitly deferred out of scope and tracked for a future issue
 - **task branch** — the git branch carrying the work for a single task or issue
-- **GitHub collaboration record** — the GitHub issue plus its linked PR, which together must tell the full story of the work
+- **collaboration record** — the Obsidian communication event files for the issue plus the GitHub issue and linked PR; the Obsidian events carry the working conversation, GitHub carries final decisions, status, closure, and code-review results
 
 ## Record Authority
 
-The PR comments are the detailed review conversation. The GitHub issue is the task-level summary.
+The Obsidian communication event files are the detailed working review conversation between builder and reviewer. PR comments carry code-specific findings, review threads, and the final code-review result. The GitHub issue is the task-level summary.
 
-These two together are the authoritative record. Chat history is not. Any decision, finding, or escalation that matters must appear in one or both before the loop closes.
+These three together are the authoritative record. Chat history is not. Any decision, finding, or escalation that matters must appear in at least one of them before the loop closes.
 
 ## Core Rule
 
 The review loop starts when the builder creates a pull request from the task branch.
 
-Builder and reviewer conversation during review must be recorded in PR comments.
+Builder and reviewer working conversation during review must be recorded as individual Obsidian communication event files. Code-specific findings, approvals, and merge confirmations stay in PR comments.
 
-The GitHub issue and PR together must make the review loop understandable without chat context. Do not rely only on chat history.
+The GitHub issue, the PR, and the Obsidian communication events together must make the review loop understandable without chat context. Do not rely only on chat history.
 
 Builder owns moving work into review. Reviewer owns sending it back with findings or approving it forward. Other roles may inspect or coordinate, but they should not impersonate builder or reviewer by posting their role-specific review-loop decisions in place of them during normal flow.
 
@@ -140,7 +140,7 @@ When raising a concern about separation, name the two concerns that are mixed an
 
 Flag as a finding if new code is placed in the wrong layer, namespace, or package.
 
-Before judging placement, read the central Obsidian project architecture documents resolved from `.github-project.json`. The project-defined structure takes precedence over generic language conventions. Do not apply Java, .NET, or TypeScript defaults if the project has its own documented layer definitions.
+Before judging placement, read the central Obsidian project architecture documents under `ANT_TEAM_DOCS_PROJECT_PATH` (source `./.github-project.env` — the sole committed project config source). The project-defined structure takes precedence over generic language conventions. Do not apply Java, .NET, or TypeScript defaults if the project has its own documented layer definitions.
 
 If no project-specific architecture document covers the placement question, fall back to language conventions as a secondary guide:
 
@@ -161,21 +161,30 @@ When raising this finding, state: where the file lives now, where the architectu
 
 Do not soften these findings with "consider" or "might want to." If it violates a principle, state it as a finding. Builder may disagree and argue for keeping it — that disagreement should be explicit and recorded, not avoided by the reviewer hedging.
 
+## Optional Over-Engineering Check (ponytail-review)
+
+After or beside the mandatory correctness, architecture, security, scope, and KISS review, the reviewer may optionally run `ponytail-review` as a separate pass.
+
+- It is a one-shot, read-only report per its own skill definition; it never writes code automatically.
+- It reports over-engineering only, in its one-line findings/net metric format.
+- It cannot override acceptance criteria, tech-lead guardrails, security requirements, required tests, reviewer approval, or merge gates.
+- It does not add a review loop or an approval gate.
+- If a finding affects a review or merge decision, record it in PR comments and reflect it in the GitHub issue summary.
+
 ## PR Comment Rules
 
-Use PR comments for review conversation between builder and reviewer:
+Use PR comments for the code-review result only:
 
-- Reviewer posts findings as PR review comments or PR discussion comments.
-- Builder responds to each finding in PR comments with fix summary, commit reference, or reason for disagreement.
-- Reviewer resolves or reopens findings in PR comments.
-- After responding to findings, reviewer re-runs the verification commands from the PR body and posts the result as a PR comment.
-- Hard blockers and loop-breaker escalations must be mentioned in PR comments and cross-linked from the GitHub issue.
+- Reviewer posts code-specific findings as PR review comments or PR discussion comments.
+- Reviewer posts the explicit approval comment stating no blockers remain before moving the issue to `Ready to Merge`.
+- Hard blockers and loop-breaker outcomes are summarized in PR comments and cross-linked from the GitHub issue.
 
-Every review pass should leave a durable trace:
+Working review conversation lives in the Obsidian communication event files for the issue:
 
-- reviewer states approval, blocker, or findings clearly
-- builder replies with fix summary, disagreement rationale, or follow-up question
+- builder records the implementation handover and each fix summary as Obsidian events with commit references
+- reviewer records each pass, verification re-run results, and disagreement rationale as Obsidian events
 - unresolved findings stay visible in the PR conversation until explicitly cleared
+- the loop count per review pass is tracked in the Obsidian events
 
 ## Review Loop Rules
 
@@ -188,7 +197,7 @@ Every review pass should leave a durable trace:
   1. Post an explicit approval comment on the PR stating the issue is clear with no blockers and the PR is ready to merge.
   2. Move the GitHub issue to `Ready to Merge`.
 - Do not merge until the issue is in `Ready to Merge` and the approval comment is on the PR.
-- If the PR or issue needs founder input before it can proceed or merge, move the issue to `Need attentions` with a founder-addressed GitHub comment instead of posting an approval.
+- If the PR or issue needs founder input before it can proceed or merge, confirm strategist and tech-lead review were both attempted, record the reasoning in an Obsidian event file, then move the issue to `Need attentions` with a founder-addressed GitHub comment instead of posting an approval.
 
 ## Development Loop Rules
 
@@ -208,13 +217,13 @@ After every PR review pass, update the GitHub issue with:
 - PR URL or identifier
 - Current loop count
 - Review result
-- Summary of PR comments/findings
+- Summary of PR code-review findings
 - Builder response summary
 - Reviewer verification result if available
 - Approval state
 - Blocker, stopper, loop-breaker, or defer-task state
 
-The detailed discussion lives in PR comments. The issue receives a concise summary whenever the review state materially changes so queue-level roles can continue from the issue alone.
+The detailed working discussion lives in Obsidian communication events. PR comments carry the code-review result, and the issue receives a concise summary whenever the review state materially changes so queue-level roles can continue from the issue alone.
 
 ## Role Memory Sync
 

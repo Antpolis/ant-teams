@@ -33,10 +33,6 @@
     "observed": [],
     "evidence": []
   },
-  "github_project_config": {
-    "observed": false,
-    "evidence": []
-  },
   "repo_origin": {
     "observed": "not detected",
     "evidence": []
@@ -45,5 +41,9 @@
     "observed": [],
     "evidence": []
   },
-  "ambiguities": []
+  "ambiguities": [],
+  "github_project_env": {
+    "observed": false,
+    "evidence": []
+  }
 }

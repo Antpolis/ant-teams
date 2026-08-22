@@ -1,6 +1,6 @@
 ---
 name: release-management
-description: Use when preparing a release from a completed GitHub milestone, creating or correcting a GitHub Release, recording release evidence, changelog notes, merge completion, deployment readiness, or post-validation release records. Intended for delivery or release workflow roles; not for CPO, CTO, or product-owner drafting.
+description: Use when preparing a release from a completed GitHub milestone, creating or correcting a GitHub Release, recording release evidence, changelog notes, merge completion, deployment readiness, or post-validation release records. Intended for delivery or release workflow roles; not for strategist or tech-lead product drafting.
 ---
 
 # Release Management
@@ -78,6 +78,20 @@ Before creating or finalizing a release:
 
 If the repository has more than one reasonable frontend or backend verification command, use the strongest standard pre-release command for each side rather than the fastest partial check.
 
+## Optional Release Hygiene Pass (ponytail-audit, ponytail-debt)
+
+As an optional pre-release or closeout hygiene pass, tech-lead may:
+
+- run `ponytail-audit` across the shipped scope to surface complexity worth simplifying
+- run `ponytail-debt` to identify deliberate simplifications and deferred cleanup
+
+Both are one-shot, read-only reports per their own skill definitions; neither writes code automatically.
+
+- Debt follow-up remains tech-lead-owned and may be recorded as a release follow-up issue or defer task.
+- Neither tool replaces frontend/backend tests, smoke checks, milestone completion, reviewer approval, or release readiness.
+- Complexity findings appear in release notes or follow-up context only when they materially affect a release decision.
+- This pass adds no new release gate.
+
 ## Release note test section
 
 GitHub release notes must include a test-results section that records both frontend and backend verification.
@@ -118,7 +132,7 @@ Release readiness should confirm:
 
 - milestone exists and is the release starting point
 - milestone issues required for the release are complete
-- task is `Approved` or `Done`
+- task is `Ready to Merge` or `Done`
 - reviewer approved
 - frontend tests passed
 - backend tests passed

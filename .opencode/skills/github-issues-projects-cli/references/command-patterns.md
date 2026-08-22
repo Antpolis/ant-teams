@@ -16,42 +16,55 @@ Important:
 - board status updates require the project item ID
 - in this repository workflow, issues are usually auto-linked to the project, so manual linking is a fallback rather than the default
 
-Store repo defaults in:
+Store repo defaults in the sole committed project config source:
 
-`./.github-project.json`
+`./.github-project.env`
 
-Example:
+Source it instead of re-deriving config on every command:
 
 ```bash
-cat > ./.github-project.json <<'EOF'
-{
-  "owner": "your-github-owner",
-  "owner_type": "org",
-  "repo": "your-github-owner/your-repo",
-  "project": {
-    "number": 1,
-    "id": "PVT_kwDOEXAMPLE"
-  },
-  "fields": {
-    "status": "PVTSSF_EXAMPLE"
-  },
-  "status_options": {
-    "todo": "f75ad846",
-    "in-progress": "61e4505c",
-    "in-review": "abcdef12",
-    "done": "1234abcd"
-  }
-}
+source ./.github-project.env
+# exports ANT_TEAM_GITHUB_OWNER, ANT_TEAM_GITHUB_PROJECT_NUMBER,
+# ANT_TEAM_GITHUB_PROJECT_ID, ANT_TEAM_GITHUB_WORKFLOW_STATE_FIELD_ID,
+# ANT_TEAM_GITHUB_WORKFLOW_STATE_OPTION_<STATE>_ID, ...
+```
+
+`.github-project.env` is seeded and updated by project initialization itself (`"$ANT_TEAM_SCRIPTS/init-project-docs.sh"` after `scripts/sync-company.sh`; there is no standalone generator and no JSON config): existing values are preserved and missing keys are filled. Edit values directly when verified remote IDs change; the bundled `gh_project_helper.sh` sources the env as its sole local runtime config.
+
+Example `.github-project.env`:
+
+```bash
+cat > ./.github-project.env <<'EOF'
+# Project runtime configuration (ANT_TEAM_* exports) — the sole committed project config source.
+# Seeded and updated by init-project: existing values are preserved, missing keys are filled.
+# Edit values directly; re-running init-project never overwrites a value already set here.
+# Safe to commit: shared project metadata only, no secrets.
+
+export ANT_TEAM_GITHUB_OWNER='your-github-owner'
+export ANT_TEAM_GITHUB_OWNER_TYPE='org'
+export ANT_TEAM_GITHUB_REPO='your-github-owner/your-repo'
+export ANT_TEAM_GITHUB_PROJECT_NUMBER='1'
+export ANT_TEAM_GITHUB_PROJECT_ID='PVT_kwDOEXAMPLE'
+export ANT_TEAM_GITHUB_WORKFLOW_STATE_FIELD_ID='workflow-state-field-id'
+export ANT_TEAM_GITHUB_WORKFLOW_STATE_OPTION_OPEN_ID='open-option-id'
+export ANT_TEAM_GITHUB_WORKFLOW_STATE_OPTION_BACKLOG_ID='backlog-option-id'
+export ANT_TEAM_GITHUB_WORKFLOW_STATE_OPTION_NEED_ATTENTIONS_ID='need-attentions-option-id'
+export ANT_TEAM_GITHUB_WORKFLOW_STATE_OPTION_READY_ID='ready-option-id'
+export ANT_TEAM_GITHUB_WORKFLOW_STATE_OPTION_IN_PROGRESS_ID='in-progress-option-id'
+export ANT_TEAM_GITHUB_WORKFLOW_STATE_OPTION_IN_REVIEW_ID='in-review-option-id'
+export ANT_TEAM_GITHUB_WORKFLOW_STATE_OPTION_READY_TO_MERGE_ID='ready-to-merge-option-id'
+export ANT_TEAM_GITHUB_WORKFLOW_STATE_OPTION_BLOCKED_ID='blocked-option-id'
+export ANT_TEAM_GITHUB_WORKFLOW_STATE_OPTION_DONE_ID='done-option-id'
 EOF
 ```
 
 This file is safe to commit if it only contains shared repository metadata and no secrets.
 
-Use env IDs for stable project metadata whenever possible. This avoids spending tokens rediscovering:
+Use the sourced env IDs for stable project metadata whenever possible. This avoids spending tokens rediscovering:
 
 - project ID
-- status field ID
-- status option IDs
+- Workflow State field and option IDs (the only board field this workflow drives)
+- worktree root and documentation paths (`ANT_TEAM_WORKTREE_ROOT`, `ANT_TEAM_DOCS_*`)
 
 ## Repo Context
 
@@ -175,12 +188,12 @@ List project fields and status options:
 gh project field-list PROJECT_NUMBER --owner OWNER --format json
 ```
 
-Extract the status field and option IDs:
+Extract the canonical Workflow State field and option IDs:
 
 ```bash
 gh project field-list PROJECT_NUMBER --owner OWNER --format json \
   | jq '.fields[]
-    | select(.name == "Status")
+    | select(.name == "Workflow State")
     | {
         field_id: .id,
         options: [
@@ -227,11 +240,7 @@ gh project item-list PROJECT_NUMBER --owner OWNER --format json \
         issue_number: (.content.number // null),
         url: (.content.url // ""),
         assignees: ((.content.assignees // []) | map(.login)),
-        status: (
-          [.fieldValues[]?
-            | select(.field.name == "Status")
-            | .name] | first // ""
-        )
+        state: (.["workflow State"] // "")
       }'
 ```
 
@@ -244,22 +253,18 @@ gh project item-list PROJECT_NUMBER --owner OWNER --format json \
     | {
         title: (.content.title // ""),
         issue_number: (.content.number // null),
-        status: (
-          [.fieldValues[]?
-            | select(.field.name == "Status")
-            | .name] | first // ""
-        ),
+        state: (.["workflow State"] // ""),
         url: (.content.url // "")
       }'
 ```
 
-List project items in `Todo`:
+List project items in a canonical Workflow State (e.g. `Ready`):
 
 ```bash
-./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh list-todo
+./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh list-items Antpolis 9 "Ready"
 ```
 
-List all available status names:
+List all available Workflow State option names:
 
 ```bash
 ./.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh list-statuses
@@ -347,11 +352,7 @@ gh project item-list PROJECT_NUMBER --owner OWNER --format json \
     | {
         issue_number: .content.number,
         title: .content.title,
-        status: (
-          [.fieldValues[]?
-            | select(.field.name == "Status")
-            | .name] | first // ""
-        )
+        state: (.["workflow State"] // "")
       }'
 ```
 
@@ -452,11 +453,7 @@ Find project items currently blocked:
 ```bash
 gh project item-list PROJECT_NUMBER --owner OWNER --format json \
   | jq '.items[]
-    | select(
-        ([.fieldValues[]?
-          | select(.field.name == "Status")
-          | .name] | first // "") == "Blocked"
-      )
+    | select((.["workflow State"] // "") == "Blocked")
     | {
         title: (.content.title // ""),
         issue_number: (.content.number // null),

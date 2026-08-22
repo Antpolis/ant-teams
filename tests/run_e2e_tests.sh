@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 #
-# run_e2e_tests.sh — SPEC-001-T7 end-to-end + migration + smoke test runner.
-# Traceability: AC-T7-001 (executes all 9 test cases, exit 0 when all pass)
-# + TEST-2.1 (7 e2e cases) + TEST-3.1/.2 (2 migration cases) + TEST-5.1
-# (representative ant-teams dry-run smoke).
+# run_e2e_tests.sh — SPEC-001-T7 end-to-end + smoke test runner.
+# Traceability: AC-T7-001 (executes the e2e cases, exit 0 when all pass)
+# + TEST-2.1 (6 e2e cases) + TEST-5.1 (representative ant-teams dry-run smoke).
 #
 # Issue #8 scope lists 9 core test cases (7 e2e + 2 migration) plus the
-# TEST-5.1 smoke. This runner executes all 10 scripts. AC-T7-001's "all 9 test
-# cases" wording refers to the 9 e2e/migration cases; the smoke is reported
-# separately so it never masks a core-suite failure.
+# TEST-5.1 smoke. The 3 migration cases (legacy .github-project.json import)
+# were retired with the env-only configuration contract (2026-08); this runner
+# executes the 6 remaining e2e cases plus the smoke, reported separately so it
+# never masks a core-suite failure.
 #
 # Each test script is standalone (`set -euo pipefail`, mktemp + trap cleanup)
 # and may be invoked directly: `tests/e2e/test_e2e_idempotent.sh`.
@@ -22,19 +22,15 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 e2e_dir="$script_dir/e2e"
 
-# Ordered list mirroring the issue #8 scope order.
+# Ordered list mirroring the issue #8 scope order (migration cases retired).
 core_tests=(
-  # TEST-2.1 end-to-end cases (7)
+  # TEST-2.1 end-to-end cases (6)
   "$e2e_dir/test_e2e_interactive_bare.sh"
   "$e2e_dir/test_e2e_noninteractive_node.sh"
   "$e2e_dir/test_e2e_noninteractive_missing.sh"
   "$e2e_dir/test_e2e_idempotent.sh"
-  "$e2e_dir/test_e2e_legacy_migrate.sh"
   "$e2e_dir/test_e2e_force.sh"
   "$e2e_dir/test_e2e_dry_run.sh"
-  # TEST-3 migration cases (2)
-  "$e2e_dir/test_migration_legacy_fields.sh"
-  "$e2e_dir/test_migration_old_script.sh"
 )
 
 # TEST-5.1 representative smoke (kept separate from the "9 core" count).
@@ -60,9 +56,9 @@ run_one() {
 }
 
 printf '========================================================\n'
-printf 'SPEC-001-T7 e2e + migration + smoke test suite\n'
+printf 'SPEC-001-T7 e2e + smoke test suite\n'
 printf '========================================================\n'
-printf '\n--- Core suite (9 e2e/migration cases, AC-T7-001) ---\n'
+printf '\n--- Core suite (6 e2e cases, AC-T7-001) ---\n'
 for t in "${core_tests[@]}"; do
   if [[ ! -f "$t" ]]; then
     printf 'MISSING test script: %s\n' "$t" >&2
@@ -93,6 +89,6 @@ if [[ "$failed" -gt 0 ]]; then
   printf '========================================================\n'
   exit 1
 fi
-printf 'All e2e + migration + smoke tests passed.\n'
+printf 'All e2e + smoke tests passed.\n'
 printf '========================================================\n'
 exit 0
