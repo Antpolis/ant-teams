@@ -92,6 +92,20 @@ Notes:
     state, and url (list-items also reports assignees; item-id also reports
     item_id). set-status / set-status-id re-read the board item AFTER the
     edit, so the printed state is the post-edit verification value
+  - curated mutator output contract: every mutator except issue-comment and
+    pr-comment returns useful structured JSON, never raw gh output.
+    issue-create and pr-create print {number, title, state, url}, reusing
+    the mutation's URL response plus the caller's title and the
+    deterministic OPEN state (no extra read). issue-edit, issue-close,
+    pr-close, and pr-merge re-read the object AFTER the mutation and print
+    {number, title, state, url} — the re-read IS the verification.
+    release-create and release-edit re-read the release and print the same
+    curated shape as release-view. release-delete prints {tagName, url,
+    deleted: true} (a deleted release cannot be re-read; mutation success
+    is the verification). workflow-run prints {workflow, repo,
+    status: "dispatched"} (the dispatch response carries no run id; use
+    run-list / run-view for run summaries). issue-comment and pr-comment
+    keep their URL permalink output: the permalink IS the useful result
   - canonical state model: Open -> Backlog -> Ready -> In Progress -> In Review
     -> Ready to Merge -> Done; exceptions: Need attentions (founder-only) and
     Blocked
@@ -106,32 +120,32 @@ Notes:
     option (e.g. legacy "Inbox" -> "Open", "Shaping" -> "Backlog") requires
     explicit founder-approved handling. After such a rename, update the
     .github-project.env option IDs with the verified remote IDs
-  - issue-* and milestone-* are thin wrappers around gh issue / gh api
-    (REST milestones). The target repository always resolves from
+  - issue-* wrap gh issue and milestone-* wrap the REST milestones API via
+    gh api. The target repository always resolves from
     .github-project.env (ANT_TEAM_GITHUB_REPO, legacy REPO fallback) and
     is never a positional argument; a pass-through --repo flag cannot
     override it
-  - pr-* are thin wrappers around gh pr with the same env-only repo
-    contract as issue-*; pr-view and pr-list print curated JSON by
-    default, and pr-checks curates gh's tabular checks output into JSON
-    (gh pr checks has no --json). Pass --json, --jq, --template,
-    --comments, or --web to control the output shape yourself
+  - pr-* wrap gh pr with the same env-only repo contract as issue-*;
+    pr-view and pr-list print curated JSON by default, and pr-checks
+    curates gh's tabular checks output into JSON (gh pr checks has no
+    --json). Pass --json, --jq, --template, --comments, or --web to
+    control the output shape yourself
   - pr-merge and pr-close are policy-controlled: they pass caller flags
     through only and never inject --admin or bypass approval gates
   - pr-review-reply posts an in-thread reply to a PR review comment via a
     fixed parameterized GraphQL mutation; user input travels only as
     GraphQL variables, never inside the query text
-  - run-* and workflow-* are thin wrappers around gh run / gh workflow with
-    the same env-only repo contract as issue-*; run-list, run-view, and
-    workflow-list print curated JSON by default (pass --json, --jq,
-    --template, or --web to control the output shape yourself). This helper
-    never executes workflows' tests locally and performs no Git operations
+  - run-* and workflow-* wrap gh run / gh workflow with the same env-only
+    repo contract as issue-*; run-list, run-view, and workflow-list print
+    curated JSON by default (pass --json, --jq, --template, or --web to
+    control the output shape yourself). This helper never executes
+    workflows' tests locally and performs no Git operations
   - workflow-run (dispatch) is policy-controlled: it passes caller flags
     through only and never injects --admin or bypasses approval gates
-  - release-* are thin wrappers around gh release with the same env-only
-    repo contract as issue-*; release-view and release-list print curated
-    JSON by default (pass --json, --jq, --template, or --web to control
-    the output shape yourself)
+  - release-* wrap gh release with the same env-only repo contract as
+    issue-*; release-view and release-list print curated JSON by default
+    (pass --json, --jq, --template, or --web to control the output shape
+    yourself)
   - release-create, release-edit, and release-delete validate the tag
     against the canonical Git tag rules and fail before invoking gh;
     release-delete is policy-controlled and destructive: it passes caller
@@ -536,7 +550,41 @@ set_status() {
   set_status_id "$owner" "$project_number" "$issue_number" "$option_id" "$owner_type"
 }
 
-# --- issue subcommands (thin gh issue wrappers, env-resolved repo) ------------
+# --- issue subcommands (env-resolved repo; curated mutation results) ----------
+
+# Curated mutation-verification contract (founder standard, issue #45):
+# every mutator returns a useful structured result, never raw gh output.
+# Where gh's mutation response already carries the identity (issue/PR
+# create print the object URL) the response is reused and no extra read
+# happens; where it does not (edits/closes/merges print at most a URL or
+# confirmation text with no post-mutation state) the object is re-read
+# AFTER the mutation and the re-read IS the verification — the same
+# pattern as set-status. issue-comment and pr-comment are the deliberate
+# exceptions: their URL permalink output IS the useful result.
+
+# The four-field mutation contract for issue/PR mutators.
+readonly MUTATION_VIEW_FIELDS="number,title,state,url"
+
+verify_issue_mutation() {
+  local repo="$1" number="$2"
+  gh issue view "$number" --json "$MUTATION_VIEW_FIELDS" --repo "$repo" \
+    | jq '{number, title, state, url}'
+}
+
+verify_pr_mutation() {
+  local repo="$1" number="$2"
+  gh pr view "$number" --json "$MUTATION_VIEW_FIELDS" --repo "$repo" \
+    | jq '{number, title, state, url}'
+}
+
+# Emit the four-field contract from an already-verified create identity
+# (mutation URL response + caller title); a freshly created issue/PR is
+# deterministically OPEN.
+emit_created_mutation_result() {
+  local number="$1" title="$2" url="$3"
+  jq -n --argjson number "$number" --arg title "$title" --arg state "OPEN" --arg url "$url" \
+    '{number: $number, title: $title, state: $state, url: $url}'
+}
 
 # True when the caller already chose an output shape for a gh issue read
 # command, disabling the curated JSON defaults.
@@ -595,10 +643,13 @@ issue_list() {
   fi
 }
 
+# Mutate, then re-read: gh issue edit/close print only the issue URL, which
+# carries no post-mutation state, so the curated output is a verified read.
 issue_edit() {
   local repo="$1" number="$2"
   shift 2
-  gh issue edit "$number" "$@" --repo "$repo"
+  gh issue edit "$number" "$@" --repo "$repo" >/dev/null
+  verify_issue_mutation "$repo" "$number"
 }
 
 issue_comment() {
@@ -610,16 +661,31 @@ issue_comment() {
 issue_close() {
   local repo="$1" number="$2"
   shift 2
-  gh issue close "$number" "$@" --repo "$repo"
+  gh issue close "$number" "$@" --repo "$repo" >/dev/null
+  verify_issue_mutation "$repo" "$number"
 }
 
-# --- PR/review subcommands (thin gh pr wrappers, env-resolved repo) ------------
+# --- PR/review subcommands (env-resolved repo; curated mutation results) -------
 
 # The env repo always wins: user flags come first, --repo "$repo" last.
+# gh pr create prints the new PR URL: reuse it (number + url) plus the
+# caller's title and the deterministic OPEN state — no verification
+# re-read. If the number cannot be parsed from the response, fall back to
+# printing the raw response with a warning instead of failing a mutation
+# that succeeded.
 pr_create() {
   local repo="$1" title="$2"
   shift 2
-  gh pr create --title "$title" "$@" --repo "$repo"
+  local out number url
+  out="$(gh pr create --title "$title" "$@" --repo "$repo")"
+  number="$(parse_pr_url_number "$out")"
+  if [[ -z "$number" ]]; then
+    echo "warning: PR created on GitHub but its number could not be parsed from output" >&2
+    printf '%s\n' "$out"
+    return 0
+  fi
+  url="$(printf '%s' "$out" | head -1 | sed 's/[[:space:]]*$//')"
+  emit_created_mutation_result "$number" "$title" "$url"
 }
 
 pr_view() {
@@ -648,18 +714,25 @@ pr_comment() {
   gh pr comment "$number" "$@" --repo "$repo"
 }
 
+# Policy-controlled: pass caller flags through only; never inject --admin
+# or bypass approval gates. gh pr close prints only confirmation text with
+# no post-mutation state, so the curated output is a verification re-read.
 pr_close() {
   local repo="$1" number="$2"
   shift 2
-  gh pr close "$number" "$@" --repo "$repo"
+  gh pr close "$number" "$@" --repo "$repo" >/dev/null
+  verify_pr_mutation "$repo" "$number"
 }
 
 # Policy-controlled: pass caller flags through only; never inject --admin
-# or bypass approval gates.
+# or bypass approval gates. gh pr merge prints only confirmation text with
+# no post-mutation state, so the curated output is a verification re-read
+# (state MERGED once the merge lands, OPEN while an --auto merge pends).
 pr_merge() {
   local repo="$1" number="$2"
   shift 2
-  gh pr merge "$number" "$@" --repo "$repo"
+  gh pr merge "$number" "$@" --repo "$repo" >/dev/null
+  verify_pr_mutation "$repo" "$number"
 }
 
 # gh pr checks has no --json flag; curate its stable tabular output
@@ -707,7 +780,7 @@ pr_review_reply() {
     -f body="$body"
 }
 
-# --- CI/testing subcommands (thin gh run / gh workflow wrappers, env-resolved repo) ---
+# --- CI/testing subcommands (gh run / gh workflow wrappers, env-resolved repo) ---
 
 # The env repo always wins: user flags come first, --repo "$repo" last.
 run_view() {
@@ -741,14 +814,18 @@ workflow_list() {
 }
 
 # Policy-controlled: pass caller flags through only; never inject --admin
-# or bypass approval gates.
+# or bypass approval gates. The dispatch response carries no run id, so the
+# curated summary reports the accepted dispatch without inventing a run
+# read; use run-list / run-view for run-level summaries.
 workflow_run() {
   local repo="$1" workflow_ref="$2"
   shift 2
-  gh workflow run "$workflow_ref" "$@" --repo "$repo"
+  gh workflow run "$workflow_ref" "$@" --repo "$repo" >/dev/null
+  jq -n --arg workflow "$workflow_ref" --arg repo "$repo" \
+    '{workflow: $workflow, repo: $repo, status: "dispatched"}'
 }
 
-# --- release subcommands (thin gh release wrappers, env-resolved repo) ---------
+# --- release subcommands (gh release wrappers, env-resolved repo) ---------------
 
 # Canonical release-tag validation (FR-07): a small, local check enforcing
 # the Git tag (refname) rules release tags must obey, so invalid tags fail
@@ -786,12 +863,16 @@ validate_release_tag() {
 }
 
 # The env repo always wins: user flags come first, --repo "$repo" last.
-# The tag is validated before gh is invoked.
+# The tag is validated before gh is invoked. The mutation response is only
+# the release URL (no name, draft, or prerelease state), so the curated
+# summary is a verification re-read in the same shape as release-view.
 release_create() {
   local repo="$1" tag="$2"
   shift 2
   validate_release_tag "$tag" "release-create"
-  gh release create "$tag" "$@" --repo "$repo"
+  gh release create "$tag" "$@" --repo "$repo" >/dev/null
+  gh release view "$tag" --json "$RELEASE_VIEW_FIELDS" --repo "$repo" \
+    | jq '{name, tagName, targetCommitish, isDraft, isPrerelease, createdAt, publishedAt, author, body, url}'
 }
 
 release_list() {
@@ -818,17 +899,23 @@ release_edit() {
   local repo="$1" tag="$2"
   shift 2
   validate_release_tag "$tag" "release-edit"
-  gh release edit "$tag" "$@" --repo "$repo"
+  gh release edit "$tag" "$@" --repo "$repo" >/dev/null
+  gh release view "$tag" --json "$RELEASE_VIEW_FIELDS" --repo "$repo" \
+    | jq '{name, tagName, targetCommitish, isDraft, isPrerelease, createdAt, publishedAt, author, body, url}'
 }
 
 # Policy-controlled and destructive: pass caller flags through only; never
 # inject --admin, never default the --yes auto-confirm, and never bypass
-# approval gates. The tag is validated before gh is invoked.
+# approval gates. The tag is validated before gh is invoked. The deleted
+# release cannot be re-read; the curated summary reports the verified
+# deletion (mutation success) with the release's canonical URL.
 release_delete() {
   local repo="$1" tag="$2"
   shift 2
   validate_release_tag "$tag" "release-delete"
-  gh release delete "$tag" "$@" --repo "$repo"
+  gh release delete "$tag" "$@" --repo "$repo" >/dev/null
+  jq -n --arg tagName "$tag" --arg url "https://github.com/$repo/releases/tag/$tag" \
+    '{tagName: $tagName, url: $url, deleted: true}'
 }
 
 # --- milestone subcommands (thin gh api REST wrappers) -------------------------
@@ -1284,6 +1371,10 @@ parse_issue_url_number() {
   printf '%s' "$1" | grep -o 'issues/[0-9][0-9]*' | head -1 | grep -o '[0-9][0-9]*' || true
 }
 
+parse_pr_url_number() {
+  printf '%s' "$1" | grep -o 'pull/[0-9][0-9]*' | head -1 | grep -o '[0-9][0-9]*' || true
+}
+
 # Backfill the confirmed GitHub identity into the record, clear the pending
 # flag, and rename to the canonical filename when the number changed.
 finalize_issue_record() {
@@ -1358,7 +1449,10 @@ issue_local_first_create() {
   fi
   url="$(printf '%s' "$out" | head -1 | sed 's/[[:space:]]*$//')"
   finalize_issue_record "$base" "$path" "$confirmed" "$url" "$slug" "open"
-  printf '%s\n' "$out"
+  # Curated mutation contract: reuse the mutation's URL response (verified
+  # number + url) plus the caller's title and the deterministic OPEN
+  # state; no verification re-read.
+  emit_created_mutation_result "$confirmed" "$title" "$url"
 }
 
 issue_local_first_edit() {

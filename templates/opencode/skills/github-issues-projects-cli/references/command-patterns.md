@@ -127,7 +127,7 @@ View one issue with the fields that usually matter for collaboration (curated de
 "$ANT_TEAM_SCRIPTS/gh_project_helper.sh" issue-view ISSUE_NUMBER
 ```
 
-Edit labels, assignees, or milestone:
+Edit labels, assignees, or milestone (mutate, then the helper re-reads the issue and prints `{"number", "title", "state", "url"}` with the post-edit values):
 
 ```bash
 "$ANT_TEAM_SCRIPTS/gh_project_helper.sh" issue-edit ISSUE_NUMBER \
@@ -136,7 +136,7 @@ Edit labels, assignees, or milestone:
   --milestone "SPEC-001"
 ```
 
-Close an issue and leave a completion note:
+Close an issue and leave a completion note (same curated post-mutation output, `state: "CLOSED"` verified by the re-read):
 
 ```bash
 "$ANT_TEAM_SCRIPTS/gh_project_helper.sh" issue-close ISSUE_NUMBER \
@@ -236,6 +236,19 @@ Curated board output contract: `set-status`, `set-status-id`, `list-items`, and 
 ```
 
 `list-items` additionally reports `assignees`; `item-id` additionally reports `item_id`.
+
+Curated mutator output contract (locked by `tests/test_gh_project_helper_mutator_output.js`): every mutator except the two comment commands returns useful structured JSON, never raw `gh` output. `issue-create` and `pr-create` reuse the mutation's URL response and print `{"number", "title", "state", "url"}` with the deterministic `OPEN` state; `issue-edit`, `issue-close`, `pr-close`, and `pr-merge` re-read the object AFTER the mutation and print the same four-field shape, so the printed state is the post-mutation verification value; `release-create` and `release-edit` re-read and print the `release-view` shape; `release-delete` prints `{"tagName", "url", "deleted": true}`; `workflow-run` prints `{"workflow", "repo", "status": "dispatched"}`. Parse these outputs directly instead of re-querying after a mutation:
+
+```bash
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" issue-close 42 --comment "Completed and validated."
+# {"number":42,"title":"SPEC-003-followup: curated structured output","state":"CLOSED","url":"https://github.com/Antpolis/ant-teams/issues/42"}
+
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" pr-merge 51 --squash
+# {"number":51,"title":"SPEC-003-T1: Extend helper with PR subcommands","state":"MERGED","url":"https://github.com/Antpolis/ant-teams/pull/51"}
+
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" workflow-run ci.yml --ref feat/issue-45
+# {"workflow":"ci.yml","repo":"Antpolis/ant-teams","status":"dispatched"}
+```
 
 Find the project item for a specific issue number directly:
 
@@ -414,7 +427,7 @@ Create a PR when the issue is ready for review:
   --body-file /tmp/pr.md
 ```
 
-The first positional is the required title; every other flag passes straight through to the underlying PR-create command. Prefer `--body-file` so the PR includes task link, summary, verification, and review notes.
+The first positional is the required title; every other flag passes straight through to the underlying PR-create command. Prefer `--body-file` so the PR includes task link, summary, verification, and review notes. The command prints the curated `{"number", "title", "state", "url"}` result derived from the creation response.
 
 Comment on a PR (final decisions, status, closure, and code-review outcomes only; durable handoffs live in the central Obsidian project folder):
 
@@ -430,7 +443,7 @@ View and list PRs (curated collaboration JSON by default; pass `--json`, `--jq`,
 "$ANT_TEAM_SCRIPTS/gh_project_helper.sh" pr-list --state open
 ```
 
-`pr-merge` and `pr-close` are policy-controlled: caller flags pass through only; approval gates are never bypassed.
+`pr-merge` and `pr-close` are policy-controlled: caller flags pass through only; approval gates are never bypassed. Both mutate, re-read the PR, and print `{"number", "title", "state", "url"}` carrying the post-mutation state (`CLOSED` / `MERGED`) — the printed state is the verification, so parse it instead of re-querying.
 
 Reply to a specific PR review comment in-thread:
 
@@ -452,7 +465,7 @@ Use the bundled helper for CI/testing-loop inspection and dispatch; it resolves 
 ```
 
 - `run-list`, `run-view`, and `workflow-list` print curated JSON by default; pass `--json`, `--jq`, `--template`, or `--web` to control the output shape yourself.
-- `workflow-run` (dispatch) is policy-controlled: caller flags pass through only and never bypass approval gates.
+- `workflow-run` (dispatch) prints the curated dispatch summary `{"workflow", "repo", "status": "dispatched"}` — the dispatch response carries no run id, so no run read is invented; follow up with `run-list` / `run-view`. It is policy-controlled: caller flags pass through only and never bypass approval gates.
 
 Filter failed runs for a branch (pass-through filters):
 
@@ -476,7 +489,7 @@ Use the bundled helper for release operations; the tag is validated against the 
 "$ANT_TEAM_SCRIPTS/gh_project_helper.sh" release-edit v1.2.3 --notes-file /tmp/release-notes.md
 ```
 
-`release-view` and `release-list` print curated JSON by default; pass `--json`, `--jq`, `--template`, or `--web` to control the output shape yourself. `release-delete` is policy-controlled and destructive: caller flags pass through only and the `--yes` auto-confirm is never injected.
+`release-view` and `release-list` print curated JSON by default; pass `--json`, `--jq`, `--template`, or `--web` to control the output shape yourself. `release-create` and `release-edit` mutate, then re-read the release and print the same curated shape as `release-view` (the mutation response is only a URL, which carries no name/draft/prerelease state). `release-delete` prints `{"tagName", "url", "deleted": true}` — a deleted release is never re-read. `release-delete` is policy-controlled and destructive: caller flags pass through only and the `--yes` auto-confirm is never injected.
 
 ## Dual-Record Sync (Local Obsidian First, GitHub Second)
 
