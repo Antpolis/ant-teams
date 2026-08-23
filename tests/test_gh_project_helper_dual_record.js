@@ -13,10 +13,13 @@
  *   DRC-1  usage lists issue-sync / milestone-sync; positionals enforced
  *   DRC-2  missing or invalid ANT_TEAM_DOCS_PROJECT_PATH fails before gh
  *   DRC-3  online issue-create writes the local record FIRST, then gh;
- *          deterministic ISSUE-0NN-<slug>.md mapping + frontmatter backfill
+ *          deterministic ISSUE-0NN-<slug>.md mapping + frontmatter backfill;
+ *          curated {number,title,state,url} stdout from the URL response
  *   DRC-4  issue-edit merges execution-state while preserving "Local Notes"
- *          and local-only frontmatter (online)
- *   DRC-5  issue-close sets local state closed, preserves content (online)
+ *          and local-only frontmatter (online); mutate -> re-read -> curated
+ *          four-field stdout carrying the POST-EDIT values (#45)
+ *   DRC-5  issue-close sets local state closed, preserves content (online);
+ *          post-close state verified by the re-read (#45)
  *   DRC-6  offline (no-network) issue-create keeps the local write with
  *          provisional github_number, pending_sync: true, exit 3, and a
  *          recovery warning naming issue-sync
@@ -358,7 +361,18 @@ check('DRC-3: online issue-create writes the local record first, then gh', () =>
   assert.strictEqual(probeAt(ctx, 0), 1, 'the local record must exist before gh runs (local-first)');
   const repo = argIndex(all[0], '--repo');
   assert.ok(repo !== -1 && all[0][repo + 1] === ENV_REPO, 'env repo must be sent');
-  assert.ok(r.stdout.trim().startsWith('https://github.com/env-owner/env-repo/issues/'), 'gh stdout (issue URL) must pass through');
+  // Curated mutator contract (#45): the mutation URL response is reused —
+  // number + url parsed from it, title from the caller, state OPEN.
+  const out = JSON.parse(r.stdout);
+  assert.deepStrictEqual(
+    Object.keys(out).sort(),
+    ['number', 'state', 'title', 'url'],
+    'issue-create prints exactly the curated four-field contract'
+  );
+  assert.strictEqual(out.number, 101, 'number from the mutation URL response');
+  assert.strictEqual(out.title, 'SPEC-009: Fix login flow');
+  assert.strictEqual(out.state, 'OPEN');
+  assert.strictEqual(out.url, 'https://github.com/env-owner/env-repo/issues/101');
 
   // Deterministic mapping: fake gh minted #101
   assert.deepStrictEqual(recordFiles(ctx, 'issue'), ['ISSUE-101-spec-009-fix-login-flow.md']);
@@ -404,11 +418,26 @@ check('DRC-4: issue-edit merges execution-state and preserves Local Notes + loca
   assert.ok(record.includes('## Local Notes'), 'Local Notes heading preserved');
   assert.ok(record.includes('- agent note: keep me across syncs'), 'Local Notes content preserved');
 
+  // Curated mutator contract (#45): one mutation call, then the
+  // verification re-read of the edited issue.
   const editCalls = calls(ctx).slice(1);
-  assert.strictEqual(editCalls.length, 1, 'exactly one gh call for the edit');
+  assert.strictEqual(editCalls.length, 2, 'mutation + verification re-read');
   assert.deepStrictEqual(editCalls[0].slice(0, 3), ['issue', 'edit', '101'], 'edit targets the created issue number');
   const t = argIndex(editCalls[0], '--title');
   assert.ok(t !== -1 && editCalls[0][t + 1] === 'Revised durable title', 'edit flags pass through');
+  assert.deepStrictEqual(
+    editCalls[1].slice(0, 5),
+    ['issue', 'view', '101', '--json', 'number,title,state,url'],
+    'post-edit verification re-read'
+  );
+  const out = JSON.parse(r.stdout);
+  assert.deepStrictEqual(
+    Object.keys(out).sort(),
+    ['number', 'state', 'title', 'url'],
+    'issue-edit prints exactly the curated four-field contract'
+  );
+  assert.strictEqual(out.title, 'Revised durable title', 'title is the POST-EDIT value from the re-read');
+  assert.strictEqual(out.state, 'open', 'post-edit state from the re-read');
 });
 
 // --- DRC-5: issue-close sets local closed state -----------------------------------
@@ -423,9 +452,19 @@ check('DRC-5: issue-close sets local state closed and preserves content', () => 
   const front = fm(readRecord(ctx, 'issue', name));
   assert.strictEqual(front.state, 'closed', 'local record reflects closure');
   assert.strictEqual(front.pending_sync, false);
-  const closeCall = calls(ctx)[1];
-  assert.deepStrictEqual(closeCall.slice(0, 3), ['issue', 'close', '101']);
-  assert.ok(closeCall.includes('--comment'), 'close flags pass through');
+  const closeCalls = calls(ctx).slice(1);
+  assert.strictEqual(closeCalls.length, 2, 'mutation + verification re-read');
+  assert.deepStrictEqual(closeCalls[0].slice(0, 3), ['issue', 'close', '101']);
+  assert.ok(closeCalls[0].includes('--comment'), 'close flags pass through');
+  assert.deepStrictEqual(closeCalls[1].slice(0, 3), ['issue', 'view', '101'], 'post-close verification re-read');
+  const out = JSON.parse(r.stdout);
+  assert.deepStrictEqual(
+    Object.keys(out).sort(),
+    ['number', 'state', 'title', 'url'],
+    'issue-close prints exactly the curated four-field contract'
+  );
+  assert.strictEqual(out.state, 'closed', 'post-close state verified by the re-read');
+  assert.strictEqual(out.number, 101);
   assert.ok(readRecord(ctx, 'issue', name).includes('Body to keep.'), 'body preserved on close');
 });
 

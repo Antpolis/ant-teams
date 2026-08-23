@@ -14,13 +14,16 @@
  * release-delete) into executable checks:
  *
  *   HIC-1  usage lists every new subcommand; required positionals enforced
- *   HIC-2  issue-create passes title + extras; env repo resolves and wins
+ *   HIC-2  issue-create passes title + extras; env repo resolves and wins;
+ *          curated {number,title,state,url} output reuses the URL response
  *   HIC-3  a pass-through --repo can never override the env repo
  *   HIC-4  issue-view prints curated JSON by default
  *   HIC-5  issue-view --comments skips the curated default
  *   HIC-6  issue-list prints curated JSON by default; filters pass through
  *   HIC-7  issue-list custom --json skips the curated default
- *   HIC-8  issue-comment / issue-edit / issue-close are thin pass-throughs
+ *   HIC-8  issue-comment stays a thin pass-through (URL permalink out);
+ *          issue-edit / issue-close mutate then re-read and print curated
+ *          post-mutation JSON (issue #45 contract replacement)
  *   HIC-9  milestone-create sends title/description -f fields, curated output
  *   HIC-10 milestone-create without description omits the description field
  *   HIC-11 milestone-list defaults to state=open; closed passes through
@@ -31,13 +34,15 @@
  *   HIC-16 the helper writes no files: env byte-identical, no JSON config
  *   HIC-17 project subcommands remain env-only (no positional owner/project)
  *   PRC-1  usage lists every pr-* subcommand; required positionals enforced
- *   PRC-2  pr-create passes title + extras; env repo resolves and wins
+ *   PRC-2  pr-create passes title + extras; env repo resolves and wins;
+ *          curated {number,title,state,url} output reuses the URL response
  *   PRC-3  a pass-through --repo can never override the env repo (pr-list)
  *   PRC-4  pr-view prints curated JSON by default
  *   PRC-5  pr-view --comments skips the curated default
  *   PRC-6  pr-list prints curated JSON by default; filters pass through
- *   PRC-7  pr-comment is a thin pass-through
- *   PRC-8  pr-close / pr-merge are thin pass-throughs; no --admin injected
+ *   PRC-7  pr-comment is a thin pass-through (URL permalink out)
+ *   PRC-8  pr-close / pr-merge mutate then re-read and print curated
+ *          post-mutation JSON; no --admin injected (issue #45 replacement)
  *   PRC-9  pr-checks curates the tabular output into JSON by default
  *   PRC-10 pr-review-reply uses the fixed parameterized GraphQL mutation
  *   PRC-11 missing ANT_TEAM_GITHUB_REPO fails fast without calling gh (pr-*)
@@ -46,19 +51,22 @@
  *   CIC-3  run-view prints curated JSON by default
  *   CIC-4  caller format flags take over (run-view --web, run-list --json)
  *   CIC-5  workflow-list prints curated JSON by default; --all passes through
- *   CIC-6  workflow-run dispatches caller flags only; no --admin injected
+ *   CIC-6  workflow-run dispatches caller flags only; no --admin injected;
+ *          curated dispatch summary out with no invented run read
  *   CIC-7  a pass-through --repo can never override the env repo (run/workflow)
  *   CIC-8  missing ANT_TEAM_GITHUB_REPO fails fast without calling gh (run/workflow)
  *   RLC-1  usage lists every release-* subcommand; positionals enforced
- *   RLC-2  release-create passes tag + extras; env repo resolves and wins
+ *   RLC-2  release-create sends tag + extras, then re-reads the release and
+ *          prints the curated release-view shape (issue #45 replacement)
  *   RLC-3  release-list prints curated JSON by default; filters pass through
  *   RLC-4  release-view prints curated JSON by default
  *   RLC-5  caller format flags take over (release-view --web, release-list --json)
- *   RLC-6  release-edit is a thin pass-through
- *   RLC-7  release-delete passes caller flags only; no --admin/--yes injected
+ *   RLC-6  release-edit mutates then re-reads; curated release-view shape out
+ *   RLC-7  release-delete passes caller flags only; no --admin/--yes injected;
+ *          curated {tagName,url,deleted} summary out with no re-read
  *   RLC-8  a pass-through --repo can never override the env repo (release-*)
  *   RLC-9  invalid canonical tags fail before gh (create/edit/delete)
- *   RLC-10 valid canonical tags reach gh untouched
+ *   RLC-10 valid canonical tags reach gh untouched; create then verify re-read
  *   RLC-11 missing ANT_TEAM_GITHUB_REPO fails fast without calling gh (release-*)
  *
  * The helper under test is the canonical engine in templates/opencode/
@@ -137,6 +145,34 @@ function setupWithDocs(prefix) {
 }
 
 const ISSUE_URL_OUT = 'https://github.com/env-owner/env-repo/issues/77\n';
+const PR_URL_OUT = 'https://github.com/env-owner/env-repo/pull/88\n';
+
+// Static canned payloads served for the post-mutation verification re-reads.
+const ISSUE_VIEW_PAYLOAD = JSON.stringify({
+  number: 42,
+  title: 'Post-edit title from the re-read',
+  state: 'OPEN',
+  url: 'https://github.com/env-owner/env-repo/issues/42',
+});
+const PR_VIEW_PAYLOAD = (state) => JSON.stringify({
+  number: 45,
+  title: 'Curated PR mutation contract',
+  state,
+  url: 'https://github.com/env-owner/env-repo/pull/45',
+});
+const RELEASE_VIEW_PAYLOAD = JSON.stringify({
+  name: 'v1.2.0 — ant-teams',
+  tagName: 'v1.2.0',
+  targetCommitish: 'master',
+  isDraft: false,
+  isPrerelease: false,
+  createdAt: '2026-08-23T00:00:00Z',
+  publishedAt: '2026-08-23T00:00:01Z',
+  author: { login: 'chrissim' },
+  body: 'Release notes body.',
+  url: 'https://github.com/env-owner/env-repo/releases/tag/v1.2.0',
+  node_id: 'RE_shouldNeverLeak',
+});
 
 const MILESTONE_PAYLOAD = JSON.stringify({
   number: 3,
@@ -219,7 +255,7 @@ check('HIC-1: usage lists every new subcommand and enforces required positionals
 
 // --- HIC-2: issue-create -------------------------------------------------------
 
-check('HIC-2: issue-create sends title + extras; repo resolves from the env', () => {
+check('HIC-2: issue-create sends title + extras; curated output reuses the URL response', () => {
   const ctx = setupWithDocs('hic2');
   fs.writeFileSync(ctx.ghOut, ISSUE_URL_OUT); // gh issue create prints the issue URL
   const bodyFile = path.join(ctx.tmp, 'issue.md');
@@ -229,7 +265,7 @@ check('HIC-2: issue-create sends title + extras; repo resolves from the env', ()
   ]);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
   const all = calls(ctx);
-  assert.strictEqual(all.length, 1, 'exactly one gh call');
+  assert.strictEqual(all.length, 1, 'exactly one gh call (URL response reused, no re-read)');
   const c = all[0];
   assert.deepStrictEqual(c.slice(0, 2), ['issue', 'create']);
   const t = argIndex(c, '--title');
@@ -237,6 +273,16 @@ check('HIC-2: issue-create sends title + extras; repo resolves from the env', ()
   assert.ok(c.includes('--body-file') && c.includes(bodyFile), 'extras must pass through');
   const repo = argIndex(c, '--repo');
   assert.ok(repo !== -1 && c[repo + 1] === ENV_REPO, `env repo must be sent: ${c.join(' ')}`);
+  const out = JSON.parse(r.stdout);
+  assert.deepStrictEqual(
+    Object.keys(out).sort(),
+    ['number', 'state', 'title', 'url'],
+    'issue-create output is exactly the curated four-field contract'
+  );
+  assert.strictEqual(out.number, 77, 'number parsed from the mutation URL response');
+  assert.strictEqual(out.title, 'TASK: fix login');
+  assert.strictEqual(out.state, 'OPEN', 'a freshly created issue is deterministically OPEN');
+  assert.strictEqual(out.url, 'https://github.com/env-owner/env-repo/issues/77');
 });
 
 // --- HIC-3: pass-through --repo never wins ------------------------------------
@@ -309,29 +355,62 @@ check('HIC-7: issue-list custom --json skips the curated default', () => {
   assert.ok(c.includes('number,title'), 'caller fields pass through');
 });
 
-// --- HIC-8: thin pass-through mutations ---------------------------------------
+// --- HIC-8: curated mutation contract (issue #45 replacement) ------------------
 
-check('HIC-8: issue-comment / issue-edit / issue-close are thin pass-throughs', () => {
-  const ctx = setupWithDocs('hic8');
-
+check('HIC-8: issue-comment stays thin; issue-edit/issue-close mutate, re-read, curate', () => {
+  // issue-comment output is unchanged: the comment URL permalink IS the
+  // useful result (no verification re-read).
+  let ctx = setupWithDocs('hic8');
+  fs.writeFileSync(ctx.ghOut, 'https://github.com/env-owner/env-repo/issues/42#issuecomment-1\n');
   let r = runHelper(ctx, ['issue-comment', '42', '--body-file', '/tmp/handoff.md']);
   assert.strictEqual(r.status, 0, `comment exit ${r.status}\nstderr:\n${r.stderr}`);
+  assert.strictEqual(calls(ctx).length, 1, 'exactly one gh call for issue-comment');
   let c = calls(ctx).pop();
   assert.deepStrictEqual(c.slice(0, 3), ['issue', 'comment', '42']);
   assert.ok(c.includes('--body-file') && c[argoAfter(c, '--body-file')] === '/tmp/handoff.md');
 
+  // issue-edit: mutation, then verification re-read, curated four-field out.
+  ctx = setupWithDocs('hic8b');
+  fs.writeFileSync(ctx.ghOut, ISSUE_VIEW_PAYLOAD);
   r = runHelper(ctx, ['issue-edit', '42', '--add-label', 'blocked', '--milestone', 'SPEC-001']);
   assert.strictEqual(r.status, 0, `edit exit ${r.status}\nstderr:\n${r.stderr}`);
-  c = calls(ctx).pop();
+  let all = calls(ctx);
+  assert.strictEqual(all.length, 2, 'mutation + verification re-read');
+  c = all[0];
   assert.deepStrictEqual(c.slice(0, 3), ['issue', 'edit', '42']);
   assert.ok(c.includes('--add-label') && c.includes('--milestone'));
+  assert.ok(c[c.lastIndexOf('--repo') + 1] === ENV_REPO, 'env repo last on the mutation');
+  const reRead = all[1];
+  assert.deepStrictEqual(
+    reRead.slice(0, 5),
+    ['issue', 'view', '42', '--json', 'number,title,state,url'],
+    'verification re-read requests exactly the curated fields'
+  );
+  assert.ok(reRead[reRead.lastIndexOf('--repo') + 1] === ENV_REPO, 'env repo last on the re-read');
+  const out = JSON.parse(r.stdout);
+  assert.deepStrictEqual(
+    Object.keys(out).sort(),
+    ['number', 'state', 'title', 'url'],
+    'issue-edit output is exactly the curated four-field contract'
+  );
+  assert.strictEqual(out.state, 'OPEN', 'post-edit state comes from the verification re-read');
 
+  // issue-close: same mutate -> re-read -> curate contract.
+  ctx = setupWithDocs('hic8c');
+  fs.writeFileSync(ctx.ghOut, JSON.stringify({
+    number: 42, title: 'Post-edit title from the re-read', state: 'CLOSED',
+    url: 'https://github.com/env-owner/env-repo/issues/42',
+  }));
   r = runHelper(ctx, ['issue-close', '42', '--comment', 'Completed and validated.']);
   assert.strictEqual(r.status, 0, `close exit ${r.status}\nstderr:\n${r.stderr}`);
-  c = calls(ctx).pop();
-  assert.deepStrictEqual(c.slice(0, 3), ['issue', 'close', '42']);
-  assert.ok(c.includes('--comment'));
-  assert.ok(c[c.lastIndexOf('--repo') + 1] === ENV_REPO, 'env repo last on every call');
+  all = calls(ctx);
+  assert.strictEqual(all.length, 2, 'mutation + verification re-read');
+  assert.deepStrictEqual(all[0].slice(0, 3), ['issue', 'close', '42']);
+  assert.ok(all[0].includes('--comment'));
+  assert.deepStrictEqual(all[1].slice(0, 3), ['issue', 'view', '42']);
+  const closed = JSON.parse(r.stdout);
+  assert.strictEqual(closed.state, 'CLOSED', 'post-close state verified by the re-read');
+  assert.strictEqual(closed.number, 42);
 });
 
 function argoAfter(call, flag) {
@@ -526,15 +605,16 @@ check('PRC-1: usage lists every pr-* subcommand and enforces required positional
 
 // --- PRC-2: pr-create -----------------------------------------------------------
 
-check('PRC-2: pr-create sends title + extras; env repo resolves and wins', () => {
+check('PRC-2: pr-create sends title + extras; curated output reuses the URL response', () => {
   const ctx = setupWithDocs('prc2');
+  fs.writeFileSync(ctx.ghOut, PR_URL_OUT); // the underlying command prints the PR URL
   const r = runHelper(ctx, [
     'pr-create', 'SPEC-003-T1: Extend helper with PR subcommands',
     '--base', 'master', '--head', 'feat/spec-003-t1', '--body-file', '/tmp/pr.md',
   ]);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
   const all = calls(ctx);
-  assert.strictEqual(all.length, 1, 'exactly one gh call');
+  assert.strictEqual(all.length, 1, 'exactly one gh call (URL response reused, no re-read)');
   const c = all[0];
   assert.deepStrictEqual(c.slice(0, 2), ['pr', 'create']);
   const t = argIndex(c, '--title');
@@ -544,6 +624,15 @@ check('PRC-2: pr-create sends title + extras; env repo resolves and wins', () =>
   assert.ok(c.includes('--body-file') && c.includes('/tmp/pr.md'), 'body file passes through');
   const repo = argIndex(c, '--repo');
   assert.ok(repo !== -1 && c[repo + 1] === ENV_REPO, `env repo must be sent: ${c.join(' ')}`);
+  const out = JSON.parse(r.stdout);
+  assert.deepStrictEqual(
+    Object.keys(out).sort(),
+    ['number', 'state', 'title', 'url'],
+    'pr-create output is exactly the curated four-field contract'
+  );
+  assert.strictEqual(out.number, 88, 'number parsed from the mutation URL response');
+  assert.strictEqual(out.state, 'OPEN', 'a freshly created PR is deterministically OPEN');
+  assert.strictEqual(out.url, 'https://github.com/env-owner/env-repo/pull/88');
 });
 
 // --- PRC-3: pass-through --repo never wins (pr-list) ----------------------------
@@ -617,26 +706,47 @@ check('PRC-7: pr-comment is a thin pass-through', () => {
   assert.ok(c[c.lastIndexOf('--repo') + 1] === ENV_REPO, 'env repo last on every call');
 });
 
-// --- PRC-8: pr-close / pr-merge thin; no --admin injected -------------------------
+// --- PRC-8: pr-close / pr-merge mutate, re-read, curate -------------------------
 
-check('PRC-8: pr-close / pr-merge are thin pass-throughs; no --admin injected', () => {
+check('PRC-8: pr-close / pr-merge mutate then re-read; no --admin injected', () => {
   const ctx = setupWithDocs('prc8');
-
+  fs.writeFileSync(ctx.ghOut, PR_VIEW_PAYLOAD('CLOSED'));
   let r = runHelper(ctx, ['pr-close', '45', '--comment', 'Superseded by #46.']);
   assert.strictEqual(r.status, 0, `close exit ${r.status}\nstderr:\n${r.stderr}`);
-  let c = calls(ctx).pop();
+  let all = calls(ctx);
+  assert.strictEqual(all.length, 2, 'mutation + verification re-read');
+  let c = all[0];
   assert.deepStrictEqual(c.slice(0, 3), ['pr', 'close', '45']);
   assert.ok(c.includes('--comment'), 'close flags pass through');
   assert.ok(!c.includes('--admin'), 'close must never inject --admin');
-  assert.ok(c[c.lastIndexOf('--repo') + 1] === ENV_REPO, 'env repo last on every call');
+  assert.ok(c[c.lastIndexOf('--repo') + 1] === ENV_REPO, 'env repo last on the mutation');
+  assert.deepStrictEqual(
+    all[1].slice(0, 5),
+    ['pr', 'view', '45', '--json', 'number,title,state,url'],
+    'verification re-read requests exactly the curated fields'
+  );
+  let out = JSON.parse(r.stdout);
+  assert.deepStrictEqual(
+    Object.keys(out).sort(),
+    ['number', 'state', 'title', 'url'],
+    'pr-close output is exactly the curated four-field contract'
+  );
+  assert.strictEqual(out.state, 'CLOSED', 'post-close state comes from the verification re-read');
 
-  r = runHelper(ctx, ['pr-merge', '45', '--squash', '--delete-branch']);
+  const ctx2 = setupWithDocs('prc8b');
+  fs.writeFileSync(ctx2.ghOut, PR_VIEW_PAYLOAD('MERGED'));
+  r = runHelper(ctx2, ['pr-merge', '45', '--squash', '--delete-branch']);
   assert.strictEqual(r.status, 0, `merge exit ${r.status}\nstderr:\n${r.stderr}`);
-  c = calls(ctx).pop();
+  all = calls(ctx2);
+  assert.strictEqual(all.length, 2, 'mutation + verification re-read');
+  c = all[0];
   assert.deepStrictEqual(c.slice(0, 3), ['pr', 'merge', '45']);
   assert.ok(c.includes('--squash') && c.includes('--delete-branch'), 'merge flags pass through');
   assert.ok(!c.includes('--admin'), 'merge must never inject --admin');
-  assert.ok(c[c.lastIndexOf('--repo') + 1] === ENV_REPO, 'env repo last on every call');
+  assert.ok(c[c.lastIndexOf('--repo') + 1] === ENV_REPO, 'env repo last on the mutation');
+  out = JSON.parse(r.stdout);
+  assert.strictEqual(out.state, 'MERGED', 'post-merge state comes from the verification re-read');
+  assert.strictEqual(out.number, 45);
 });
 
 // --- PRC-9: pr-checks curates tabular output into JSON ----------------------------
@@ -797,18 +907,27 @@ check('CIC-5: workflow-list prints curated JSON by default; --all passes through
 
 // --- CIC-6: workflow-run dispatch, caller flags only ----------------------------
 
-check('CIC-6: workflow-run dispatches caller flags only; no --admin injected', () => {
+check('CIC-6: workflow-run dispatches caller flags only; curated dispatch summary out', () => {
   const ctx = setupWithDocs('cic6');
   const r = runHelper(ctx, ['workflow-run', 'ci.yml', '--ref', 'feat/issue-32', '-f', 'suite=smoke']);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
   const all = calls(ctx);
-  assert.strictEqual(all.length, 1, 'exactly one gh call');
+  assert.strictEqual(all.length, 1, 'exactly one gh call — no invented run read after dispatch');
   const c = all[0];
   assert.deepStrictEqual(c.slice(0, 3), ['workflow', 'run', 'ci.yml']);
   assert.ok(c.includes('--ref') && c[c.indexOf('--ref') + 1] === 'feat/issue-32', 'ref flag passes through');
   assert.ok(c.includes('-f') && c[c.indexOf('-f') + 1] === 'suite=smoke', 'raw input fields pass through');
   assert.ok(!c.includes('--admin'), 'dispatch must never inject --admin');
   assert.ok(c[c.lastIndexOf('--repo') + 1] === ENV_REPO, 'env repo last on every call');
+  const out = JSON.parse(r.stdout);
+  assert.deepStrictEqual(
+    Object.keys(out).sort(),
+    ['repo', 'status', 'workflow'],
+    'workflow-run output is exactly the curated dispatch summary'
+  );
+  assert.strictEqual(out.workflow, 'ci.yml');
+  assert.strictEqual(out.repo, ENV_REPO);
+  assert.strictEqual(out.status, 'dispatched');
 });
 
 // --- CIC-7: pass-through --repo never wins (run/workflow) -----------------------
@@ -871,15 +990,16 @@ check('RLC-1: usage lists every release-* subcommand and enforces required posit
 
 // --- RLC-2: release-create -------------------------------------------------------
 
-check('RLC-2: release-create sends tag + extras; env repo resolves and wins', () => {
+check('RLC-2: release-create mutates then re-reads; curated release shape out', () => {
   const ctx = setupWithDocs('rlc2');
+  fs.writeFileSync(ctx.ghOut, RELEASE_VIEW_PAYLOAD);
   const r = runHelper(ctx, [
     'release-create', 'v1.2.0', '--title', 'v1.2.0 — ant-teams',
     '--notes-file', '/tmp/notes.md', '--target', 'master',
   ]);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
   const all = calls(ctx);
-  assert.strictEqual(all.length, 1, 'exactly one gh call');
+  assert.strictEqual(all.length, 2, 'mutation + verification re-read');
   const c = all[0];
   assert.deepStrictEqual(c.slice(0, 3), ['release', 'create', 'v1.2.0'], 'tag positional must come first');
   assert.ok(c.includes('--title') && c[c.indexOf('--title') + 1] === 'v1.2.0 — ant-teams', 'title flag passes through');
@@ -887,6 +1007,14 @@ check('RLC-2: release-create sends tag + extras; env repo resolves and wins', ()
   assert.ok(c.includes('--target') && c[c.indexOf('--target') + 1] === 'master', 'target flag passes through');
   const repo = argIndex(c, '--repo');
   assert.ok(repo !== -1 && c[repo + 1] === ENV_REPO, `env repo must be sent: ${c.join(' ')}`);
+  const reRead = all[1];
+  assert.deepStrictEqual(reRead.slice(0, 3), ['release', 'view', 'v1.2.0'], 'verification re-read targets the tag');
+  assert.ok(reRead[reRead.lastIndexOf('--repo') + 1] === ENV_REPO, 'env repo last on the re-read');
+  const out = JSON.parse(r.stdout);
+  assert.strictEqual(out.tagName, 'v1.2.0');
+  assert.strictEqual(out.name, 'v1.2.0 — ant-teams');
+  assert.strictEqual(out.url, 'https://github.com/env-owner/env-repo/releases/tag/v1.2.0');
+  assert.strictEqual(out.node_id, undefined, 'curated output must drop raw payload fields');
 });
 
 // --- RLC-3: release-list curated default + filters ------------------------------
@@ -938,32 +1066,49 @@ check('RLC-5: caller format flags take over (release-view --web, release-list cu
   assert.ok(!c.includes('isLatest'), 'curated default must not leak into caller --json');
 });
 
-// --- RLC-6: release-edit thin pass-through --------------------------------------
+// --- RLC-6: release-edit mutates then re-reads -----------------------------------
 
-check('RLC-6: release-edit is a thin pass-through', () => {
+check('RLC-6: release-edit mutates then re-reads; curated release shape out', () => {
   const ctx = setupWithDocs('rlc6');
+  fs.writeFileSync(ctx.ghOut, RELEASE_VIEW_PAYLOAD);
   const r = runHelper(ctx, ['release-edit', 'v1.2.0', '--notes', 'Revised release notes.']);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
-  const c = calls(ctx)[0];
+  const all = calls(ctx);
+  assert.strictEqual(all.length, 2, 'mutation + verification re-read');
+  const c = all[0];
   assert.deepStrictEqual(c.slice(0, 3), ['release', 'edit', 'v1.2.0']);
   assert.ok(c.includes('--notes') && c[c.indexOf('--notes') + 1] === 'Revised release notes.', 'edit flags pass through');
-  assert.ok(c[c.lastIndexOf('--repo') + 1] === ENV_REPO, 'env repo last on every call');
+  assert.ok(c[c.lastIndexOf('--repo') + 1] === ENV_REPO, 'env repo last on the mutation');
+  assert.deepStrictEqual(all[1].slice(0, 3), ['release', 'view', 'v1.2.0'], 'verification re-read');
+  const out = JSON.parse(r.stdout);
+  assert.strictEqual(out.tagName, 'v1.2.0');
+  assert.strictEqual(out.body, 'Release notes body.');
+  assert.strictEqual(out.node_id, undefined, 'curated output must drop raw payload fields');
 });
 
 // --- RLC-7: release-delete caller flags only ------------------------------------
 
-check('RLC-7: release-delete passes caller flags only; no --admin/--yes injected', () => {
+check('RLC-7: release-delete passes caller flags only; curated summary, no re-read', () => {
   const ctx = setupWithDocs('rlc7');
   const r = runHelper(ctx, ['release-delete', 'v1.2.0', '--cleanup-tag']);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
   const all = calls(ctx);
-  assert.strictEqual(all.length, 1, 'exactly one gh call');
+  assert.strictEqual(all.length, 1, 'exactly one gh call — a deleted release cannot be re-read');
   const c = all[0];
   assert.deepStrictEqual(c.slice(0, 3), ['release', 'delete', 'v1.2.0']);
   assert.ok(c.includes('--cleanup-tag'), 'caller flags pass through');
   assert.ok(!c.includes('--admin'), 'delete must never inject --admin');
   assert.ok(!c.includes('--yes') && !c.includes('-y'), 'delete must never default the --yes auto-confirm');
   assert.ok(c[c.lastIndexOf('--repo') + 1] === ENV_REPO, 'env repo last on every call');
+  const out = JSON.parse(r.stdout);
+  assert.deepStrictEqual(
+    Object.keys(out).sort(),
+    ['deleted', 'tagName', 'url'],
+    'release-delete output is exactly the curated deletion summary'
+  );
+  assert.strictEqual(out.tagName, 'v1.2.0');
+  assert.strictEqual(out.url, `https://github.com/${ENV_REPO}/releases/tag/v1.2.0`);
+  assert.strictEqual(out.deleted, true);
 });
 
 // --- RLC-8: pass-through --repo never wins (release-*) --------------------------
@@ -1019,17 +1164,22 @@ check('RLC-9: invalid canonical tags fail before gh is invoked (create/edit/dele
 
 // --- RLC-10: valid canonical tags reach gh untouched ----------------------------
 
-check('RLC-10: valid canonical tags reach gh untouched', () => {
+check('RLC-10: valid canonical tags reach gh untouched; create then verify re-read', () => {
   const ctx = setupWithDocs('rlc10');
+  fs.writeFileSync(ctx.ghOut, RELEASE_VIEW_PAYLOAD);
   // NOTE: tags containing ']' round-trip gh fine but cannot be asserted
   // here because the fake-gh log parser splits args on brackets.
   const validTags = ['v1', 'v1.0.0', 'v1.0.0-rc.1', 'rel/2026-08-23', 'build.42', 'a@b'];
   for (const tag of validTags) {
     const r = runHelper(ctx, ['release-create', tag]);
     assert.strictEqual(r.status, 0, `release-create ${tag} exit ${r.status}\nstderr:\n${r.stderr}`);
-    const c = calls(ctx).pop();
+    const createCalls = calls(ctx).filter((x) => x[1] === 'create');
+    const c = createCalls[createCalls.length - 1];
     assert.deepStrictEqual(c.slice(0, 3), ['release', 'create', tag], `valid tag must pass through: ${c.join(' ')}`);
-    assert.ok(c[c.lastIndexOf('--repo') + 1] === ENV_REPO, 'env repo last on every call');
+    assert.ok(c[c.lastIndexOf('--repo') + 1] === ENV_REPO, 'env repo last on the mutation');
+    const last = calls(ctx).pop();
+    assert.deepStrictEqual(last.slice(0, 3), ['release', 'view', tag], 'verification re-read targets the same tag');
+    JSON.parse(r.stdout); // curated release-shaped JSON out
   }
 });
 
