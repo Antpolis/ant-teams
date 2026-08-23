@@ -39,16 +39,15 @@ assert_eq "managed unknown flag => exit 1" "$SYNC_RC" "1"
 assert_file_contains_str "sync-company usage lists --force" "$SYNC_REAL_COMPANY" --force
 assert_file_contains_str "sync-company forwards --force to managed" "$SYNC_REAL_COMPANY" 'sync-managed-skills.sh" --force'
 
-# --- FR-12.3 / CLI-3.1: wrappers delegate to init-company.sh unchanged -------
-INIT_COMPANY="$SYNC_REPO_ROOT/scripts/init-company.sh"
-UPDATE_COMPANY="$SYNC_REPO_ROOT/scripts/init-company.sh"
-assert_exists "init-company.sh present" "$INIT_COMPANY"
-assert_exists "init-company.sh present" "$UPDATE_COMPANY"
-# Both must exec/delegate to init-company.sh and add NO new flags of their own.
-assert_file_contains_str "init-company delegates to init-company.sh" "$INIT_COMPANY" "init-company.sh"
-assert_file_contains_str "update-company delegates to init-company.sh" "$UPDATE_COMPANY" "init-company.sh"
-assert_file_not_contains_str "init-company adds no --force handling" "$INIT_COMPANY" --force
-assert_file_not_contains_str "update-company adds no --force handling" "$UPDATE_COMPANY" --force
+# --- FR-12.3 / CLI-3.1: thin delegating wrappers stay flag-free ----------------
+# Post-audit scripts/ layout: the retired init-company/update-company wrapper
+# pair was consolidated — scripts/init-company.sh IS the coordinator that owns
+# --force (asserted above), and scripts/init-project.sh is the remaining thin
+# delegator (exec the init engine, no flags of its own).
+INIT_PROJECT="$SYNC_REPO_ROOT/scripts/init-project.sh"
+assert_exists "init-project.sh present" "$INIT_PROJECT"
+assert_file_contains_str "init-project delegates to the init engine" "$INIT_PROJECT" "init_project_docs.sh"
+assert_file_not_contains_str "init-project adds no --force handling" "$INIT_PROJECT" --force
 
 # --- CLI-1.3: --force and --dry-run combined (reports, writes nothing) -------
 # A real-repo dry-run+force against temp HOME must exit 0 and write nothing

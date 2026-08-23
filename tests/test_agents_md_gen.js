@@ -4,7 +4,7 @@
 /*
  * tests/test_agents_md_gen.js — SPEC-001-T3 unit tests.
  *
- * Drives `.opencode/skills/project-initialization/scripts/init_project_docs.sh`
+ * Drives `templates/opencode/skills/project-initialization/scripts/init_project_docs.sh`
  * through the AGENTS.md generation surface added by issue #4:
  *
  *   - AC-T3-001: interactive mode on repo-bare generates AGENTS.md with
@@ -46,7 +46,7 @@ const assert = require('assert');
 const REPO_ROOT = path.resolve(__dirname, '..');
 const INIT_SCRIPT = path.join(
   REPO_ROOT,
-  '.opencode/skills/project-initialization/scripts/init_project_docs.sh'
+  'templates/opencode/skills/project-initialization/scripts/init_project_docs.sh'
 );
 const BARE_FIXTURE = path.join(REPO_ROOT, 'tests', 'fixtures', 'repo-bare');
 const NODE_FIXTURE = path.join(REPO_ROOT, 'tests', 'fixtures', 'repo-node-npm');

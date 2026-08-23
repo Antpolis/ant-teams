@@ -4,7 +4,7 @@
 /*
  * tests/test_cli_flags.js — SPEC-001-T2 unit tests.
  *
- * Drives `.opencode/skills/project-initialization/scripts/init_project_docs.sh`
+ * Drives `templates/opencode/skills/project-initialization/scripts/init_project_docs.sh`
  * through the CLI surface added by issue #3 (CLI-2 / FR-4 / ERR-4):
  *
  *   - AC-T2-001: TTY present + no flags → interactive mode (no required-flag
@@ -43,7 +43,7 @@ const assert = require('assert');
 const REPO_ROOT = path.resolve(__dirname, '..');
 const INIT_SCRIPT = path.join(
   REPO_ROOT,
-  '.opencode/skills/project-initialization/scripts/init_project_docs.sh'
+  'templates/opencode/skills/project-initialization/scripts/init_project_docs.sh'
 );
 
 const REPO_ROLE_VALUES = ['service', 'library', 'infra', 'monorepo-root', 'tool', 'docs', 'other'];

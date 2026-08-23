@@ -41,11 +41,11 @@ assert_file_not_contains_str "force: local edit gone after overwrite" \
   "$HOME_DIR/.agents/skills/alpha/SKILL.md" "LOCAL EDIT"
 
 # FR-8.4: manifest hash now reflects source content.
-ALPHA_SRC="$(sync_sha256 "$FIX/.opencode/skills/alpha/SKILL.md")"
+ALPHA_SRC="$(sync_sha256 "$FIX/templates/opencode/skills/alpha/SKILL.md")"
 assert_eq "force: installed alpha == source" \
   "$(sync_sha256 "$HOME_DIR/.agents/skills/alpha/SKILL.md")" "$ALPHA_SRC"
 assert_eq "force: manifest alpha hash == source" \
-  "$(sync_manifest_file_hash "$MANIFEST" alpha ".opencode/skills/alpha/SKILL.md")" "$ALPHA_SRC"
+  "$(sync_manifest_file_hash "$MANIFEST" alpha "templates/opencode/skills/alpha/SKILL.md")" "$ALPHA_SRC"
 
 # FR-8.3: unmanaged content untouched by force.
 assert_eq "force: unmanaged untouched" \

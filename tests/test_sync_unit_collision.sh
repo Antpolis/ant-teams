@@ -21,11 +21,11 @@ SCRIPT="$FIX/scripts/sync-managed-skills.sh"
 OUT="$(mktemp)"
 
 # --- FR-11.1: source skill wins over command-derived with the same name ------
-mkdir -p "$FIX/.opencode/skills/collide"
+mkdir -p "$FIX/templates/opencode/skills/collide"
 printf -- '---\nname: collide\ndescription: SOURCE-SKILL\n---\n\nsource skill body\n' \
-  > "$FIX/.opencode/skills/collide/SKILL.md"
-mkdir -p "$FIX/.opencode/commands"
-cat > "$FIX/.opencode/commands/collide.md" <<'CMD'
+  > "$FIX/templates/opencode/skills/collide/SKILL.md"
+mkdir -p "$FIX/templates/opencode/commands"
+cat > "$FIX/templates/opencode/commands/collide.md" <<'CMD'
 ---
 description: COMMAND-DERIVED
 agent: x
@@ -43,16 +43,16 @@ assert_file_not_contains_str "command-derived did NOT win" \
   "$HOME_DIR/.agents/skills/collide/SKILL.md" "COMMAND-DERIVED"
 
 # --- FR-11.4: unmanaged entry name collision (manifest present) --------------
-rm -rf "$HOME_DIR/.agents"; rm -rf "$FIX/.opencode/skills"; rm -f "$FIX/.opencode/commands/"*.md
-mkdir -p "$FIX/.opencode/skills/occupy" "$FIX/.opencode/skills/free"
-printf -- '---\nname: occupy\ndescription: o\n---\n\no\n' > "$FIX/.opencode/skills/occupy/SKILL.md"
-printf -- '---\nname: free\ndescription: f\n---\n\nf\n'   > "$FIX/.opencode/skills/free/SKILL.md"
+rm -rf "$HOME_DIR/.agents"; rm -rf "$FIX/templates/opencode/skills"; rm -f "$FIX/templates/opencode/commands/"*.md
+mkdir -p "$FIX/templates/opencode/skills/occupy" "$FIX/templates/opencode/skills/free"
+printf -- '---\nname: occupy\ndescription: o\n---\n\no\n' > "$FIX/templates/opencode/skills/occupy/SKILL.md"
+printf -- '---\nname: free\ndescription: f\n---\n\nf\n'   > "$FIX/templates/opencode/skills/free/SKILL.md"
 # Pre-seed the managed target with an UNMANAGED occupy dir + a valid manifest
 # that records only "free" (so "occupy" is genuinely unmanaged from the sync's
 # viewpoint).
 mkdir -p "$HOME_DIR/.agents/skills/occupy"
 printf 'do-not-clobber-me\n' > "$HOME_DIR/.agents/skills/occupy/SKILL.md"
-FREE_HASH="$(sync_sha256 "$FIX/.opencode/skills/free/SKILL.md")"
+FREE_HASH="$(sync_sha256 "$FIX/templates/opencode/skills/free/SKILL.md")"
 cat > "$HOME_DIR/.agents/skills/.manifest.json" <<JSON
 {
   "version": 1,
@@ -60,10 +60,10 @@ cat > "$HOME_DIR/.agents/skills/.manifest.json" <<JSON
   "managed_entries": {
     "free": {
       "type": "source_skill",
-      "source_path": ".opencode/skills/free/",
+      "source_path": "templates/opencode/skills/free/",
       "installed_at": "2026-08-01T00:00:00Z",
       "files": {
-        ".opencode/skills/free/SKILL.md": {
+        "templates/opencode/skills/free/SKILL.md": {
           "hash": "$FREE_HASH",
           "target_path": "$HOME_DIR/.agents/skills/free/SKILL.md"
         }

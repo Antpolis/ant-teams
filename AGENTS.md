@@ -18,8 +18,11 @@ Generated local OpenCode runtime: `.opencode/` (created by `scripts/init-company
 ## Build, Test, and Run Commands
 
 - Run Node.js tests: for f in tests/test_*.js; do node "$f" || exit 1; done
+- Raw-gh leakage gate (must stay green; part of the node sweep, called out explicitly): node tests/test_raw_gh_leakage.js
 - Run the helper CLI and communication recorder tests: bash tests/test_helper_cli.sh && bash tests/test_record_communication.sh
 - Run managed-skill sync tests: bash tests/run_sync_tests.sh
+- Run the e2e + smoke suite: bash tests/run_e2e_tests.sh
+- Run the standalone managed-sync regression smoke: bash tests/e2e/test_smoke_sync_managed_skills.sh
 - Install the canonical OpenCode configuration and refresh managed skills and team scripts: bash scripts/init-company.sh
 - Validate AGENTS.md structure (DM-2 contract): bash templates/scripts/validate-agents-md.sh AGENTS.md
 - Syntax-check shell scripts: bash -n scripts/*.sh templates/scripts/*.sh templates/opencode/skills/project-initialization/scripts/init_project_docs.sh

@@ -28,11 +28,11 @@ MANIFEST="$HOME_DIR/.agents/skills/.manifest.json"
 OUT="$(mktemp)"
 
 # --- SEC-1.3: every recorded target_path stays inside ~/.agents/skills/ ------
-mkdir -p "$FIX/.opencode/skills/normal"
-printf -- '---\nname: normal\ndescription: n\n---\n\nbody\n' > "$FIX/.opencode/skills/normal/SKILL.md"
+mkdir -p "$FIX/templates/opencode/skills/normal"
+printf -- '---\nname: normal\ndescription: n\n---\n\nbody\n' > "$FIX/templates/opencode/skills/normal/SKILL.md"
 sync_capture "$OUT" "$SCRIPT" "$HOME_DIR"
 assert_exit_zero "normal install exit 0" "$SYNC_RC"
-TP="$(sync_manifest_target_path "$MANIFEST" normal ".opencode/skills/normal/SKILL.md")"
+TP="$(sync_manifest_target_path "$MANIFEST" normal "templates/opencode/skills/normal/SKILL.md")"
 case "$TP" in
   "$HOME_DIR/.agents/skills/"*) check OK "target_path within managed subtree";;
   *) check FAIL "target_path within managed subtree (got $TP)";;
@@ -40,10 +40,10 @@ esac
 
 # --- SEC-1.1 / FR-7.2: a filename containing '..' => fatal exit 2, no write ---
 rm -rf "$HOME_DIR/.agents"
-rm -rf "$FIX/.opencode/skills"
-mkdir -p "$FIX/.opencode/skills/trav/sub..dir"
-printf -- '---\nname: trav\ndescription: t\n---\n\nbody\n' > "$FIX/.opencode/skills/trav/SKILL.md"
-printf 'evil\n' > "$FIX/.opencode/skills/trav/sub..dir/escape.txt"
+rm -rf "$FIX/templates/opencode/skills"
+mkdir -p "$FIX/templates/opencode/skills/trav/sub..dir"
+printf -- '---\nname: trav\ndescription: t\n---\n\nbody\n' > "$FIX/templates/opencode/skills/trav/SKILL.md"
+printf 'evil\n' > "$FIX/templates/opencode/skills/trav/sub..dir/escape.txt"
 sync_capture "$OUT" "$SCRIPT" "$HOME_DIR"
 assert_exit_nonzero "traversal filename => non-zero exit" "$SYNC_RC"
 assert_eq "traversal filename => exit 2 (boundary)" "$SYNC_RC" "2"
@@ -55,10 +55,10 @@ assert_file_contains_str "traversal: traversal detected reason" "$OUT" "traversa
 assert_not_exists "traversal: escaping subdir not created" "$HOME_DIR/.agents/skills/trav/sub..dir"
 
 # --- SEC-2.2: malicious manifest target_path cannot cause an out-of-bounds write
-rm -rf "$HOME_DIR/.agents"; rm -rf "$FIX/.opencode/skills"
-mkdir -p "$FIX/.opencode/skills/alpha"
-printf -- '---\nname: alpha\ndescription: a\n---\n\nalpha body\n' > "$FIX/.opencode/skills/alpha/SKILL.md"
-ALPHA_SRC="$FIX/.opencode/skills/alpha/SKILL.md"
+rm -rf "$HOME_DIR/.agents"; rm -rf "$FIX/templates/opencode/skills"
+mkdir -p "$FIX/templates/opencode/skills/alpha"
+printf -- '---\nname: alpha\ndescription: a\n---\n\nalpha body\n' > "$FIX/templates/opencode/skills/alpha/SKILL.md"
+ALPHA_SRC="$FIX/templates/opencode/skills/alpha/SKILL.md"
 REAL_HASH="$(sync_sha256 "$ALPHA_SRC")"
 # On-disk alpha content DIFFERS from manifest hash => classified "modified" =>
 # preserved by default. The manifest carries an out-of-bounds target_path.
@@ -73,10 +73,10 @@ cat > "$MANIFEST" <<JSON
   "managed_entries": {
     "alpha": {
       "type": "source_skill",
-      "source_path": ".opencode/skills/alpha/",
+      "source_path": "templates/opencode/skills/alpha/",
       "installed_at": "2026-08-01T00:00:00Z",
       "files": {
-        ".opencode/skills/alpha/SKILL.md": {
+        "templates/opencode/skills/alpha/SKILL.md": {
           "hash": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
           "target_path": "$OOB"
         }
@@ -97,9 +97,9 @@ fi
 
 # --- SEC-5.2: symlink at managed entry dir => skip, no write into symlink target
 rm -rf "$HOME_DIR/.agents"
-rm -rf "$FIX/.opencode/skills"
-mkdir -p "$FIX/.opencode/skills/slink"
-printf -- '---\nname: slink\ndescription: s\n---\n\nslink body\n' > "$FIX/.opencode/skills/slink/SKILL.md"
+rm -rf "$FIX/templates/opencode/skills"
+mkdir -p "$FIX/templates/opencode/skills/slink"
+printf -- '---\nname: slink\ndescription: s\n---\n\nslink body\n' > "$FIX/templates/opencode/skills/slink/SKILL.md"
 mkdir -p "$HOME_DIR/.evil-slink-target"
 # Place a symlink at the managed entry name pointing OUTSIDE the managed subtree.
 ln -s "$HOME_DIR/.evil-slink-target" "$HOME_DIR/.agents"

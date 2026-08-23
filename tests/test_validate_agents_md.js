@@ -34,7 +34,7 @@ const path = require('path');
 const assert = require('assert');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
-const VALIDATOR = path.join(REPO_ROOT, 'scripts', 'validate-agents-md.sh');
+const VALIDATOR = path.join(REPO_ROOT, 'templates', 'scripts', 'validate-agents-md.sh');
 
 let pass = 0;
 let fail = 0;
@@ -164,7 +164,7 @@ check('AC-T8-001: validator passes on real generator output (regression)', () =>
   // the generator on every section the generator actually emits.
   const initScript = path.join(
     REPO_ROOT,
-    '.opencode/skills/project-initialization/scripts/init_project_docs.sh'
+    'templates/opencode/skills/project-initialization/scripts/init_project_docs.sh'
   );
   const fixtureSrc = path.join(REPO_ROOT, 'tests', 'fixtures', 'repo-node-npm');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'validate-amd-real-'));

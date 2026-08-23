@@ -42,12 +42,12 @@ assert_count               "run 2: beta NOOP" "$OUT" "[NOOP]" 1
 # Installed alpha content reflects the NEW source (hash differs from v1).
 ALPHA2="$(sync_sha256 "$HOME_DIR/.agents/skills/alpha/SKILL.md")"
 assert_neq "alpha content changed after update" "$ALPHA2" "$ALPHA1"
-ALPHA_SRC="$(sync_sha256 "$FIX/.opencode/skills/alpha/SKILL.md")"
+ALPHA_SRC="$(sync_sha256 "$FIX/templates/opencode/skills/alpha/SKILL.md")"
 assert_eq "alpha installed == source v2" "$ALPHA2" "$ALPHA_SRC"
 
 # Manifest hash for alpha reflects the new source content.
 assert_eq "manifest alpha hash updated" \
-  "$(sync_manifest_file_hash "$MANIFEST" alpha ".opencode/skills/alpha/SKILL.md")" "$ALPHA_SRC"
+  "$(sync_manifest_file_hash "$MANIFEST" alpha "templates/opencode/skills/alpha/SKILL.md")" "$ALPHA_SRC"
 
 rm -f "$OUT"
 sync_done

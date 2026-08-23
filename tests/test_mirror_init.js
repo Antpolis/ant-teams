@@ -87,7 +87,7 @@ function buildSimulatedInstall(home) {
 
   for (const skill of REQUIRED_SKILLS) {
     copyTreeNoExec(
-      path.join(REPO_ROOT, '.opencode', 'skills', skill),
+      path.join(REPO_ROOT, 'templates', 'opencode', 'skills', skill),
       path.join(mirrorSkills, skill)
     );
   }

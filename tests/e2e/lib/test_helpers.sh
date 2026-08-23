@@ -42,7 +42,10 @@ e2e_repo_root() {
   ( cd "$script_dir/../.." && pwd )
 }
 
-e2e_init_script() { printf '%s/.opencode/skills/project-initialization/scripts/init_project_docs.sh' "$1"; }
+# The init engine lives in the canonical templates tree (the repo-local
+# .opencode/ skills mirror was retired in the 3bb6ec4 restructure; only
+# scripts/init-company.sh installs it into ~/.agents + ~/.config/opencode).
+e2e_init_script() { printf '%s/templates/opencode/skills/project-initialization/scripts/init_project_docs.sh' "$1"; }
 e2e_fixtures_dir() { printf '%s/tests/fixtures' "$1"; }
 
 # e2e_make_fixture_repo FIXTURE_DIR — copy a fixture into a fresh mktemp -d and

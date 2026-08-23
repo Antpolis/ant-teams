@@ -22,11 +22,11 @@ MANIFEST="$HOME_DIR/.agents/skills/.manifest.json"
 OUT="$(mktemp)"
 
 # Source skill AND command both named "shared".
-mkdir -p "$FIX/.opencode/skills/shared"
+mkdir -p "$FIX/templates/opencode/skills/shared"
 printf -- '---\nname: shared\ndescription: SOURCE\n---\n\nthis is the SOURCE skill\n' \
-  > "$FIX/.opencode/skills/shared/SKILL.md"
-mkdir -p "$FIX/.opencode/commands"
-cat > "$FIX/.opencode/commands/shared.md" <<'CMD'
+  > "$FIX/templates/opencode/skills/shared/SKILL.md"
+mkdir -p "$FIX/templates/opencode/commands"
+cat > "$FIX/templates/opencode/commands/shared.md" <<'CMD'
 ---
 description: DERIVED
 agent: orchestrator

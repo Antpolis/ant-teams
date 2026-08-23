@@ -29,7 +29,7 @@ MANIFEST="$HOME_DIR/.agents/skills/.manifest.json"
 # A single source skill with known content.
 sync_write_skill "$FIX" "alpha" \
 $'---\nname: alpha\ndescription: Alpha skill\n---\n\nAlpha body.\n'
-ALPHA_SRC="$FIX/.opencode/skills/alpha/SKILL.md"
+ALPHA_SRC="$FIX/templates/opencode/skills/alpha/SKILL.md"
 ALPHA_HASH="$(sync_sha256 "$ALPHA_SRC")"
 
 OUT="$(mktemp)"
@@ -44,7 +44,7 @@ assert_eq "manifest records 1 entry" \
 assert_eq "manifest entry type source_skill" \
   "$(sync_manifest_entry_type "$MANIFEST" alpha)" "source_skill"
 assert_eq "manifest entry hash matches source" \
-  "$(sync_manifest_file_hash "$MANIFEST" alpha ".opencode/skills/alpha/SKILL.md")" "$ALPHA_HASH"
+  "$(sync_manifest_file_hash "$MANIFEST" alpha "templates/opencode/skills/alpha/SKILL.md")" "$ALPHA_HASH"
 assert_file_contains_str "manifest target_path under managed subtree" "$MANIFEST" "/.agents/skills/alpha/SKILL.md"
 
 # --- FR-3 / DM-4.2: valid manifest read => NOOP on idempotent re-run ---------
@@ -61,10 +61,10 @@ cat > "$MANIFEST" <<JSON
   "managed_entries": {
     "alpha": {
       "type": "source_skill",
-      "source_path": ".opencode/skills/alpha/",
+      "source_path": "templates/opencode/skills/alpha/",
       "installed_at": "2026-08-01T00:00:00Z",
       "files": {
-        ".opencode/skills/alpha/SKILL.md": {
+        "templates/opencode/skills/alpha/SKILL.md": {
           "hash": "$ALPHA_HASH",
           "target_path": "$HOME_DIR/.agents/skills/alpha/SKILL.md"
         }

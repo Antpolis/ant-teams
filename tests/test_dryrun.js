@@ -5,7 +5,7 @@
  * tests/test_dryrun.js — SPEC-001-T6 unit tests (issue #7).
  *
  * Asserts the OBS-2 dry-run contract (true no-write) and the ERR-1 pre-flight
- * validation contract. Drives `.opencode/skills/project-initialization/scripts
+ * validation contract. Drives `templates/opencode/skills/project-initialization/scripts
  * /init_project_docs.sh` against throwaway target project directories.
  *
  * Coverage:
@@ -37,7 +37,7 @@ const assert = require('assert');
 const REPO_ROOT = path.resolve(__dirname, '..');
 const INIT_SCRIPT = path.join(
   REPO_ROOT,
-  '.opencode/skills/project-initialization/scripts/init_project_docs.sh'
+  'templates/opencode/skills/project-initialization/scripts/init_project_docs.sh'
 );
 
 let pass = 0;

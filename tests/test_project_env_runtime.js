@@ -37,11 +37,11 @@ const assert = require('assert');
 const REPO_ROOT = path.resolve(__dirname, '..');
 const INIT_SCRIPT = path.join(
   REPO_ROOT,
-  '.opencode/skills/project-initialization/scripts/init_project_docs.sh'
+  'templates/opencode/skills/project-initialization/scripts/init_project_docs.sh'
 );
 const HELPER = path.join(
   REPO_ROOT,
-  '.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh'
+  'templates/opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh'
 );
 
 let passed = 0;
@@ -321,8 +321,8 @@ check('ENV-9: gh_project_helper resolves owner/project number from the env alone
 
 check('ENV-10: do-task worktree helpers read ANT_TEAM_WORKTREE_ROOT from the env', () => {
   const scripts = [
-    '.opencode/skills/do-task/scripts/create_task_worktree.sh',
-    '.opencode/skills/do-task/scripts/cleanup_task_worktree.sh',
+    'templates/opencode/skills/do-task/scripts/create_task_worktree.sh',
+    'templates/opencode/skills/do-task/scripts/cleanup_task_worktree.sh',
   ];
   for (const s of scripts) {
     const c = fs.readFileSync(path.join(REPO_ROOT, s), 'utf8');

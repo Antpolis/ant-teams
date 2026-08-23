@@ -31,7 +31,7 @@ sync_write_skill "$FIX" "free"  $'---\nname: free\ndescription: f\n---\n\nfree\n
 mkdir -p "$HOME_DIR/.agents/skills/taken"
 printf 'operator-owned\n' > "$HOME_DIR/.agents/skills/taken/SKILL.md"
 TAKEN_HASH="$(sync_sha256 "$HOME_DIR/.agents/skills/taken/SKILL.md")"
-FREE_HASH="$(sync_sha256 "$FIX/.opencode/skills/free/SKILL.md")"
+FREE_HASH="$(sync_sha256 "$FIX/templates/opencode/skills/free/SKILL.md")"
 cat > "$MANIFEST" <<JSON
 {
   "version": 1,
@@ -39,10 +39,10 @@ cat > "$MANIFEST" <<JSON
   "managed_entries": {
     "free": {
       "type": "source_skill",
-      "source_path": ".opencode/skills/free/",
+      "source_path": "templates/opencode/skills/free/",
       "installed_at": "2026-08-01T00:00:00Z",
       "files": {
-        ".opencode/skills/free/SKILL.md": { "hash": "$FREE_HASH", "target_path": "$HOME_DIR/.agents/skills/free/SKILL.md" }
+        "templates/opencode/skills/free/SKILL.md": { "hash": "$FREE_HASH", "target_path": "$HOME_DIR/.agents/skills/free/SKILL.md" }
       }
     }
   }

@@ -4,7 +4,7 @@
 /*
  * tests/test_skills_copy.js — SPEC-001-T4 unit tests.
  *
- * Drives `.opencode/skills/project-initialization/scripts/init_project_docs.sh`
+ * Drives `templates/opencode/skills/project-initialization/scripts/init_project_docs.sh`
  * against throwaway target project directories and asserts the FR-7 / AC-T4
  * contract:
  *
@@ -42,9 +42,9 @@ const assert = require('assert');
 const REPO_ROOT = path.resolve(__dirname, '..');
 const INIT_SCRIPT = path.join(
   REPO_ROOT,
-  '.opencode/skills/project-initialization/scripts/init_project_docs.sh'
+  'templates/opencode/skills/project-initialization/scripts/init_project_docs.sh'
 );
-const SOURCE_SKILLS_DIR = path.join(REPO_ROOT, '.opencode/skills');
+const SOURCE_SKILLS_DIR = path.join(REPO_ROOT, 'templates/opencode/skills');
 
 const REQUIRED_SKILLS = [
   'github-issues-projects-cli',
@@ -71,15 +71,17 @@ const REQUIRED_SCRIPT_PATHS = [
   'project-initialization/scripts/init_project_docs.sh',
 ];
 
-// Lists every `.sh` file under `<rootDir>/.opencode/skills/<required-skill>/scripts/`.
+// Lists every `.sh` file under `<skillsRoot>/<required-skill>/scripts/`.
+// Callers pass the source root (templates/opencode/skills — canonical since
+// the 3bb6ec4 restructure) or a target project's .opencode/skills.
 // Used for positive exec-bit assertions that iterate over the full set instead
 // of cherry-picking one script — this is what catches the original failure
 // (do-task scripts landing at mode 664) where the previous equality-only check
 // on `gh_project_helper.sh` could not.
-function listShellScriptsInRequiredSkillDirs(rootDir) {
+function listShellScriptsInRequiredSkillDirs(skillsRoot) {
   const out = [];
   for (const skill of REQUIRED_SKILLS) {
-    const scriptsDir = path.join(rootDir, '.opencode', 'skills', skill, 'scripts');
+    const scriptsDir = path.join(skillsRoot, skill, 'scripts');
     let entries;
     try {
       entries = fs.readdirSync(scriptsDir, { withFileTypes: true });
@@ -205,7 +207,7 @@ function testSourcePreflight() {
   // dirs (not only the known required paths) so a newly-added shell script
   // cannot silently ship without an execute bit.
   check('source sweep: every .sh under required-skill scripts/ is executable', () => {
-    const scripts = listShellScriptsInRequiredSkillDirs(REPO_ROOT);
+    const scripts = listShellScriptsInRequiredSkillDirs(SOURCE_SKILLS_DIR);
     assert.ok(scripts.length >= REQUIRED_SCRIPT_PATHS.length, `unexpected source script count ${scripts.length}`);
     for (const p of scripts) {
       assertExecutable(p, `source sweep ${path.relative(REPO_ROOT, p)}`);
@@ -397,7 +399,7 @@ function testIdempotency(projectDir) {
 function testAllCopiedShellScriptsExecutable(projectDir) {
   process.stdout.write('Suite: ARCH-003 g4 / SEC-3.2 every copied .sh is executable\n');
 
-  const targetScripts = listShellScriptsInRequiredSkillDirs(projectDir);
+  const targetScripts = listShellScriptsInRequiredSkillDirs(path.join(projectDir, '.opencode/skills'));
   check('init copied at least the required shell scripts', () => {
     const requiredCount = REQUIRED_SCRIPT_PATHS.length;
     assert.ok(
