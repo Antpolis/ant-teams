@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# test_record_communication.sh — behavioral tests for scripts/record-communication.sh.
+# test_record_communication.sh — behavioral tests for templates/scripts/record-communication.sh.
 #
 # Covers the record/list MVP contract:
 #   - record creates one event file at
@@ -24,7 +24,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-RECORDER="$REPO_ROOT/scripts/record-communication.sh"
+RECORDER="$REPO_ROOT/templates/scripts/record-communication.sh"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT

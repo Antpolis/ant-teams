@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #
-# test_helper_cli.sh — behavioral tests for scripts/ant-team-help.sh.
+# test_helper_cli.sh — behavioral tests for templates/scripts/ant-team-help.sh.
 #
 # Covers the helper-CLI contract:
 #   - lists installed helper scripts from $ANT_TEAM_SCRIPTS with a stable
 #     one-line description per script
 #   - unknown scripts stay visible with a generic note
-#   - fails with a clear "run scripts/sync-company.sh first" message when
+#   - fails with a clear "run scripts/init-company.sh first" message when
 #     ANT_TEAM_SCRIPTS is unset or does not point to a directory
 #   - never sources .github-project.env (behavior is env-independent)
 #
@@ -17,7 +17,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-HELP_CLI="$REPO_ROOT/scripts/ant-team-help.sh"
+HELP_CLI="$REPO_ROOT/templates/scripts/ant-team-help.sh"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -46,11 +46,12 @@ echo "=== ant-team-help.sh: installed listing ==="
 INSTALLED="$TMP/home/.agents/scripts"
 mkdir -p "$INSTALLED"
 # Real script under test plus representative real helpers and one unknown
-# future helper, exactly as sync-company.sh would install them.
+# future helper, exactly as init-company.sh would install them from
+# templates/scripts/.
 cp "$HELP_CLI" "$INSTALLED/ant-team-help.sh"
-cp "$REPO_ROOT/scripts/sync-company.sh" "$INSTALLED/sync-company.sh"
-cp "$REPO_ROOT/scripts/validate-agents-md.sh" "$INSTALLED/validate-agents-md.sh"
-cp "$REPO_ROOT/scripts/record-communication.sh" "$INSTALLED/record-communication.sh"
+cp "$REPO_ROOT/templates/scripts/validate-agents-md.sh" "$INSTALLED/validate-agents-md.sh"
+cp "$REPO_ROOT/templates/scripts/record-communication.sh" "$INSTALLED/record-communication.sh"
+cp "$REPO_ROOT/templates/scripts/create-task-branch.sh" "$INSTALLED/create-task-branch.sh"
 printf '#!/usr/bin/env bash\n' > "$INSTALLED/future-helper.sh"
 
 OUT="$TMP/out.txt"
@@ -58,9 +59,9 @@ run_help "$OUT" env "ANT_TEAM_SCRIPTS=$INSTALLED" "HOME=$TMP/home" bash "$HELP_C
 assert_exit_zero "listing exits 0" "$RUN_RC"
 assert_contains "lists install dir header" "$OUT" "$INSTALLED"
 assert_contains "stable description (ant-team-help)" "$OUT" "List installed team helper scripts with one-line descriptions"
-assert_contains "stable description (sync-company)" "$OUT" "Install .opencode/ to ~/.config/opencode and team scripts"
 assert_contains "stable description (validate-agents-md)" "$OUT" "Structural validator for AGENTS.md"
 assert_contains "stable description (record-communication)" "$OUT" "Record or list agent communication event files"
+assert_contains "stable description (create-task-branch)" "$OUT" "Create a dedicated issue worktree"
 assert_contains "unknown helper stays visible" "$OUT" "future-helper.sh"
 assert_contains "unknown helper gets generic note" "$OUT" "No stable description recorded yet"
 
@@ -73,18 +74,18 @@ OUT="$TMP/out-env.txt"
 ( cd "$TMP/project" && run_help "$OUT" env "ANT_TEAM_SCRIPTS=$INSTALLED" "HOME=$TMP/home" bash "$HELP_CLI" )
 assert_exit_zero "poisoned ./.github-project.env ignored" "$RUN_RC"
 
-echo "=== ant-team-help.sh: sync-company has not run ==="
+echo "=== ant-team-help.sh: init-company has not run ==="
 
 OUT="$TMP/out-missing.txt"
 run_help "$OUT" env -u ANT_TEAM_SCRIPTS "HOME=$TMP/home" bash "$HELP_CLI"
 assert_exit_code "unset ANT_TEAM_SCRIPTS exits 1" "$RUN_RC" "1"
-assert_contains "clear message points to sync-company" "$OUT" "sync-company.sh"
+assert_contains "clear message points to init-company" "$OUT" "init-company.sh"
 assert_contains "clear message names the variable" "$OUT" "ANT_TEAM_SCRIPTS"
 
 OUT="$TMP/out-stale.txt"
 run_help "$OUT" env "ANT_TEAM_SCRIPTS=$TMP/does-not-exist" "HOME=$TMP/home" bash "$HELP_CLI"
 assert_exit_code "non-directory ANT_TEAM_SCRIPTS exits 1" "$RUN_RC" "1"
-assert_contains "stale dir message points to sync-company" "$OUT" "sync-company.sh"
+assert_contains "stale dir message points to init-company" "$OUT" "init-company.sh"
 
 echo "=== ant-team-help.sh: help flag ==="
 

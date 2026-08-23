@@ -24,9 +24,10 @@
 #      staged alongside it. The script resolves REPO_ROOT from its own
 #      location (`dirname/..`), so it reads the fixture's `.opencode/` while
 #      running the production code path byte-for-byte.
-#   2. Real repo (TEST-3 E2E): the real repo script + real `.opencode/` are
-#      exercised directly with `$HOME` overridden, validating the real
-#      install counts (26 source skills + 8 command-derived = 34 entries).
+#   2. Real repo (TEST-3 E2E): the real repo script + real
+#      `templates/opencode/` are exercised directly with `$HOME` overridden,
+#      validating the real install counts (31 source skills + 7
+#      command-derived = 38 entries).
 #
 
 # Resolve repo root from this lib path: tests/lib/sync_helpers.sh -> repo root
@@ -35,7 +36,7 @@ SYNC_HELPERS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SYNC_REPO_ROOT="$(cd "$SYNC_HELPERS_DIR/../.." && pwd)"
 SYNC_REAL_SCRIPT="$SYNC_REPO_ROOT/scripts/sync-managed-skills.sh"
 SYNC_REAL_COMPANY="$SYNC_REPO_ROOT/scripts/init-company.sh"
-SYNC_REAL_OPENCODE="$SYNC_REPO_ROOT/.opencode"
+SYNC_REAL_OPENCODE="$SYNC_REPO_ROOT/templates/opencode"
 
 # Per-test counters (reset by sync_begin).
 _SYNC_PASS=0
