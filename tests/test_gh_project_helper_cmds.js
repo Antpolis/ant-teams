@@ -2,15 +2,16 @@
 'use strict';
 
 /*
- * tests/test_gh_project_helper_cmds.js — env-only issue/milestone/PR/CI-testing
- * helper subcommands (2026-08).
+ * tests/test_gh_project_helper_cmds.js — env-only issue/milestone/PR/CI-testing/
+ * release helper subcommands (2026-08).
  *
  * Locks the env-only contract of the gh_project_helper.sh subcommands
  * (issue-create, issue-view, issue-list, issue-edit, issue-comment,
  * issue-close, pr-create, pr-view, pr-list, pr-comment, pr-close, pr-merge,
  * pr-checks, pr-review-reply, run-list, run-view, workflow-list,
  * workflow-run, milestone-create, milestone-list, milestone-edit,
- * milestone-close) into executable checks:
+ * milestone-close, release-create, release-list, release-view, release-edit,
+ * release-delete) into executable checks:
  *
  *   HIC-1  usage lists every new subcommand; required positionals enforced
  *   HIC-2  issue-create passes title + extras; env repo resolves and wins
@@ -48,6 +49,17 @@
  *   CIC-6  workflow-run dispatches caller flags only; no --admin injected
  *   CIC-7  a pass-through --repo can never override the env repo (run/workflow)
  *   CIC-8  missing ANT_TEAM_GITHUB_REPO fails fast without calling gh (run/workflow)
+ *   RLC-1  usage lists every release-* subcommand; positionals enforced
+ *   RLC-2  release-create passes tag + extras; env repo resolves and wins
+ *   RLC-3  release-list prints curated JSON by default; filters pass through
+ *   RLC-4  release-view prints curated JSON by default
+ *   RLC-5  caller format flags take over (release-view --web, release-list --json)
+ *   RLC-6  release-edit is a thin pass-through
+ *   RLC-7  release-delete passes caller flags only; no --admin/--yes injected
+ *   RLC-8  a pass-through --repo can never override the env repo (release-*)
+ *   RLC-9  invalid canonical tags fail before gh (create/edit/delete)
+ *   RLC-10 valid canonical tags reach gh untouched
+ *   RLC-11 missing ANT_TEAM_GITHUB_REPO fails fast without calling gh (release-*)
  *
  * The helper under test is the canonical engine in templates/opencode/
  * (the repo-local .opencode/ skills mirror is not tracked since the
@@ -799,7 +811,212 @@ check('CIC-8: missing ANT_TEAM_GITHUB_REPO fails fast without calling gh (run/wo
   assert.deepStrictEqual(calls(ctx).length, 0, 'gh must not be called');
 });
 
+// --- RLC-1: usage lists release-* subcommands; positionals enforced -------------
+
+check('RLC-1: usage lists every release-* subcommand and enforces required positionals', () => {
+  const ctx = setup('rlc1', DEFAULT_ENV);
+  const usage = runHelper(ctx, []);
+  assert.notStrictEqual(usage.status, 0, 'no-args must exit non-zero');
+  for (const sub of [
+    'release-create', 'release-list', 'release-view', 'release-edit', 'release-delete',
+  ]) {
+    assert.ok(usage.stdout.includes(sub), `usage must list ${sub}`);
+  }
+  for (const args of [
+    ['release-create'],
+    ['release-view'],
+    ['release-edit'],
+    ['release-delete'],
+  ]) {
+    const r = runHelper(ctx, args);
+    assert.notStrictEqual(r.status, 0, `${args.join(' ')} must fail without its required positional`);
+    assert.deepStrictEqual(calls(ctx).length, 0, 'gh must not be called on a usage error');
+  }
+});
+
+// --- RLC-2: release-create -------------------------------------------------------
+
+check('RLC-2: release-create sends tag + extras; env repo resolves and wins', () => {
+  const ctx = setup('rlc2', DEFAULT_ENV);
+  const r = runHelper(ctx, [
+    'release-create', 'v1.2.0', '--title', 'v1.2.0 — ant-teams',
+    '--notes-file', '/tmp/notes.md', '--target', 'master',
+  ]);
+  assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
+  const all = calls(ctx);
+  assert.strictEqual(all.length, 1, 'exactly one gh call');
+  const c = all[0];
+  assert.deepStrictEqual(c.slice(0, 3), ['release', 'create', 'v1.2.0'], 'tag positional must come first');
+  assert.ok(c.includes('--title') && c[c.indexOf('--title') + 1] === 'v1.2.0 — ant-teams', 'title flag passes through');
+  assert.ok(c.includes('--notes-file') && c[c.indexOf('--notes-file') + 1] === '/tmp/notes.md', 'notes file passes through');
+  assert.ok(c.includes('--target') && c[c.indexOf('--target') + 1] === 'master', 'target flag passes through');
+  const repo = argIndex(c, '--repo');
+  assert.ok(repo !== -1 && c[repo + 1] === ENV_REPO, `env repo must be sent: ${c.join(' ')}`);
+});
+
+// --- RLC-3: release-list curated default + filters ------------------------------
+
+check('RLC-3: release-list prints curated JSON by default; filters pass through', () => {
+  const ctx = setup('rlc3', DEFAULT_ENV);
+  const r = runHelper(ctx, ['release-list', '--limit', '5']);
+  assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
+  const c = calls(ctx)[0];
+  assert.deepStrictEqual(
+    c.slice(0, 4),
+    ['release', 'list', '--json', 'name,tagName,isDraft,isPrerelease,isLatest,createdAt,publishedAt'],
+    'exact curated release-list argv (gh 2.45 supports exactly these JSON fields; no url)'
+  );
+  assert.ok(c.includes('--limit') && c[c.indexOf('--limit') + 1] === '5', 'limit filter passes through');
+  assert.ok(c[c.lastIndexOf('--repo') + 1] === ENV_REPO, 'env repo last on every call');
+});
+
+// --- RLC-4: release-view curated default (exact argv) ---------------------------
+
+check('RLC-4: release-view prints curated JSON by default', () => {
+  const ctx = setup('rlc4', DEFAULT_ENV);
+  const r = runHelper(ctx, ['release-view', 'v1.2.0']);
+  assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
+  const c = calls(ctx)[0];
+  assert.deepStrictEqual(
+    c.slice(0, 5),
+    ['release', 'view', 'v1.2.0', '--json', 'name,tagName,targetCommitish,isDraft,isPrerelease,createdAt,publishedAt,author,body,url'],
+    'exact curated release-view argv'
+  );
+  assert.ok(c[c.lastIndexOf('--repo') + 1] === ENV_REPO, 'env repo last on every call');
+});
+
+// --- RLC-5: caller format flags take over ---------------------------------------
+
+check('RLC-5: caller format flags take over (release-view --web, release-list custom --json)', () => {
+  const ctx = setup('rlc5', DEFAULT_ENV);
+  let r = runHelper(ctx, ['release-view', 'v1.2.0', '--web']);
+  assert.strictEqual(r.status, 0, `web exit ${r.status}\nstderr:\n${r.stderr}`);
+  let c = calls(ctx)[0];
+  assert.ok(!c.includes('--json'), `caller shape must win: ${c.join(' ')}`);
+  assert.ok(c.includes('--web') && c.includes(ENV_REPO));
+
+  r = runHelper(ctx, ['release-list', '--json', 'name,tagName']);
+  assert.strictEqual(r.status, 0, `json exit ${r.status}\nstderr:\n${r.stderr}`);
+  c = calls(ctx)[1];
+  assert.strictEqual(c.filter((a) => a === '--json').length, 1, 'exactly the caller --json');
+  assert.ok(c.includes('name,tagName'), 'caller fields pass through');
+  assert.ok(!c.includes('isLatest'), 'curated default must not leak into caller --json');
+});
+
+// --- RLC-6: release-edit thin pass-through --------------------------------------
+
+check('RLC-6: release-edit is a thin pass-through', () => {
+  const ctx = setup('rlc6', DEFAULT_ENV);
+  const r = runHelper(ctx, ['release-edit', 'v1.2.0', '--notes', 'Revised release notes.']);
+  assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
+  const c = calls(ctx)[0];
+  assert.deepStrictEqual(c.slice(0, 3), ['release', 'edit', 'v1.2.0']);
+  assert.ok(c.includes('--notes') && c[c.indexOf('--notes') + 1] === 'Revised release notes.', 'edit flags pass through');
+  assert.ok(c[c.lastIndexOf('--repo') + 1] === ENV_REPO, 'env repo last on every call');
+});
+
+// --- RLC-7: release-delete caller flags only ------------------------------------
+
+check('RLC-7: release-delete passes caller flags only; no --admin/--yes injected', () => {
+  const ctx = setup('rlc7', DEFAULT_ENV);
+  const r = runHelper(ctx, ['release-delete', 'v1.2.0', '--cleanup-tag']);
+  assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
+  const all = calls(ctx);
+  assert.strictEqual(all.length, 1, 'exactly one gh call');
+  const c = all[0];
+  assert.deepStrictEqual(c.slice(0, 3), ['release', 'delete', 'v1.2.0']);
+  assert.ok(c.includes('--cleanup-tag'), 'caller flags pass through');
+  assert.ok(!c.includes('--admin'), 'delete must never inject --admin');
+  assert.ok(!c.includes('--yes') && !c.includes('-y'), 'delete must never default the --yes auto-confirm');
+  assert.ok(c[c.lastIndexOf('--repo') + 1] === ENV_REPO, 'env repo last on every call');
+});
+
+// --- RLC-8: pass-through --repo never wins (release-*) --------------------------
+
+check('RLC-8: a pass-through --repo can never override the env repo (release-*)', () => {
+  const ctx = setup('rlc8', DEFAULT_ENV);
+  for (const args of [
+    ['release-list', '--repo', 'rogue/rogue'],
+    ['release-view', 'v1.2.0', '--repo', 'rogue/rogue'],
+    ['release-create', 'v1.2.0', '--repo', 'rogue/rogue'],
+    ['release-edit', 'v1.2.0', '--repo', 'rogue/rogue'],
+    ['release-delete', 'v1.2.0', '--repo', 'rogue/rogue'],
+  ]) {
+    const r = runHelper(ctx, args);
+    assert.strictEqual(r.status, 0, `${args.join(' ')} exit ${r.status}\nstderr:\n${r.stderr}`);
+    const c = calls(ctx).pop();
+    const last = c.lastIndexOf('--repo');
+    assert.ok(last !== -1 && c[last + 1] === ENV_REPO, `env repo must be the final --repo: ${c.join(' ')}`);
+  }
+});
+
+// --- RLC-9: invalid canonical tags fail before gh (create/edit/delete) ----------
+
+check('RLC-9: invalid canonical tags fail before gh is invoked (create/edit/delete)', () => {
+  const ctx = setup('rlc9', DEFAULT_ENV);
+  const invalidTags = [
+    '-v1',        // leading dash (positional safety)
+    '.v1',        // leading dot
+    'v1.',        // trailing dot
+    'v1.lock',    // trailing .lock
+    '/v1',        // leading slash
+    'v1/',        // trailing slash
+    'a//b',       // empty path component
+    'a..b',       // consecutive dots
+    '@',          // lone at
+    'a@{b',       // reflog shorthand
+    'v 1',        // whitespace
+    'a~b', 'a^b', 'a:b', 'a?b', 'a*b', 'a[b', 'a\\b', // ref magic characters
+  ];
+  for (const cmd of ['release-create', 'release-edit', 'release-delete']) {
+    for (const tag of invalidTags) {
+      const r = runHelper(ctx, [cmd, tag]);
+      assert.notStrictEqual(r.status, 0, `${cmd} ${tag} must fail`);
+      assert.ok(
+        /Invalid release tag/.test(r.stderr),
+        `${cmd} ${tag} must name the invalid release tag (got: ${r.stderr.trim()})`
+      );
+    }
+  }
+  const ghCalls = calls(ctx);
+  assert.deepStrictEqual(ghCalls.length, 0, `gh must never be called for invalid tags (got ${ghCalls.length} calls)`);
+});
+
+// --- RLC-10: valid canonical tags reach gh untouched ----------------------------
+
+check('RLC-10: valid canonical tags reach gh untouched', () => {
+  const ctx = setup('rlc10', DEFAULT_ENV);
+  // NOTE: tags containing ']' round-trip gh fine but cannot be asserted
+  // here because the fake-gh log parser splits args on brackets.
+  const validTags = ['v1', 'v1.0.0', 'v1.0.0-rc.1', 'rel/2026-08-23', 'build.42', 'a@b'];
+  for (const tag of validTags) {
+    const r = runHelper(ctx, ['release-create', tag]);
+    assert.strictEqual(r.status, 0, `release-create ${tag} exit ${r.status}\nstderr:\n${r.stderr}`);
+    const c = calls(ctx).pop();
+    assert.deepStrictEqual(c.slice(0, 3), ['release', 'create', tag], `valid tag must pass through: ${c.join(' ')}`);
+    assert.ok(c[c.lastIndexOf('--repo') + 1] === ENV_REPO, 'env repo last on every call');
+  }
+});
+
+// --- RLC-11: missing repo fails fast (release-*) --------------------------------
+
+check('RLC-11: missing ANT_TEAM_GITHUB_REPO fails fast without calling gh (release-*)', () => {
+  const ctx = setup('rlc11', null); // no env file at all
+  for (const args of [
+    ['release-list'],
+    ['release-create', 'v1.2.0'],
+    ['release-view', 'v1.2.0'],
+    ['release-edit', 'v1.2.0'],
+    ['release-delete', 'v1.2.0'],
+  ]) {
+    const r = runHelper(ctx, args);
+    assert.notStrictEqual(r.status, 0, `${args.join(' ')} must fail without a repo`);
+    assert.ok(r.stderr.includes('ANT_TEAM_GITHUB_REPO'), 'error must name the env key');
+  }
+  assert.deepStrictEqual(calls(ctx).length, 0, 'gh must not be called');
+});
+
 // --- summary -------------------------------------------------------------------
 
-console.log(`\n${passed} passed, ${failed} failed (gh_project_helper env-only issue/PR/run/workflow/milestone subcommands)`);
+console.log(`\n${passed} passed, ${failed} failed (gh_project_helper env-only issue/PR/run/workflow/release/milestone subcommands)`);
 if (failed > 0) process.exit(1);

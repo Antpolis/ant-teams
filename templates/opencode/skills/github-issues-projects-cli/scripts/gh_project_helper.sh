@@ -26,6 +26,10 @@ readonly PR_LIST_FIELDS="number,title,state,headRefName,baseRefName,author,isDra
 readonly RUN_VIEW_FIELDS="number,displayTitle,workflowName,status,conclusion,event,headBranch,headSha,createdAt,updatedAt,url"
 readonly RUN_LIST_FIELDS="number,displayTitle,workflowName,status,conclusion,event,headBranch,createdAt,updatedAt,url"
 readonly WORKFLOW_LIST_FIELDS="id,name,path,state"
+# gh (2.45) release JSON fields: view exposes the collaboration shape
+# below; list supports exactly the curated fields (no url).
+readonly RELEASE_VIEW_FIELDS="name,tagName,targetCommitish,isDraft,isPrerelease,createdAt,publishedAt,author,body,url"
+readonly RELEASE_LIST_FIELDS="name,tagName,isDraft,isPrerelease,isLatest,createdAt,publishedAt"
 
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || {
@@ -72,6 +76,12 @@ Usage:
   gh_project_helper.sh milestone-edit <milestone_number> [gh api -f flags...]
   gh_project_helper.sh milestone-close <milestone_number>
 
+  gh_project_helper.sh release-create <tag> [gh release flags...]
+  gh_project_helper.sh release-list [gh release flags...]
+  gh_project_helper.sh release-view <tag> [gh release flags...]
+  gh_project_helper.sh release-edit <tag> [gh release flags...]
+  gh_project_helper.sh release-delete <tag> [gh release flags...]
+
 Notes:
   - all board operations target the canonical "Workflow State" project field
   - canonical state model: Open -> Backlog -> Ready -> In Progress -> In Review
@@ -110,6 +120,15 @@ Notes:
     never executes workflows' tests locally and performs no Git operations
   - workflow-run (dispatch) is policy-controlled: it passes caller flags
     through only and never injects --admin or bypasses approval gates
+  - release-* are thin wrappers around gh release with the same env-only
+    repo contract as issue-*; release-view and release-list print curated
+    JSON by default (pass --json, --jq, --template, or --web to control
+    the output shape yourself)
+  - release-create, release-edit, and release-delete validate the tag
+    against the canonical Git tag rules and fail before invoking gh;
+    release-delete is policy-controlled and destructive: it passes caller
+    flags through only, never injects --admin, never defaults the --yes
+    auto-confirm, and never bypasses approval gates
   - extra flags after the required positional argument pass straight
     through to gh issue / gh api; issue-view and issue-list print curated
     JSON by default (pass --json, --jq, --template, --comments, or --web
@@ -680,6 +699,89 @@ workflow_run() {
   gh workflow run "$workflow_ref" "$@" --repo "$repo"
 }
 
+# --- release subcommands (thin gh release wrappers, env-resolved repo) ---------
+
+# Canonical release-tag validation (FR-07): a small, local check enforcing
+# the Git tag (refname) rules release tags must obey, so invalid tags fail
+# before gh is invoked. Deliberately not a generic validators framework
+# (KISS): it validates release tags only.
+validate_release_tag() {
+  local tag="$1" cmd_name="$2"
+
+  if [[ -z "$tag" ]]; then
+    echo "Missing required value: release tag for $cmd_name" >&2
+    exit 1
+  fi
+
+  local reason=""
+  case "$tag" in
+    -*)           reason="must not begin with '-'" ;;
+    .*|*.|*.lock) reason="must not begin or end with '.', or end with '.lock'" ;;
+    /*|*/|*//*)   reason="must not begin or end with '/', or contain '//'" ;;
+    "@")          reason="must not be the single character '@'" ;;
+    *".."*)       reason="must not contain '..'" ;;
+    *@{*)         reason="must not contain '@{'" ;;
+  esac
+  if [[ -z "$reason" ]]; then
+    if [[ "$tag" == *[[:space:]]* || "$tag" == *[[:cntrl:]]* ]]; then
+      reason="must not contain whitespace or control characters"
+    elif [[ "$tag" == *[\~\^\:\?\*\[]* || "$tag" == *'\'* ]]; then
+      reason="must not contain '~', '^', ':', '?', '*', '[', or '\'"
+    fi
+  fi
+
+  if [[ -n "$reason" ]]; then
+    echo "Invalid release tag '$tag' for $cmd_name: $reason" >&2
+    exit 1
+  fi
+}
+
+# The env repo always wins: user flags come first, --repo "$repo" last.
+# The tag is validated before gh is invoked.
+release_create() {
+  local repo="$1" tag="$2"
+  shift 2
+  validate_release_tag "$tag" "release-create"
+  gh release create "$tag" "$@" --repo "$repo"
+}
+
+release_list() {
+  local repo="$1"
+  shift
+  if has_format_flag "$@"; then
+    gh release list "$@" --repo "$repo"
+  else
+    gh release list --json "$RELEASE_LIST_FIELDS" "$@" --repo "$repo"
+  fi
+}
+
+release_view() {
+  local repo="$1" tag="$2"
+  shift 2
+  if has_format_flag "$@"; then
+    gh release view "$tag" "$@" --repo "$repo"
+  else
+    gh release view "$tag" --json "$RELEASE_VIEW_FIELDS" "$@" --repo "$repo"
+  fi
+}
+
+release_edit() {
+  local repo="$1" tag="$2"
+  shift 2
+  validate_release_tag "$tag" "release-edit"
+  gh release edit "$tag" "$@" --repo "$repo"
+}
+
+# Policy-controlled and destructive: pass caller flags through only; never
+# inject --admin, never default the --yes auto-confirm, and never bypass
+# approval gates. The tag is validated before gh is invoked.
+release_delete() {
+  local repo="$1" tag="$2"
+  shift 2
+  validate_release_tag "$tag" "release-delete"
+  gh release delete "$tag" "$@" --repo "$repo"
+}
+
 # --- milestone subcommands (thin gh api REST wrappers) -------------------------
 
 # Curated, safe JSON shape for REST milestone payloads; the raw payload
@@ -899,6 +1001,35 @@ case "$cmd" in
     repo="$(resolve_repo)"
     require_repo "$repo"
     milestone_close "$repo" "$1"
+    ;;
+  release-create)
+    [[ $# -ge 1 ]] || { usage; exit 1; }
+    repo="$(resolve_repo)"
+    require_repo "$repo"
+    release_create "$repo" "$1" "${@:2}"
+    ;;
+  release-list)
+    repo="$(resolve_repo)"
+    require_repo "$repo"
+    release_list "$repo" "$@"
+    ;;
+  release-view)
+    [[ $# -ge 1 ]] || { usage; exit 1; }
+    repo="$(resolve_repo)"
+    require_repo "$repo"
+    release_view "$repo" "$1" "${@:2}"
+    ;;
+  release-edit)
+    [[ $# -ge 1 ]] || { usage; exit 1; }
+    repo="$(resolve_repo)"
+    require_repo "$repo"
+    release_edit "$repo" "$1" "${@:2}"
+    ;;
+  release-delete)
+    [[ $# -ge 1 ]] || { usage; exit 1; }
+    repo="$(resolve_repo)"
+    require_repo "$repo"
+    release_delete "$repo" "$1" "${@:2}"
     ;;
   *)
     usage
