@@ -21,6 +21,11 @@ readonly ISSUE_VIEW_FIELDS="number,title,body,state,assignees,labels,milestone,p
 readonly ISSUE_LIST_FIELDS="number,title,state,assignees,labels,milestone,url"
 readonly PR_VIEW_FIELDS="number,title,state,body,headRefName,baseRefName,author,labels,reviewDecision,isDraft,url"
 readonly PR_LIST_FIELDS="number,title,state,headRefName,baseRefName,author,isDraft,updatedAt,url"
+# gh (2.45) run/workflow JSON fields: runs expose displayTitle (no "title"
+# alias) and workflow list supports exactly id,name,path,state.
+readonly RUN_VIEW_FIELDS="number,displayTitle,workflowName,status,conclusion,event,headBranch,headSha,createdAt,updatedAt,url"
+readonly RUN_LIST_FIELDS="number,displayTitle,workflowName,status,conclusion,event,headBranch,createdAt,updatedAt,url"
+readonly WORKFLOW_LIST_FIELDS="id,name,path,state"
 
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || {
@@ -56,6 +61,11 @@ Usage:
   gh_project_helper.sh pr-merge <pr_number> [gh pr flags...]
   gh_project_helper.sh pr-checks <pr_number> [gh pr flags...]
   gh_project_helper.sh pr-review-reply <review_comment_id> <reply_body>
+
+  gh_project_helper.sh run-list [gh run flags...]
+  gh_project_helper.sh run-view <run_id> [gh run flags...]
+  gh_project_helper.sh workflow-list [gh workflow flags...]
+  gh_project_helper.sh workflow-run <workflow_id_or_name> [gh workflow flags...]
 
   gh_project_helper.sh milestone-create <title> [description]
   gh_project_helper.sh milestone-list [state]
@@ -93,6 +103,13 @@ Notes:
   - pr-review-reply posts an in-thread reply to a PR review comment via a
     fixed parameterized GraphQL mutation; user input travels only as
     GraphQL variables, never inside the query text
+  - run-* and workflow-* are thin wrappers around gh run / gh workflow with
+    the same env-only repo contract as issue-*; run-list, run-view, and
+    workflow-list print curated JSON by default (pass --json, --jq,
+    --template, or --web to control the output shape yourself). This helper
+    never executes workflows' tests locally and performs no Git operations
+  - workflow-run (dispatch) is policy-controlled: it passes caller flags
+    through only and never injects --admin or bypasses approval gates
   - extra flags after the required positional argument pass straight
     through to gh issue / gh api; issue-view and issue-list print curated
     JSON by default (pass --json, --jq, --template, --comments, or --web
@@ -622,6 +639,47 @@ pr_review_reply() {
     -f body="$body"
 }
 
+# --- CI/testing subcommands (thin gh run / gh workflow wrappers, env-resolved repo) ---
+
+# The env repo always wins: user flags come first, --repo "$repo" last.
+run_view() {
+  local repo="$1" number="$2"
+  shift 2
+  if has_format_flag "$@"; then
+    gh run view "$number" "$@" --repo "$repo"
+  else
+    gh run view "$number" --json "$RUN_VIEW_FIELDS" "$@" --repo "$repo"
+  fi
+}
+
+run_list() {
+  local repo="$1"
+  shift
+  if has_format_flag "$@"; then
+    gh run list "$@" --repo "$repo"
+  else
+    gh run list --json "$RUN_LIST_FIELDS" "$@" --repo "$repo"
+  fi
+}
+
+workflow_list() {
+  local repo="$1"
+  shift
+  if has_format_flag "$@"; then
+    gh workflow list "$@" --repo "$repo"
+  else
+    gh workflow list --json "$WORKFLOW_LIST_FIELDS" "$@" --repo "$repo"
+  fi
+}
+
+# Policy-controlled: pass caller flags through only; never inject --admin
+# or bypass approval gates.
+workflow_run() {
+  local repo="$1" workflow_ref="$2"
+  shift 2
+  gh workflow run "$workflow_ref" "$@" --repo "$repo"
+}
+
 # --- milestone subcommands (thin gh api REST wrappers) -------------------------
 
 # Curated, safe JSON shape for REST milestone payloads; the raw payload
@@ -795,6 +853,28 @@ case "$cmd" in
     repo="$(resolve_repo)"
     require_repo "$repo"
     pr_review_reply "$1" "$2"
+    ;;
+  run-list)
+    repo="$(resolve_repo)"
+    require_repo "$repo"
+    run_list "$repo" "$@"
+    ;;
+  run-view)
+    [[ $# -ge 1 ]] || { usage; exit 1; }
+    repo="$(resolve_repo)"
+    require_repo "$repo"
+    run_view "$repo" "$1" "${@:2}"
+    ;;
+  workflow-list)
+    repo="$(resolve_repo)"
+    require_repo "$repo"
+    workflow_list "$repo" "$@"
+    ;;
+  workflow-run)
+    [[ $# -ge 1 ]] || { usage; exit 1; }
+    repo="$(resolve_repo)"
+    require_repo "$repo"
+    workflow_run "$repo" "$1" "${@:2}"
     ;;
   milestone-create)
     [[ $# -ge 1 && $# -le 2 ]] || { usage; exit 1; }

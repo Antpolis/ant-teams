@@ -2,14 +2,15 @@
 'use strict';
 
 /*
- * tests/test_gh_project_helper_cmds.js — env-only issue/milestone/PR helper
- * subcommands (2026-08).
+ * tests/test_gh_project_helper_cmds.js — env-only issue/milestone/PR/CI-testing
+ * helper subcommands (2026-08).
  *
  * Locks the env-only contract of the gh_project_helper.sh subcommands
  * (issue-create, issue-view, issue-list, issue-edit, issue-comment,
  * issue-close, pr-create, pr-view, pr-list, pr-comment, pr-close, pr-merge,
- * pr-checks, pr-review-reply, milestone-create, milestone-list,
- * milestone-edit, milestone-close) into executable checks:
+ * pr-checks, pr-review-reply, run-list, run-view, workflow-list,
+ * workflow-run, milestone-create, milestone-list, milestone-edit,
+ * milestone-close) into executable checks:
  *
  *   HIC-1  usage lists every new subcommand; required positionals enforced
  *   HIC-2  issue-create passes title + extras; env repo resolves and wins
@@ -39,6 +40,14 @@
  *   PRC-9  pr-checks curates the tabular output into JSON by default
  *   PRC-10 pr-review-reply uses the fixed parameterized GraphQL mutation
  *   PRC-11 missing ANT_TEAM_GITHUB_REPO fails fast without calling gh (pr-*)
+ *   CIC-1  usage lists run/workflow subcommands; positionals enforced
+ *   CIC-2  run-list prints curated JSON by default; filters pass through
+ *   CIC-3  run-view prints curated JSON by default
+ *   CIC-4  caller format flags take over (run-view --web, run-list --json)
+ *   CIC-5  workflow-list prints curated JSON by default; --all passes through
+ *   CIC-6  workflow-run dispatches caller flags only; no --admin injected
+ *   CIC-7  a pass-through --repo can never override the env repo (run/workflow)
+ *   CIC-8  missing ANT_TEAM_GITHUB_REPO fails fast without calling gh (run/workflow)
  *
  * The helper under test is the canonical engine in templates/opencode/
  * (the repo-local .opencode/ skills mirror is not tracked since the
@@ -651,7 +660,146 @@ check('PRC-11: missing ANT_TEAM_GITHUB_REPO fails fast without calling gh (pr-*)
   assert.deepStrictEqual(calls(ctx).length, 0, 'gh must not be called');
 });
 
+// --- CIC-1: usage lists run-*/workflow-* subcommands; positionals enforced -----
+
+check('CIC-1: usage lists every run-*/workflow-* subcommand and enforces required positionals', () => {
+  const ctx = setup('cic1', DEFAULT_ENV);
+  const usage = runHelper(ctx, []);
+  assert.notStrictEqual(usage.status, 0, 'no-args must exit non-zero');
+  for (const sub of ['run-list', 'run-view', 'workflow-list', 'workflow-run']) {
+    assert.ok(usage.stdout.includes(sub), `usage must list ${sub}`);
+  }
+  for (const args of [
+    ['run-view'],
+    ['workflow-run'],
+  ]) {
+    const r = runHelper(ctx, args);
+    assert.notStrictEqual(r.status, 0, `${args.join(' ')} must fail without its required positional`);
+    assert.deepStrictEqual(calls(ctx).length, 0, 'gh must not be called on a usage error');
+  }
+});
+
+// --- CIC-2: run-list curated default + filters ----------------------------------
+
+check('CIC-2: run-list prints curated JSON by default; filters pass through', () => {
+  const ctx = setup('cic2', DEFAULT_ENV);
+  const r = runHelper(ctx, ['run-list', '--workflow', 'ci.yml', '--limit', '5', '--status', 'failure']);
+  assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
+  const c = calls(ctx)[0];
+  assert.deepStrictEqual(c.slice(0, 2), ['run', 'list']);
+  const j = argIndex(c, '--json');
+  assert.strictEqual(
+    j !== -1 ? c[j + 1] : '',
+    'number,displayTitle,workflowName,status,conclusion,event,headBranch,createdAt,updatedAt,url',
+    'curated run-list fields'
+  );
+  assert.ok(c.includes('--workflow') && c[c.indexOf('--workflow') + 1] === 'ci.yml', 'workflow filter passes through');
+  assert.ok(c.includes('--limit') && c.includes('5'), 'limit filter passes through');
+  assert.ok(c.includes('--status') && c[c.indexOf('--status') + 1] === 'failure', 'status filter passes through');
+  assert.ok(c[c.lastIndexOf('--repo') + 1] === ENV_REPO, 'env repo last on every call');
+});
+
+// --- CIC-3: run-view curated default (exact argv) -------------------------------
+
+check('CIC-3: run-view prints curated JSON by default', () => {
+  const ctx = setup('cic3', DEFAULT_ENV);
+  const r = runHelper(ctx, ['run-view', '1234567890']);
+  assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
+  const c = calls(ctx)[0];
+  assert.deepStrictEqual(
+    c.slice(0, 5),
+    ['run', 'view', '1234567890', '--json', 'number,displayTitle,workflowName,status,conclusion,event,headBranch,headSha,createdAt,updatedAt,url'],
+    'exact curated run-view argv'
+  );
+  assert.ok(c[c.lastIndexOf('--repo') + 1] === ENV_REPO, 'env repo last on every call');
+});
+
+// --- CIC-4: caller format flags take over ---------------------------------------
+
+check('CIC-4: caller format flags take over (run-view --web, run-list custom --json)', () => {
+  const ctx = setup('cic4', DEFAULT_ENV);
+  let r = runHelper(ctx, ['run-view', '1234567890', '--web']);
+  assert.strictEqual(r.status, 0, `web exit ${r.status}\nstderr:\n${r.stderr}`);
+  let c = calls(ctx)[0];
+  assert.ok(!c.includes('--json'), `caller shape must win: ${c.join(' ')}`);
+  assert.ok(c.includes('--web') && c.includes(ENV_REPO));
+
+  r = runHelper(ctx, ['run-list', '--json', 'number,status']);
+  assert.strictEqual(r.status, 0, `json exit ${r.status}\nstderr:\n${r.stderr}`);
+  c = calls(ctx)[1];
+  assert.strictEqual(c.filter((a) => a === '--json').length, 1, 'exactly the caller --json');
+  assert.ok(c.includes('number,status'), 'caller fields pass through');
+  assert.ok(!c.includes('displayTitle'), 'curated default must not leak into caller --json');
+});
+
+// --- CIC-5: workflow-list curated default ---------------------------------------
+
+check('CIC-5: workflow-list prints curated JSON by default; --all passes through', () => {
+  const ctx = setup('cic5', DEFAULT_ENV);
+  const r = runHelper(ctx, ['workflow-list', '--all']);
+  assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
+  const c = calls(ctx)[0];
+  assert.deepStrictEqual(
+    c.slice(0, 4),
+    ['workflow', 'list', '--json', 'id,name,path,state'],
+    'exact curated workflow-list argv (gh 2.45 supports exactly these JSON fields)'
+  );
+  assert.ok(c.includes('--all'), '--all passes through');
+  assert.ok(c[c.lastIndexOf('--repo') + 1] === ENV_REPO, 'env repo last on every call');
+});
+
+// --- CIC-6: workflow-run dispatch, caller flags only ----------------------------
+
+check('CIC-6: workflow-run dispatches caller flags only; no --admin injected', () => {
+  const ctx = setup('cic6', DEFAULT_ENV);
+  const r = runHelper(ctx, ['workflow-run', 'ci.yml', '--ref', 'feat/issue-32', '-f', 'suite=smoke']);
+  assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
+  const all = calls(ctx);
+  assert.strictEqual(all.length, 1, 'exactly one gh call');
+  const c = all[0];
+  assert.deepStrictEqual(c.slice(0, 3), ['workflow', 'run', 'ci.yml']);
+  assert.ok(c.includes('--ref') && c[c.indexOf('--ref') + 1] === 'feat/issue-32', 'ref flag passes through');
+  assert.ok(c.includes('-f') && c[c.indexOf('-f') + 1] === 'suite=smoke', 'raw input fields pass through');
+  assert.ok(!c.includes('--admin'), 'dispatch must never inject --admin');
+  assert.ok(c[c.lastIndexOf('--repo') + 1] === ENV_REPO, 'env repo last on every call');
+});
+
+// --- CIC-7: pass-through --repo never wins (run/workflow) -----------------------
+
+check('CIC-7: a pass-through --repo can never override the env repo (run/workflow)', () => {
+  const ctx = setup('cic7', DEFAULT_ENV);
+  for (const args of [
+    ['run-list', '--repo', 'rogue/rogue'],
+    ['workflow-list', '--repo', 'rogue/rogue'],
+    ['workflow-run', 'ci.yml', '--repo', 'rogue/rogue'],
+    ['run-view', '1234567890', '--repo', 'rogue/rogue'],
+  ]) {
+    const r = runHelper(ctx, args);
+    assert.strictEqual(r.status, 0, `${args.join(' ')} exit ${r.status}\nstderr:\n${r.stderr}`);
+    const c = calls(ctx).pop();
+    const last = c.lastIndexOf('--repo');
+    assert.ok(last !== -1 && c[last + 1] === ENV_REPO, `env repo must be the final --repo: ${c.join(' ')}`);
+  }
+});
+
+// --- CIC-8: missing repo fails fast (run/workflow) ------------------------------
+
+check('CIC-8: missing ANT_TEAM_GITHUB_REPO fails fast without calling gh (run/workflow)', () => {
+  const ctx = setup('cic8', null); // no env file at all
+  for (const args of [
+    ['run-list'],
+    ['run-view', '1234567890'],
+    ['workflow-list'],
+    ['workflow-run', 'ci.yml'],
+  ]) {
+    const r = runHelper(ctx, args);
+    assert.notStrictEqual(r.status, 0, `${args.join(' ')} must fail without a repo`);
+    assert.ok(r.stderr.includes('ANT_TEAM_GITHUB_REPO'), 'error must name the env key');
+  }
+  assert.deepStrictEqual(calls(ctx).length, 0, 'gh must not be called');
+});
+
 // --- summary -------------------------------------------------------------------
 
-console.log(`\n${passed} passed, ${failed} failed (gh_project_helper env-only issue/PR/milestone subcommands)`);
+console.log(`\n${passed} passed, ${failed} failed (gh_project_helper env-only issue/PR/run/workflow/milestone subcommands)`);
 if (failed > 0) process.exit(1);
