@@ -45,10 +45,15 @@ Usage:
   gh_project_helper.sh item-id <issue_number>
   gh_project_helper.sh list-statuses
   gh_project_helper.sh list-items [state_name]
+  gh_project_helper.sh list-unassigned
   gh_project_helper.sh add-issue <issue_url>
   gh_project_helper.sh set-status <issue_number> <state_name> [owner_type]
   gh_project_helper.sh set-status-id <issue_number> <single_select_option_id> [owner_type]
   gh_project_helper.sh next-status <issue_number> <current_state> <next_state> [owner_type]
+
+  gh_project_helper.sh project-list [--owner OWNER] [--format json]
+  gh_project_helper.sh project-view PROJECT_NUMBER [--owner OWNER] [--format json]
+  gh_project_helper.sh project-field-list PROJECT_NUMBER [--owner OWNER] [--format json]
 
   gh_project_helper.sh issue-create <title> [gh issue flags...]
   gh_project_helper.sh issue-view <issue_number> [gh issue flags...]
@@ -87,6 +92,29 @@ Usage:
 
 Notes:
   - all board operations target the canonical "Workflow State" project field
+  - board item queries (list-items, list-unassigned) run ONE shared GraphQL
+    project-items query: gh project item-list returns neither assignees nor
+    option ids, so the item query family needs the GraphQL join. Items are
+    read with first:100 and NO pagination loop (documented limitation).
+    list-items/list-unassigned print {item_id, issue_number, title, state,
+    assignees, url} per issue-linked item with REAL assignees; "state" is
+    the REMOTE Workflow State option name preserved/displayed as-is (never
+    translated to the canonical name). An optional state argument filters
+    by canonical state resolved to its option id via the same resolver as
+    set-status (name-agnostic: correct even when the remote display name is
+    a legacy rename); an unknown state fails non-zero with guidance before
+    any query results are printed. item-id keeps gh project item-list
+    (assignees/option ids are not needed there) and fails non-zero naming
+    the issue when it has no board item
+  - project-list, project-view, and project-field-list are thin
+    gh project list/view/field-list wrappers plus curated jq output; they
+    never use the GraphQL items engine (field-list already returns
+    single-select options). The owner resolves --owner flag ->
+    ANT_TEAM_GITHUB_OWNER env -> legacy OWNER and must be non-empty (the
+    underlying list command without an owner silently targets the
+    authenticated user — a cross-owner footgun); the owner is never a
+    positional argument. PROJECT_NUMBER is a required positional validated
+    numeric, and --format accepts only json — both checked before gh runs
   - curated board output contract: set-status, set-status-id, list-items, and
     item-id print curated JSON objects that always carry issue_number, title,
     state, and url (list-items also reports assignees; item-id also reports
@@ -326,33 +354,153 @@ list_statuses() {
       | .name'
 }
 
+# --- shared GraphQL project-items query (board ITEM query family) --------------
+#
+# ONE shared query backs list-items and list-unassigned. gh project
+# item-list (gh 2.45) returns neither assignees nor single-select option
+# ids (values are flattened to top-level display-name keys), so the item
+# query family needs this GraphQL join. item-id, resolve_item_id, and the
+# set-status verification read intentionally KEEP gh project item-list —
+# they need neither assignees nor option ids, and the thinner read is
+# cheaper; two data sources are justified by contract need.
+#
+# Documented limitation (issue #46 guardrail): items are read with
+# first:100 and NO pagination loop. Boards with more than 100 items are
+# only partially listed.
+
+project_items_query() {
+  cat <<'EOF'
+query($projectId: ID!) {
+  node(id: $projectId) {
+    ... on ProjectV2 {
+      items(first: 100) {
+        nodes {
+          id
+          content {
+            ... on Issue {
+              number
+              title
+              url
+              assignees(first: 10) {
+                nodes { login }
+              }
+            }
+            ... on PullRequest {
+              number
+              title
+              url
+              assignees(first: 10) {
+                nodes { login }
+              }
+            }
+          }
+          fieldValues(first: 20) {
+            nodes {
+              ... on ProjectV2ItemFieldSingleSelectValue {
+                name
+                optionId
+                field {
+                  ... on ProjectV2FieldCommon {
+                    id
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+EOF
+}
+
+# Fetch and curate the board's issue-linked items in ONE read. Prints a
+# compact JSON array of
+#   {item_id, issue_number, title, url, assignees, state, state_option_id}
+# where "state" is the REMOTE option name preserved as-is (never translated
+# to the canonical name; founder-confirmed 2026-08-23) and state_option_id
+# is the internal, name-agnostic filter key. Draft items (content without a
+# number) are not issue-linked and are dropped.
+fetch_project_items() {
+  local owner="$1"
+  local project_number="$2"
+
+  local project_id field_id
+  project_id="$(resolve_project_id_from_env)"
+  if [[ -z "$project_id" ]]; then
+    project_id="$(resolve_project_id "$owner" "$project_number" "$(resolve_owner_type "")")"
+  fi
+  if [[ -z "$project_id" || "$project_id" == "null" ]]; then
+    echo "Could not resolve project ID" >&2
+    exit 1
+  fi
+  field_id="$(resolve_state_field_id "$owner" "$project_number")"
+  if [[ -z "$field_id" || "$field_id" == "null" ]]; then
+    echo "Could not resolve Workflow State field ID" >&2
+    exit 1
+  fi
+
+  gh api graphql \
+    -f query="$(project_items_query)" \
+    -f projectId="$project_id" \
+    | jq -c --arg field "$field_id" '[.data.node.items.nodes[]
+      | select(.content.number != null)
+      | {
+          item_id: .id,
+          issue_number: .content.number,
+          title: (.content.title // ""),
+          url: (.content.url // ""),
+          assignees: [(.content.assignees.nodes // [])[] | .login],
+          state: ([.fieldValues.nodes[] | select(.field.id == $field) | .name][0] // ""),
+          state_option_id: ([.fieldValues.nodes[] | select(.field.id == $field) | .optionId][0] // "")
+        }]'
+}
+
+# Curated board item query contract (issue #46): list-items prints
+# {item_id, issue_number, title, state, assignees, url} per issue-linked
+# item from the shared GraphQL items query — assignees are REAL. An
+# optional state name filters by canonical state via optionId: the name
+# resolves to its option id with the SAME resolver as set-status (env pin
+# -> remote exact-name discovery), so filtering stays correct under any
+# remote display name (e.g. a legacy rename); the printed state is always
+# the remote option name as-is.
 list_items() {
   local owner="$1"
   local project_number="$2"
   local state_name="${3:-}"
 
+  local option_id=""
   if [[ -n "$state_name" ]]; then
-    gh project item-list "$project_number" --owner "$owner" --format json \
-      | jq --arg key "$CANONICAL_ITEM_KEY" --arg state "$state_name" '.items[]
-        | select((.[$key] // "") == $state)
-        | {
-            issue_number: (.content.number // null),
-            title: (.content.title // ""),
-            assignees: ((.content.assignees // []) | map(.login)),
-            url: (.content.url // ""),
-            state: (.[$key] // "")
-          }'
-  else
-    gh project item-list "$project_number" --owner "$owner" --format json \
-      | jq --arg key "$CANONICAL_ITEM_KEY" '.items[]
-        | {
-            issue_number: (.content.number // null),
-            title: (.content.title // ""),
-            assignees: ((.content.assignees // []) | map(.login)),
-            url: (.content.url // ""),
-            state: (.[$key] // "")
-          }'
+    option_id="$(resolve_state_option_id "$owner" "$project_number" "$state_name")"
+    if [[ -z "$option_id" || "$option_id" == "null" ]]; then
+      unresolved_state_error "$state_name"
+    fi
   fi
+
+  local items
+  items="$(fetch_project_items "$owner" "$project_number")"
+
+  if [[ -n "$option_id" ]]; then
+    jq -c --arg option "$option_id" \
+      '.[] | select(.state_option_id == $option)
+        | {item_id, issue_number, title, state, assignees, url}' <<<"$items"
+  else
+    jq -c '.[] | {item_id, issue_number, title, state, assignees, url}' <<<"$items"
+  fi
+}
+
+# Issue-linked items with ZERO assignees, same curated shape as list-items
+# (issue #46): the board query for "what work has no assignee".
+list_unassigned() {
+  local owner="$1"
+  local project_number="$2"
+
+  local items
+  items="$(fetch_project_items "$owner" "$project_number")"
+
+  jq -c '.[] | select((.assignees | length) == 0)
+    | {item_id, issue_number, title, state, assignees, url}' <<<"$items"
 }
 
 add_issue() {
@@ -425,12 +573,26 @@ resolve_item_id() {
       | .id'
 }
 
+# Shared set-status-style guidance for an unresolvable Workflow State name
+# (set-status and the list-items canonical-state filter). Always exits 1.
+unresolved_state_error() {
+  local state_name="$1"
+  echo "Could not resolve Workflow State option ID for '$state_name'." >&2
+  echo "The remote board may still use a legacy option name for this state" >&2
+  echo "(e.g. 'Inbox' instead of 'Open', 'Shaping' instead of 'Backlog')." >&2
+  echo "This helper never renames remote board options. Either pass the exact" >&2
+  echo "remote option name, or rename the option in GitHub with explicit" >&2
+  echo "founder approval and then record the verified IDs in .github-project.env." >&2
+  exit 1
+}
+
 print_item_id() {
   local owner="$1"
   local project_number="$2"
   local issue_number="$3"
 
-  gh project item-list "$project_number" --owner "$owner" --format json \
+  local out
+  out="$(gh project item-list "$project_number" --owner "$owner" --format json \
     | jq -r --argjson n "$issue_number" --arg key "$CANONICAL_ITEM_KEY" '.items[]
       | select(.content.number == $n)
       | {
@@ -439,7 +601,14 @@ print_item_id() {
           title: (.content.title // ""),
           url: (.content.url // ""),
           state: (.[$key] // "")
-        }'
+        }')"
+  # Not-found is a hard failure (issue #46): exit non-zero with stderr
+  # naming the issue instead of silently printing nothing.
+  if [[ -z "$out" ]]; then
+    echo "No project item found for issue #$issue_number on project $project_number (owner $owner)" >&2
+    exit 1
+  fi
+  printf '%s\n' "$out"
 }
 
 resolve_state_field_id() {
@@ -538,13 +707,7 @@ set_status() {
   local option_id
   option_id="$(resolve_state_option_id "$owner" "$project_number" "$state_name")"
   if [[ -z "$option_id" || "$option_id" == "null" ]]; then
-    echo "Could not resolve Workflow State option ID for '$state_name'." >&2
-    echo "The remote board may still use a legacy option name for this state" >&2
-    echo "(e.g. 'Inbox' instead of 'Open', 'Shaping' instead of 'Backlog')." >&2
-    echo "This helper never renames remote board options. Either pass the exact" >&2
-    echo "remote option name, or rename the option in GitHub with explicit" >&2
-    echo "founder approval and then record the verified IDs in .github-project.env." >&2
-    exit 1
+    unresolved_state_error "$state_name"
   fi
 
   set_status_id "$owner" "$project_number" "$issue_number" "$option_id" "$owner_type"
@@ -2014,6 +2177,119 @@ milestone_list_local_fallback() {
   echo "milestone-list: GitHub unreachable; served local records (read-only, records not updated)" >&2
 }
 
+# --- project metadata subcommands (thin gh project wrappers, issue #46) ---------
+#
+# project-list / project-view / project-field-list wrap gh project list /
+# view / field-list plus curated jq shaping. They deliberately do NOT use
+# the GraphQL items engine — field-list already returns single-select
+# options, so no GraphQL is needed for metadata (guardrail). The owner is
+# REQUIRED and never positional: it resolves --owner flag ->
+# ANT_TEAM_GITHUB_OWNER env -> legacy OWNER, and an empty resolution fails
+# BEFORE gh runs (the underlying list command without an owner silently
+# targets the authenticated user's projects — a cross-owner footgun).
+# PROJECT_NUMBER is a required positional validated numeric before gh, and
+# --format accepts only json.
+
+validate_project_query_format() {
+  local format="$1" cmd_name="$2"
+  if [[ -n "$format" && "$format" != "json" ]]; then
+    echo "Invalid --format '$format' for $cmd_name: only json is accepted" >&2
+    exit 1
+  fi
+}
+
+validate_project_query_number() {
+  local number="$1" cmd_name="$2"
+  if [[ -z "$number" ]]; then
+    echo "Missing required value: PROJECT_NUMBER for $cmd_name" >&2
+    exit 1
+  fi
+  if [[ ! "$number" =~ ^[0-9]+$ ]]; then
+    echo "Invalid project number '$number' for $cmd_name: must be a positive integer (the owner is a --owner flag, never a positional)" >&2
+    exit 1
+  fi
+}
+
+require_project_query_owner() {
+  local owner="$1" cmd_name="$2"
+  if [[ -z "$owner" ]]; then
+    echo "Missing required value: owner for $cmd_name" >&2
+    echo "Pass --owner OWNER explicitly or set ANT_TEAM_GITHUB_OWNER in $CONFIG_ENV_FILE" >&2
+    exit 1
+  fi
+}
+
+# Minimal flag parsing for the project metadata query family (guardrail:
+# small local loop, no generic arg framework, no new deps). Recognizes
+# --owner VALUE and --format VALUE only; any other flag is a usage error,
+# and at most one positional (PROJECT_NUMBER) is captured — a positional
+# owner can never reach gh.
+parse_project_query_args() {
+  PQ_OWNER=""
+  PQ_FORMAT=""
+  PQ_POSITIONAL=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --owner)
+        [[ $# -ge 2 ]] || { usage; exit 1; }
+        PQ_OWNER="$2"; shift 2 ;;
+      --format)
+        [[ $# -ge 2 ]] || { usage; exit 1; }
+        PQ_FORMAT="$2"; shift 2 ;;
+      -*)
+        usage; exit 1 ;;
+      *)
+        [[ -z "$PQ_POSITIONAL" ]] || { usage; exit 1; }
+        PQ_POSITIONAL="$1"; shift ;;
+    esac
+  done
+}
+
+project_list() {
+  local owner="$1"
+  gh project list --owner "$owner" --format json \
+    | jq '[.projects[]
+      | {
+          number,
+          title,
+          url,
+          public,
+          closed,
+          items_count: .items.totalCount,
+          fields_count: .fields.totalCount
+        }] | sort_by(.number)'
+}
+
+project_view() {
+  local owner="$1"
+  local project_number="$2"
+  gh project view "$project_number" --owner "$owner" --format json \
+    | jq '{
+        number,
+        title,
+        url,
+        public,
+        closed,
+        items_count: .items.totalCount,
+        fields_count: .fields.totalCount,
+        owner: .owner.login
+      }'
+}
+
+project_field_list() {
+  local owner="$1"
+  local project_number="$2"
+  gh project field-list "$project_number" --owner "$owner" --format json \
+    | jq '{
+        total_count: .totalCount,
+        fields: [.fields[]
+          | {id, name, type}
+            + (if has("options")
+               then {options: [.options[] | {name, id}]}
+               else {} end)]
+      }'
+}
+
 case "$cmd" in
   gh-item-edit)
     [[ $# -eq 3 ]] || { usage; exit 1; }
@@ -2036,6 +2312,36 @@ case "$cmd" in
     owner="$(resolve_owner "")"; project_number="$(resolve_project_number "")"
     require_value "OWNER" "$owner"; require_value "PROJECT_NUMBER" "$project_number"
     list_items "$owner" "$project_number" "${1:-}"
+    ;;
+  list-unassigned)
+    [[ $# -eq 0 ]] || { usage; exit 1; }
+    owner="$(resolve_owner "")"; project_number="$(resolve_project_number "")"
+    require_value "OWNER" "$owner"; require_value "PROJECT_NUMBER" "$project_number"
+    list_unassigned "$owner" "$project_number"
+    ;;
+  project-list)
+    parse_project_query_args "$@"
+    [[ -z "$PQ_POSITIONAL" ]] || { usage; exit 1; }
+    validate_project_query_format "$PQ_FORMAT" project-list
+    owner="$(resolve_owner "$PQ_OWNER")"
+    require_project_query_owner "$owner" project-list
+    project_list "$owner"
+    ;;
+  project-view)
+    parse_project_query_args "$@"
+    validate_project_query_format "$PQ_FORMAT" project-view
+    validate_project_query_number "$PQ_POSITIONAL" project-view
+    owner="$(resolve_owner "$PQ_OWNER")"
+    require_project_query_owner "$owner" project-view
+    project_view "$owner" "$PQ_POSITIONAL"
+    ;;
+  project-field-list)
+    parse_project_query_args "$@"
+    validate_project_query_format "$PQ_FORMAT" project-field-list
+    validate_project_query_number "$PQ_POSITIONAL" project-field-list
+    owner="$(resolve_owner "$PQ_OWNER")"
+    require_project_query_owner "$owner" project-field-list
+    project_field_list "$owner" "$PQ_POSITIONAL"
     ;;
   add-issue)
     [[ $# -eq 1 ]] || { usage; exit 1; }

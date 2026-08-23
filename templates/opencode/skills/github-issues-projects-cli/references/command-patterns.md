@@ -178,51 +178,44 @@ Close a milestone:
 
 ## Projects
 
-List projects for an owner:
+List projects for an owner (curated JSON array sorted by number; the owner resolves `--owner` flag → env → legacy and is never positional):
 
 ```bash
-gh project list --owner OWNER
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" project-list [--owner OWNER]
+# [{"number":9,"title":"Ant Teams","url":"...","public":false,"closed":false,"items_count":25,"fields_count":14}]
 ```
 
-View a project:
+View a project (curated JSON object):
 
 ```bash
-gh project view PROJECT_NUMBER --owner OWNER --format json
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" project-view PROJECT_NUMBER [--owner OWNER] [--format json]
+# {"number":9,"title":"Ant Teams","url":"...","public":false,"closed":false,"items_count":25,"fields_count":14,"owner":"Antpolis"}
 ```
 
-List project fields and status options:
+List project fields and status options (`options` appears only on single-select fields; `PROJECT_NUMBER` is validated numeric and `--format` accepts only json, both before any call):
 
 ```bash
-gh project field-list PROJECT_NUMBER --owner OWNER --format json
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" project-field-list PROJECT_NUMBER [--owner OWNER] [--format json]
+# {"total_count":14,"fields":[{"id":"PVTF_...","name":"Title","type":"ProjectV2Field"},{"id":"PVTSSF_...","name":"Workflow State","type":"ProjectV2SingleSelectField","options":[{"name":"Inbox","id":"eb66d5a6"}]}]}
 ```
 
-Extract the canonical Workflow State field and option IDs:
+The Workflow State field and its option ids are simply the `Workflow State` entry of that output — use the option ids for option-id-based board filtering and status edits.
+
+List project items (issue-linked items with REAL assignees from one shared GraphQL items query; `first:100`, no pagination loop):
 
 ```bash
-gh project field-list PROJECT_NUMBER --owner OWNER --format json \
-  | jq '.fields[]
-    | select(.name == "Workflow State")
-    | {
-        field_id: .id,
-        options: [
-          .options[] | { name, id }
-        ]
-      }'
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" list-items
+# {"item_id":"PVTI_...","issue_number":37,"title":"...","state":"Ready","assignees":["chrissim"],"url":"..."}
 ```
 
-List project items:
-
-```bash
-gh project item-list PROJECT_NUMBER --owner OWNER --format json
-```
-
-Resolve the project item ID for an issue:
+Resolve the project item ID for an issue (exits non-zero naming the issue when it has no board item):
 
 ```bash
 "$ANT_TEAM_SCRIPTS/gh_project_helper.sh" item-id ISSUE_NUMBER
+# {"item_id":"PVTI_...","issue_number":37,"title":"...","url":"...","state":"Ready"}
 ```
 
-Curated board output contract: `set-status`, `set-status-id`, `list-items`, and `item-id` print curated JSON objects that always carry `issue_number`, `title`, `state`, and `url` (locked by `tests/test_gh_project_helper_board_output.js`). The two mutators re-read the board item AFTER the edit, so their printed `state` is the post-edit verification value — parse it directly instead of re-querying the board:
+Curated board query output contract: `set-status`, `set-status-id`, `list-items`, `list-unassigned`, and `item-id` print curated JSON objects that always carry `issue_number`, `title`, `state`, and `url` (locked by `tests/test_gh_project_helper_board_output.js` and `tests/test_gh_project_helper_board_project_queries.js`). The two mutators re-read the board item AFTER the edit, so their printed `state` is the post-edit verification value — parse it directly instead of re-querying the board:
 
 ```bash
 "$ANT_TEAM_SCRIPTS/gh_project_helper.sh" set-status 37 "Ready"
@@ -232,10 +225,12 @@ Curated board output contract: `set-status`, `set-status-id`, `list-items`, and 
 # {"item_id":"PVTI_...","issue_number":37,"title":"...","url":"...","state":"Ready"}
 
 "$ANT_TEAM_SCRIPTS/gh_project_helper.sh" list-items "Ready"
-# {"issue_number":37,"title":"...","assignees":["chrissim"],"url":"...","state":"Ready"}
+# {"item_id":"PVTI_...","issue_number":37,"title":"...","state":"Ready","assignees":["chrissim"],"url":"..."}
 ```
 
-`list-items` additionally reports `assignees`; `item-id` additionally reports `item_id`.
+`list-items` additionally reports `item_id` and real `assignees`; `list-unassigned` prints the same shape for zero-assignee items.
+
+Workflow State semantics (founder-confirmed 2026-08-23): the printed `state` is the REMOTE option name preserved as-is (never translated to the canonical name), while `list-items STATE` accepts a canonical state name and filters by option id via the same env-first resolver as `set-status` — name-agnostic, so the filter stays correct under any remote display name (e.g. a legacy rename of the Backlog state). An unknown state exits non-zero with guidance.
 
 Curated mutator output contract (locked by `tests/test_gh_project_helper_mutator_output.js`): every mutator except the two comment commands returns useful structured JSON, never raw `gh` output. `issue-create` and `pr-create` reuse the mutation's URL response and print `{"number", "title", "state", "url"}` with the deterministic `OPEN` state; `issue-edit`, `issue-close`, `pr-close`, and `pr-merge` re-read the object AFTER the mutation and print the same four-field shape, so the printed state is the post-mutation verification value; `release-create` and `release-edit` re-read and print the `release-view` shape; `release-delete` prints `{"tagName", "url", "deleted": true}`; `workflow-run` prints `{"workflow", "repo", "status": "dispatched"}`. Parse these outputs directly instead of re-querying after a mutation:
 
@@ -253,45 +248,19 @@ Curated mutator output contract (locked by `tests/test_gh_project_helper_mutator
 Find the project item for a specific issue number directly:
 
 ```bash
-ISSUE_NUMBER=42
-gh project item-list PROJECT_NUMBER --owner OWNER --format json \
-  | jq --argjson n "$ISSUE_NUMBER" '.items[]
-    | select(.content.number == $n)
-    | {
-        item_id: .id,
-        title: .content.title,
-        issue_number: .content.number,
-        url: .content.url
-      }'
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" item-id ISSUE_NUMBER
 ```
 
 Show issue-linked items with status and assignees:
 
 ```bash
-gh project item-list PROJECT_NUMBER --owner OWNER --format json \
-  | jq '.items[]
-    | {
-        item_id: .id,
-        title: (.content.title // .title // ""),
-        issue_number: (.content.number // null),
-        url: (.content.url // ""),
-        assignees: ((.content.assignees // []) | map(.login)),
-        state: (.["workflow State"] // "")
-      }'
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" list-items
 ```
 
 Show items with no assignee:
 
 ```bash
-gh project item-list PROJECT_NUMBER --owner OWNER --format json \
-  | jq '.items[]
-    | select(((.content.assignees // []) | length) == 0)
-    | {
-        title: (.content.title // ""),
-        issue_number: (.content.number // null),
-        state: (.["workflow State"] // ""),
-        url: (.content.url // "")
-      }'
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" list-unassigned
 ```
 
 List project items in a canonical Workflow State (e.g. `Ready`):
@@ -312,7 +281,7 @@ List items for any one status:
 "$ANT_TEAM_SCRIPTS/gh_project_helper.sh" list-items "In Review"
 ```
 
-All helper commands are env-only: owner, project number, and repository always resolve from `.github-project.env` (`ANT_TEAM_GITHUB_OWNER`, `ANT_TEAM_GITHUB_PROJECT_NUMBER`, `ANT_TEAM_GITHUB_REPO`); there are no positional owner/project arguments. To target a different owner or project for one call, point the helper at a directory whose `.github-project.env` carries those values.
+All helper commands are env-only: owner, project number, and repository always resolve from `.github-project.env` (`ANT_TEAM_GITHUB_OWNER`, `ANT_TEAM_GITHUB_PROJECT_NUMBER`, `ANT_TEAM_GITHUB_REPO`); there are no positional owner/project arguments — the project metadata family (`project-list`/`project-view`/`project-field-list`) takes an optional `--owner` flag instead (flag → env → legacy fallback, never positional). To target a different board for the item commands, point the helper at a directory whose `.github-project.env` carries those values.
 
 ## GraphQL Lookup Patterns
 
@@ -375,17 +344,10 @@ mutation($project:ID!, $item:ID!, $field:ID!, $option:String!) {
 }' -F project=PROJECT_ID -F item=ITEM_ID -F field=FIELD_ID -F option=OPTION_ID
 ```
 
-Verify after mutation by re-listing the item:
+Verify after mutation by re-reading the item (the curated `item-id` output doubles as a state check; exits non-zero naming the issue when it has no board item):
 
 ```bash
-gh project item-list PROJECT_NUMBER --owner OWNER --format json \
-  | jq --argjson n "$ISSUE_NUMBER" '.items[]
-    | select(.content.number == $n)
-    | {
-        issue_number: .content.number,
-        title: .content.title,
-        state: (.["workflow State"] // "")
-      }'
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" item-id ISSUE_NUMBER
 ```
 
 Transition an issue to the next status using discovered IDs:
@@ -543,12 +505,5 @@ Find issues not on any project:
 Find project items currently blocked:
 
 ```bash
-gh project item-list PROJECT_NUMBER --owner OWNER --format json \
-  | jq '.items[]
-    | select((.["workflow State"] // "") == "Blocked")
-    | {
-        title: (.content.title // ""),
-        issue_number: (.content.number // null),
-        url: (.content.url // "")
-      }'
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" list-items "Blocked"
 ```

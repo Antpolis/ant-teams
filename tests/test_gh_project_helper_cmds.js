@@ -32,7 +32,9 @@
  *   HIC-14 milestone-close PATCHes state=closed
  *   HIC-15 missing ANT_TEAM_GITHUB_REPO fails fast without calling gh
  *   HIC-16 the helper writes no files: env byte-identical, no JSON config
- *   HIC-17 project subcommands remain env-only (no positional owner/project)
+ *   HIC-17 project subcommands remain env-only (no positional owner/project;
+ *          extended by #46 with list-unassigned and the project-* family —
+ *          their owner is a --owner flag only)
  *   PRC-1  usage lists every pr-* subcommand; required positionals enforced
  *   PRC-2  pr-create passes title + extras; env repo resolves and wins;
  *          curated {number,title,state,url} output reuses the URL response
@@ -568,6 +570,12 @@ check('HIC-17: project subcommands reject positional owner/project arguments', (
     ['list-statuses', 'Antpolis', '9'],
     ['list-items', 'Antpolis', '9', 'Ready'],
     ['item-id', 'Antpolis', '9', '42'],
+    // #46 extension: the new board/project query commands take no
+    // positional owner either (project-* owner is a --owner flag only).
+    ['list-unassigned', 'Antpolis', '9'],
+    ['project-list', 'Antpolis'],
+    ['project-view', 'Antpolis', '9'],
+    ['project-field-list', 'Antpolis', '9'],
   ]) {
     const r = runHelper(ctx, args);
     assert.notStrictEqual(r.status, 0, `${args.join(' ')} must be rejected (env-only)`);
