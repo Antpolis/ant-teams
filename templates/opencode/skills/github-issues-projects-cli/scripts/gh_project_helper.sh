@@ -14,11 +14,13 @@ readonly CANONICAL_FIELD_NAME="Workflow State"
 # top-level item keys named after the field (e.g. "workflow State").
 readonly CANONICAL_ITEM_KEY="workflow State"
 
-# Default JSON field sets for issue read commands: collaboration-shaped,
-# safe output. Callers take over the output shape by passing --json, --jq,
-# --template, --comments, or --web themselves.
+# Default JSON field sets for issue and PR read commands:
+# collaboration-shaped, safe output. Callers take over the output shape by
+# passing --json, --jq, --template, --comments, or --web themselves.
 readonly ISSUE_VIEW_FIELDS="number,title,body,state,assignees,labels,milestone,projectItems,url"
 readonly ISSUE_LIST_FIELDS="number,title,state,assignees,labels,milestone,url"
+readonly PR_VIEW_FIELDS="number,title,state,body,headRefName,baseRefName,author,labels,reviewDecision,isDraft,url"
+readonly PR_LIST_FIELDS="number,title,state,headRefName,baseRefName,author,isDraft,updatedAt,url"
 
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || {
@@ -46,6 +48,15 @@ Usage:
   gh_project_helper.sh issue-comment <issue_number> [gh issue flags...]
   gh_project_helper.sh issue-close <issue_number> [gh issue flags...]
 
+  gh_project_helper.sh pr-create <title> [gh pr flags...]
+  gh_project_helper.sh pr-view <pr_number> [gh pr flags...]
+  gh_project_helper.sh pr-list [gh pr flags...]
+  gh_project_helper.sh pr-comment <pr_number> [gh pr flags...]
+  gh_project_helper.sh pr-close <pr_number> [gh pr flags...]
+  gh_project_helper.sh pr-merge <pr_number> [gh pr flags...]
+  gh_project_helper.sh pr-checks <pr_number> [gh pr flags...]
+  gh_project_helper.sh pr-review-reply <review_comment_id> <reply_body>
+
   gh_project_helper.sh milestone-create <title> [description]
   gh_project_helper.sh milestone-list [state]
   gh_project_helper.sh milestone-edit <milestone_number> [gh api -f flags...]
@@ -72,6 +83,16 @@ Notes:
     .github-project.env (ANT_TEAM_GITHUB_REPO, legacy REPO fallback) and
     is never a positional argument; a pass-through --repo flag cannot
     override it
+  - pr-* are thin wrappers around gh pr with the same env-only repo
+    contract as issue-*; pr-view and pr-list print curated JSON by
+    default, and pr-checks curates gh's tabular checks output into JSON
+    (gh pr checks has no --json). Pass --json, --jq, --template,
+    --comments, or --web to control the output shape yourself
+  - pr-merge and pr-close are policy-controlled: they pass caller flags
+    through only and never inject --admin or bypass approval gates
+  - pr-review-reply posts an in-thread reply to a PR review comment via a
+    fixed parameterized GraphQL mutation; user input travels only as
+    GraphQL variables, never inside the query text
   - extra flags after the required positional argument pass straight
     through to gh issue / gh api; issue-view and issue-list print curated
     JSON by default (pass --json, --jq, --template, --comments, or --web
@@ -507,6 +528,100 @@ issue_close() {
   gh issue close "$number" "$@" --repo "$repo"
 }
 
+# --- PR/review subcommands (thin gh pr wrappers, env-resolved repo) ------------
+
+# The env repo always wins: user flags come first, --repo "$repo" last.
+pr_create() {
+  local repo="$1" title="$2"
+  shift 2
+  gh pr create --title "$title" "$@" --repo "$repo"
+}
+
+pr_view() {
+  local repo="$1" number="$2"
+  shift 2
+  if has_format_flag "$@"; then
+    gh pr view "$number" "$@" --repo "$repo"
+  else
+    gh pr view "$number" --json "$PR_VIEW_FIELDS" "$@" --repo "$repo"
+  fi
+}
+
+pr_list() {
+  local repo="$1"
+  shift
+  if has_format_flag "$@"; then
+    gh pr list "$@" --repo "$repo"
+  else
+    gh pr list --json "$PR_LIST_FIELDS" "$@" --repo "$repo"
+  fi
+}
+
+pr_comment() {
+  local repo="$1" number="$2"
+  shift 2
+  gh pr comment "$number" "$@" --repo "$repo"
+}
+
+pr_close() {
+  local repo="$1" number="$2"
+  shift 2
+  gh pr close "$number" "$@" --repo "$repo"
+}
+
+# Policy-controlled: pass caller flags through only; never inject --admin
+# or bypass approval gates.
+pr_merge() {
+  local repo="$1" number="$2"
+  shift 2
+  gh pr merge "$number" "$@" --repo "$repo"
+}
+
+# gh pr checks has no --json flag; curate its stable tabular output
+# (name <TAB> status <TAB> elapsed <TAB> url) into JSON by default. gh's
+# exit status (any check failing or pending) still propagates.
+pr_checks() {
+  local repo="$1" number="$2"
+  shift 2
+  if has_format_flag "$@"; then
+    gh pr checks "$number" "$@" --repo "$repo"
+  else
+    gh pr checks "$number" --repo "$repo" \
+      | jq -R -s 'split("\n")
+        | map(split("\t") | select(length >= 4)
+          | { name: .[0], status: .[1], elapsed: .[2], url: .[3] })'
+  fi
+}
+
+# Fixed parameterized GraphQL mutation for in-thread review-comment
+# replies. The query text is a constant; user input travels only as
+# GraphQL variables, never inside the query text.
+pr_review_reply_query() {
+  cat <<'EOF'
+mutation($commentId: ID!, $body: String!) {
+  addPullRequestReviewCommentReply(input: {
+    pullRequestReviewCommentId: $commentId,
+    body: $body
+  }) {
+    comment {
+      url
+    }
+  }
+}
+EOF
+}
+
+# The mutation addresses the comment by its global node ID, so no repo
+# reaches the GraphQL request itself; the dispatcher still enforces the
+# env-only repo contract (require_repo) like every other pr-* subcommand.
+pr_review_reply() {
+  local comment_id="$1" body="$2"
+  gh api graphql \
+    -f query="$(pr_review_reply_query)" \
+    -f commentId="$comment_id" \
+    -f body="$body"
+}
+
 # --- milestone subcommands (thin gh api REST wrappers) -------------------------
 
 # Curated, safe JSON shape for REST milestone payloads; the raw payload
@@ -633,6 +748,53 @@ case "$cmd" in
     repo="$(resolve_repo)"
     require_repo "$repo"
     issue_close "$repo" "$1" "${@:2}"
+    ;;
+  pr-create)
+    [[ $# -ge 1 ]] || { usage; exit 1; }
+    repo="$(resolve_repo)"
+    require_repo "$repo"
+    pr_create "$repo" "$1" "${@:2}"
+    ;;
+  pr-view)
+    [[ $# -ge 1 ]] || { usage; exit 1; }
+    repo="$(resolve_repo)"
+    require_repo "$repo"
+    pr_view "$repo" "$1" "${@:2}"
+    ;;
+  pr-list)
+    repo="$(resolve_repo)"
+    require_repo "$repo"
+    pr_list "$repo" "$@"
+    ;;
+  pr-comment)
+    [[ $# -ge 1 ]] || { usage; exit 1; }
+    repo="$(resolve_repo)"
+    require_repo "$repo"
+    pr_comment "$repo" "$1" "${@:2}"
+    ;;
+  pr-close)
+    [[ $# -ge 1 ]] || { usage; exit 1; }
+    repo="$(resolve_repo)"
+    require_repo "$repo"
+    pr_close "$repo" "$1" "${@:2}"
+    ;;
+  pr-merge)
+    [[ $# -ge 1 ]] || { usage; exit 1; }
+    repo="$(resolve_repo)"
+    require_repo "$repo"
+    pr_merge "$repo" "$1" "${@:2}"
+    ;;
+  pr-checks)
+    [[ $# -ge 1 ]] || { usage; exit 1; }
+    repo="$(resolve_repo)"
+    require_repo "$repo"
+    pr_checks "$repo" "$1" "${@:2}"
+    ;;
+  pr-review-reply)
+    [[ $# -eq 2 ]] || { usage; exit 1; }
+    repo="$(resolve_repo)"
+    require_repo "$repo"
+    pr_review_reply "$1" "$2"
     ;;
   milestone-create)
     [[ $# -ge 1 && $# -le 2 ]] || { usage; exit 1; }

@@ -2,13 +2,14 @@
 'use strict';
 
 /*
- * tests/test_gh_project_helper_cmds.js — env-only issue/milestone helper
+ * tests/test_gh_project_helper_cmds.js — env-only issue/milestone/PR helper
  * subcommands (2026-08).
  *
- * Locks the env-only contract of the new gh_project_helper.sh subcommands
+ * Locks the env-only contract of the gh_project_helper.sh subcommands
  * (issue-create, issue-view, issue-list, issue-edit, issue-comment,
- * issue-close, milestone-create, milestone-list, milestone-edit,
- * milestone-close) into executable checks:
+ * issue-close, pr-create, pr-view, pr-list, pr-comment, pr-close, pr-merge,
+ * pr-checks, pr-review-reply, milestone-create, milestone-list,
+ * milestone-edit, milestone-close) into executable checks:
  *
  *   HIC-1  usage lists every new subcommand; required positionals enforced
  *   HIC-2  issue-create passes title + extras; env repo resolves and wins
@@ -27,6 +28,22 @@
  *   HIC-15 missing ANT_TEAM_GITHUB_REPO fails fast without calling gh
  *   HIC-16 the helper writes no files: env byte-identical, no JSON config
  *   HIC-17 project subcommands remain env-only (no positional owner/project)
+ *   PRC-1  usage lists every pr-* subcommand; required positionals enforced
+ *   PRC-2  pr-create passes title + extras; env repo resolves and wins
+ *   PRC-3  a pass-through --repo can never override the env repo (pr-list)
+ *   PRC-4  pr-view prints curated JSON by default
+ *   PRC-5  pr-view --comments skips the curated default
+ *   PRC-6  pr-list prints curated JSON by default; filters pass through
+ *   PRC-7  pr-comment is a thin pass-through
+ *   PRC-8  pr-close / pr-merge are thin pass-throughs; no --admin injected
+ *   PRC-9  pr-checks curates the tabular output into JSON by default
+ *   PRC-10 pr-review-reply uses the fixed parameterized GraphQL mutation
+ *   PRC-11 missing ANT_TEAM_GITHUB_REPO fails fast without calling gh (pr-*)
+ *
+ * The helper under test is the canonical engine in templates/opencode/
+ * (the repo-local .opencode/ skills mirror is not tracked since the
+ * templates/opencode restructure); tests never depend on a generated or
+ * globally installed mirror.
  *
  * No external npm dependencies — Node built-ins only. No network access.
  */
@@ -40,7 +57,7 @@ const assert = require('assert');
 const REPO_ROOT = path.resolve(__dirname, '..');
 const HELPER = path.join(
   REPO_ROOT,
-  '.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh'
+  'templates/opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh'
 );
 
 let passed = 0;
@@ -60,7 +77,9 @@ function check(name, fn) {
 const ENV_REPO = 'env-owner/env-repo';
 
 // Temp dir with a sourceable .github-project.env, a fake gh on PATH that
-// logs every invocation, and a canned gh stdout file.
+// logs every invocation, and a canned gh stdout file. Each argument is
+// logged as one [arg] group with embedded newlines flattened to spaces so
+// multi-line argv entries (e.g. the fixed GraphQL query) stay parseable.
 function setup(prefix, envContent) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), `${prefix}-`));
   if (envContent !== null) {
@@ -73,7 +92,7 @@ function setup(prefix, envContent) {
   fs.writeFileSync(
     path.join(bin, 'gh'),
     '#!/usr/bin/env bash\n' +
-      `printf 'CALL:' >> '${ghLog}'; printf ' [%s]' "$@" >> '${ghLog}'; printf '\\n' >> '${ghLog}'\n` +
+      `printf 'CALL:' >> '${ghLog}'; for a in "$@"; do printf ' [%s]' "$(printf '%s' "$a" | tr '\\n' ' ')" >> '${ghLog}'; done; printf '\\n' >> '${ghLog}'\n` +
       `cat '${ghOut}'\n`
   );
   fs.chmodSync(path.join(bin, 'gh'), 0o755);
@@ -421,7 +440,218 @@ check('HIC-17: project subcommands reject positional owner/project arguments', (
   }
 });
 
+// --- PRC-1: usage lists pr-* subcommands; positionals enforced ------------------
+
+check('PRC-1: usage lists every pr-* subcommand and enforces required positionals', () => {
+  const ctx = setup('prc1', DEFAULT_ENV);
+  const usage = runHelper(ctx, []);
+  assert.notStrictEqual(usage.status, 0, 'no-args must exit non-zero');
+  for (const sub of [
+    'pr-create', 'pr-view', 'pr-list', 'pr-comment',
+    'pr-close', 'pr-merge', 'pr-checks', 'pr-review-reply',
+  ]) {
+    assert.ok(usage.stdout.includes(sub), `usage must list ${sub}`);
+  }
+  for (const args of [
+    ['pr-create'],
+    ['pr-view'],
+    ['pr-comment'],
+    ['pr-close'],
+    ['pr-merge'],
+    ['pr-checks'],
+    ['pr-review-reply'],
+    ['pr-review-reply', 'IC_kwDOAGcCyM4Bdw3L_only-one-arg'],
+  ]) {
+    const r = runHelper(ctx, args);
+    assert.notStrictEqual(r.status, 0, `${args.join(' ')} must fail without its required positional`);
+    assert.deepStrictEqual(calls(ctx).length, 0, 'gh must not be called on a usage error');
+  }
+});
+
+// --- PRC-2: pr-create -----------------------------------------------------------
+
+check('PRC-2: pr-create sends title + extras; env repo resolves and wins', () => {
+  const ctx = setup('prc2', DEFAULT_ENV);
+  const r = runHelper(ctx, [
+    'pr-create', 'SPEC-003-T1: Extend helper with PR subcommands',
+    '--base', 'master', '--head', 'feat/spec-003-t1', '--body-file', '/tmp/pr.md',
+  ]);
+  assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
+  const all = calls(ctx);
+  assert.strictEqual(all.length, 1, 'exactly one gh call');
+  const c = all[0];
+  assert.deepStrictEqual(c.slice(0, 2), ['pr', 'create']);
+  const t = argIndex(c, '--title');
+  assert.ok(t !== -1 && c[t + 1] === 'SPEC-003-T1: Extend helper with PR subcommands', `title positional must reach --title: ${c.join(' ')}`);
+  assert.ok(c.includes('--base') && c[c.indexOf('--base') + 1] === 'master', 'base flag passes through');
+  assert.ok(c.includes('--head') && c[c.indexOf('--head') + 1] === 'feat/spec-003-t1', 'head flag passes through');
+  assert.ok(c.includes('--body-file') && c.includes('/tmp/pr.md'), 'body file passes through');
+  const repo = argIndex(c, '--repo');
+  assert.ok(repo !== -1 && c[repo + 1] === ENV_REPO, `env repo must be sent: ${c.join(' ')}`);
+});
+
+// --- PRC-3: pass-through --repo never wins (pr-list) ----------------------------
+
+check('PRC-3: a pass-through --repo can never override the env repo (pr-list)', () => {
+  const ctx = setup('prc3', DEFAULT_ENV);
+  const r = runHelper(ctx, ['pr-list', '--repo', 'rogue/rogue']);
+  assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
+  const c = calls(ctx)[0];
+  const last = c.lastIndexOf('--repo');
+  assert.ok(last !== -1 && c[last + 1] === ENV_REPO, `env repo must be the final --repo: ${c.join(' ')}`);
+});
+
+// --- PRC-4: pr-view curated default ---------------------------------------------
+
+check('PRC-4: pr-view prints curated JSON by default', () => {
+  const ctx = setup('prc4', DEFAULT_ENV);
+  const r = runHelper(ctx, ['pr-view', '45']);
+  assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
+  const c = calls(ctx)[0];
+  assert.deepStrictEqual(c.slice(0, 3), ['pr', 'view', '45']);
+  const j = argIndex(c, '--json');
+  assert.ok(j !== -1, `default --json must be present: ${c.join(' ')}`);
+  assert.strictEqual(
+    c[j + 1],
+    'number,title,state,body,headRefName,baseRefName,author,labels,reviewDecision,isDraft,url',
+    'curated pr-view fields'
+  );
+  assert.ok(c[c.lastIndexOf('--repo') + 1] === ENV_REPO, 'env repo must be sent');
+});
+
+// --- PRC-5: pr-view --comments skips the default --------------------------------
+
+check('PRC-5: pr-view --comments skips the curated default', () => {
+  const ctx = setup('prc5', DEFAULT_ENV);
+  const r = runHelper(ctx, ['pr-view', '45', '--comments']);
+  assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
+  const c = calls(ctx)[0];
+  assert.ok(!c.includes('--json'), `caller shape must win: ${c.join(' ')}`);
+  assert.ok(c.includes('--comments') && c.includes(ENV_REPO));
+});
+
+// --- PRC-6: pr-list curated default + filters ------------------------------------
+
+check('PRC-6: pr-list prints curated JSON by default; filters pass through', () => {
+  const ctx = setup('prc6', DEFAULT_ENV);
+  const r = runHelper(ctx, ['pr-list', '--state', 'closed', '--label', 'role:builder']);
+  assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
+  const c = calls(ctx)[0];
+  assert.deepStrictEqual(c.slice(0, 2), ['pr', 'list']);
+  const j = argIndex(c, '--json');
+  assert.strictEqual(
+    j !== -1 ? c[j + 1] : '',
+    'number,title,state,headRefName,baseRefName,author,isDraft,updatedAt,url',
+    'curated pr-list fields'
+  );
+  assert.ok(c.includes('--state') && c[c.indexOf('--state') + 1] === 'closed', 'state filter passes through');
+  assert.ok(c.includes('--label') && c[c.indexOf('--label') + 1] === 'role:builder', 'label filter passes through');
+  assert.ok(c[c.lastIndexOf('--repo') + 1] === ENV_REPO, 'env repo last on every call');
+});
+
+// --- PRC-7: pr-comment thin pass-through -----------------------------------------
+
+check('PRC-7: pr-comment is a thin pass-through', () => {
+  const ctx = setup('prc7', DEFAULT_ENV);
+  const r = runHelper(ctx, ['pr-comment', '45', '--body-file', '/tmp/handoff.md']);
+  assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
+  const c = calls(ctx)[0];
+  assert.deepStrictEqual(c.slice(0, 3), ['pr', 'comment', '45']);
+  assert.ok(c.includes('--body-file') && c[c.indexOf('--body-file') + 1] === '/tmp/handoff.md');
+  assert.ok(c[c.lastIndexOf('--repo') + 1] === ENV_REPO, 'env repo last on every call');
+});
+
+// --- PRC-8: pr-close / pr-merge thin; no --admin injected -------------------------
+
+check('PRC-8: pr-close / pr-merge are thin pass-throughs; no --admin injected', () => {
+  const ctx = setup('prc8', DEFAULT_ENV);
+
+  let r = runHelper(ctx, ['pr-close', '45', '--comment', 'Superseded by #46.']);
+  assert.strictEqual(r.status, 0, `close exit ${r.status}\nstderr:\n${r.stderr}`);
+  let c = calls(ctx).pop();
+  assert.deepStrictEqual(c.slice(0, 3), ['pr', 'close', '45']);
+  assert.ok(c.includes('--comment'), 'close flags pass through');
+  assert.ok(!c.includes('--admin'), 'close must never inject --admin');
+  assert.ok(c[c.lastIndexOf('--repo') + 1] === ENV_REPO, 'env repo last on every call');
+
+  r = runHelper(ctx, ['pr-merge', '45', '--squash', '--delete-branch']);
+  assert.strictEqual(r.status, 0, `merge exit ${r.status}\nstderr:\n${r.stderr}`);
+  c = calls(ctx).pop();
+  assert.deepStrictEqual(c.slice(0, 3), ['pr', 'merge', '45']);
+  assert.ok(c.includes('--squash') && c.includes('--delete-branch'), 'merge flags pass through');
+  assert.ok(!c.includes('--admin'), 'merge must never inject --admin');
+  assert.ok(c[c.lastIndexOf('--repo') + 1] === ENV_REPO, 'env repo last on every call');
+});
+
+// --- PRC-9: pr-checks curates tabular output into JSON ----------------------------
+
+check('PRC-9: pr-checks curates the tabular output into JSON by default; --web takes over', () => {
+  const ctx = setup('prc9', DEFAULT_ENV);
+  fs.writeFileSync(
+    ctx.ghOut,
+    'Analyze (javascript-typescript)\tpass\t50s\thttps://example.com/job/1\t\n' +
+      'CodeQL\tpass\t2s\thttps://example.com/runs/2\t\n'
+  );
+  const r = runHelper(ctx, ['pr-checks', '45']);
+  assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
+  const c = calls(ctx)[0];
+  assert.deepStrictEqual(c.slice(0, 3), ['pr', 'checks', '45']);
+  assert.ok(!c.includes('--json'), 'gh pr checks has no --json; curation is helper-side');
+  assert.ok(c[c.lastIndexOf('--repo') + 1] === ENV_REPO, 'env repo last on every call');
+  assert.deepStrictEqual(JSON.parse(r.stdout), [
+    { name: 'Analyze (javascript-typescript)', status: 'pass', elapsed: '50s', url: 'https://example.com/job/1' },
+    { name: 'CodeQL', status: 'pass', elapsed: '2s', url: 'https://example.com/runs/2' },
+  ], 'tabular checks output must become curated JSON');
+
+  const r2 = runHelper(ctx, ['pr-checks', '45', '--web']);
+  assert.strictEqual(r2.status, 0, `web exit ${r2.status}\nstderr:\n${r2.stderr}`);
+  const c2 = calls(ctx)[1];
+  assert.ok(c2.includes('--web'), 'explicit format flag takes over');
+  assert.ok(!r2.stdout.trim().startsWith('['), 'no helper-side curation when the caller shapes output');
+});
+
+// --- PRC-10: pr-review-reply fixed parameterized GraphQL --------------------------
+
+check('PRC-10: pr-review-reply uses the fixed parameterized GraphQL mutation', () => {
+  const ctx = setup('prc10', DEFAULT_ENV);
+  const commentId = 'IC_kwDOAGcCyM4Bdw3L123456';
+  const body = 'Fixed in commit abc123 — retested locally';
+  const r = runHelper(ctx, ['pr-review-reply', commentId, body]);
+  assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
+  const all = calls(ctx);
+  assert.strictEqual(all.length, 1, 'exactly one gh call');
+  const c = all[0];
+  assert.deepStrictEqual(c.slice(0, 2), ['api', 'graphql']);
+  assert.strictEqual(c.filter((a) => a === '-f').length, 3, 'exactly query/commentId/body as -f string fields');
+  const qIdx = c.findIndex((a) => a.startsWith('query='));
+  assert.ok(qIdx !== -1, 'query field must be sent');
+  const q = c[qIdx];
+  assert.ok(q.startsWith('query=mutation($commentId: ID!, $body: String!) {'), 'fixed mutation signature');
+  assert.ok(q.includes('addPullRequestReviewCommentReply(input: {'), 'fixed reply mutation name');
+  assert.ok(q.includes('pullRequestReviewCommentId: $commentId'), 'comment id is a GraphQL variable');
+  assert.ok(q.includes('body: $body'), 'body is a GraphQL variable');
+  assert.ok(!q.includes(commentId), 'comment id must never be interpolated into the query text');
+  assert.ok(!q.includes(body) && !q.includes('retested'), 'reply body must never be interpolated into the query text');
+  assert.ok(c.includes(`commentId=${commentId}`), 'comment id travels as a variable field');
+  assert.ok(c.includes(`body=${body}`), 'reply body travels as a variable field');
+});
+
+// --- PRC-11: missing repo fails fast (pr-*) ----------------------------------------
+
+check('PRC-11: missing ANT_TEAM_GITHUB_REPO fails fast without calling gh (pr-*)', () => {
+  const ctx = setup('prc11', null); // no env file at all
+  const r = runHelper(ctx, ['pr-list']);
+  assert.notStrictEqual(r.status, 0, 'pr-list must fail without a repo');
+  assert.ok(r.stderr.includes('ANT_TEAM_GITHUB_REPO'), 'error must name the env key');
+  assert.deepStrictEqual(calls(ctx).length, 0, 'gh must not be called');
+
+  const r2 = runHelper(ctx, ['pr-review-reply', 'IC_x', 'reply body']);
+  assert.notStrictEqual(r2.status, 0, 'pr-review-reply must also require the env repo');
+  assert.ok(r2.stderr.includes('ANT_TEAM_GITHUB_REPO'), 'error must name the env key');
+  assert.deepStrictEqual(calls(ctx).length, 0, 'gh must not be called');
+});
+
 // --- summary -------------------------------------------------------------------
 
-console.log(`\n${passed} passed, ${failed} failed (gh_project_helper env-only issue/milestone subcommands)`);
+console.log(`\n${passed} passed, ${failed} failed (gh_project_helper env-only issue/PR/milestone subcommands)`);
 if (failed > 0) process.exit(1);
