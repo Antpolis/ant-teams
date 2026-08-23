@@ -18,6 +18,7 @@ Generated local OpenCode runtime: `.opencode/` (created by `scripts/init-company
 ## Build, Test, and Run Commands
 
 - Run Node.js tests: for f in tests/test_*.js; do node "$f" || exit 1; done
+- Run the helper CLI and communication recorder tests: bash tests/test_helper_cli.sh && bash tests/test_record_communication.sh
 - Run managed-skill sync tests: bash tests/run_sync_tests.sh
 - Install the canonical OpenCode configuration and refresh managed skills and team scripts: bash scripts/init-company.sh
 - Validate AGENTS.md structure (DM-2 contract): bash templates/scripts/validate-agents-md.sh AGENTS.md
@@ -74,5 +75,5 @@ Runtime metadata (owner, project/field/option IDs, worktree root, documentation 
 - `.github-project.env` — the sole committed project config source: `ANT_TEAM_*` runtime exports seeded and updated by project initialization — source it for GitHub, documentation, and worktree metadata
 - `.opencode/` — generated local OpenCode runtime configuration. Recreate it with `scripts/init-company.sh`; do not treat it as the editable source.
 - `templates/opencode/` — canonical editable OpenCode configuration, commands, and skill source. `scripts/init-company.sh` installs it to `.opencode/` and `~/.config/opencode/`, and syncs its skills to `~/.agents/skills/`.
-- `templates/scripts/` — canonical editable operational script source installed to `~/.agents/scripts`.
+- `templates/scripts/` — canonical editable operational script source installed to `~/.agents/scripts`; `ant-team-help.sh` lists every installed helper script with its description, and `record-communication.sh` records/lists agent communication events in the Obsidian project folder
 - `scripts/` — company installation and managed-skill synchronization entrypoints

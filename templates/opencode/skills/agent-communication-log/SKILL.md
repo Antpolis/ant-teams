@@ -29,7 +29,12 @@ Working conversation, implementation notes, verification detail, review-loop his
 
 ## Collaboration Location
 
-Use the central Obsidian project folder for agent-to-agent communication. Resolve it by sourcing `./.github-project.env` (the sole committed project config source) and using `ANT_TEAM_DOCS_PROJECT_PATH`. Before creating an event file, inspect and use the approved communication template and Base in the central vault. If no template exists, stop and request one; do not invent the format.
+Use the central Obsidian project folder for agent-to-agent communication. Resolve it by sourcing `./.github-project.env` (the sole committed project config source) and using `ANT_TEAM_DOCS_PROJECT_PATH`. Before creating an event file, use the approved communication template and Base in the central vault:
+
+- Template: `$ANT_TEAM_DOCS_VAULT_PATH/01-Architecture-Meta/Templates/Agent Communication Template.md`
+- Base: `$ANT_TEAM_DOCS_VAULT_PATH/01-Architecture-Meta/Templates/Bases/Agent Communication.base`
+
+Prefer the `record-communication.sh` helper (installed at `$ANT_TEAM_SCRIPTS`, or `templates/scripts/record-communication.sh` in the ant-teams repo) to record and list events — it fills the approved template and never writes to GitHub. If no template exists, stop and request one; do not invent the format.
 
 Store communication records under:
 

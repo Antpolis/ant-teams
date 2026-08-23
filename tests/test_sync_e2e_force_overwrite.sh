@@ -41,7 +41,7 @@ assert_eq "force: installed == source" \
   "$(sync_sha256 "$TARGET")" "$(sync_sha256 "$SRC")"
 # FR-8.4: manifest hash reflects source.
 assert_eq "force: manifest hash == source" \
-  "$(sync_manifest_file_hash "$MANIFEST" documentation-standard ".opencode/skills/documentation-standard/SKILL.md")" \
+  "$(sync_manifest_file_hash "$MANIFEST" documentation-standard "templates/opencode/skills/documentation-standard/SKILL.md")" \
   "$(sync_sha256 "$SRC")"
 
 rm -f "$OUT"
