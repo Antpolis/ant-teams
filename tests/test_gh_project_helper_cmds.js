@@ -103,6 +103,8 @@ const ENV_REPO = 'env-owner/env-repo';
 // multi-line argv entries (e.g. the fixed GraphQL query) stay parseable.
 function setup(prefix, envContent) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), `${prefix}-`));
+  const docs = path.join(tmp, 'docs');
+  fs.mkdirSync(docs, { recursive: true });
   if (envContent !== null) {
     fs.writeFileSync(path.join(tmp, '.github-project.env'), envContent);
   }
@@ -118,10 +120,23 @@ function setup(prefix, envContent) {
   );
   fs.chmodSync(path.join(bin, 'gh'), 0o755);
   fs.writeFileSync(ghOut, '{"fields":[]}');
-  return { tmp, bin, ghLog, ghOut };
+  return { tmp, docs, bin, ghLog, ghOut };
 }
 
-const DEFAULT_ENV = `export ANT_TEAM_GITHUB_REPO='${ENV_REPO}'\n`;
+// Mutating issue/milestone commands are local-first (SPEC-003-T7): the env
+// must carry an isolated docs base so the local record write succeeds.
+const DEFAULT_ENV = `export ANT_TEAM_GITHUB_REPO='${ENV_REPO}'\nexport ANT_TEAM_DOCS_PROJECT_PATH='DOCS_PATH'\n`;
+
+function setupWithDocs(prefix) {
+  const ctx = setup(prefix, null);
+  fs.writeFileSync(
+    path.join(ctx.tmp, '.github-project.env'),
+    DEFAULT_ENV.replace('DOCS_PATH', ctx.docs)
+  );
+  return ctx;
+}
+
+const ISSUE_URL_OUT = 'https://github.com/env-owner/env-repo/issues/77\n';
 
 const MILESTONE_PAYLOAD = JSON.stringify({
   number: 3,
@@ -171,13 +186,14 @@ function argIndex(call, flag) {
 // --- HIC-1: usage lists new subcommands; positionals enforced -----------------
 
 check('HIC-1: usage lists every new subcommand and enforces required positionals', () => {
-  const ctx = setup('hic1', DEFAULT_ENV);
+  const ctx = setupWithDocs('hic1');
   const usage = runHelper(ctx, []);
   assert.notStrictEqual(usage.status, 0, 'no-args must exit non-zero');
   for (const sub of [
     'issue-create', 'issue-view', 'issue-list', 'issue-edit',
     'issue-comment', 'issue-close',
     'milestone-create', 'milestone-list', 'milestone-edit', 'milestone-close',
+    'issue-sync', 'milestone-sync',
   ]) {
     assert.ok(usage.stdout.includes(sub), `usage must list ${sub}`);
   }
@@ -192,6 +208,8 @@ check('HIC-1: usage lists every new subcommand and enforces required positionals
     ['milestone-close'],
     ['milestone-create', 'a', 'b', 'c'],
     ['milestone-list', 'open', 'closed'],
+    ['issue-sync'],
+    ['milestone-sync'],
   ]) {
     const r = runHelper(ctx, args);
     assert.notStrictEqual(r.status, 0, `${args.join(' ')} must fail without its required positional`);
@@ -202,9 +220,12 @@ check('HIC-1: usage lists every new subcommand and enforces required positionals
 // --- HIC-2: issue-create -------------------------------------------------------
 
 check('HIC-2: issue-create sends title + extras; repo resolves from the env', () => {
-  const ctx = setup('hic2', DEFAULT_ENV);
+  const ctx = setupWithDocs('hic2');
+  fs.writeFileSync(ctx.ghOut, ISSUE_URL_OUT); // gh issue create prints the issue URL
+  const bodyFile = path.join(ctx.tmp, 'issue.md');
+  fs.writeFileSync(bodyFile, 'body from file');
   const r = runHelper(ctx, [
-    'issue-create', 'TASK: fix login', '--body-file', '/tmp/issue.md', '--label', 'type:feature',
+    'issue-create', 'TASK: fix login', '--body-file', bodyFile, '--label', 'type:feature',
   ]);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
   const all = calls(ctx);
@@ -213,7 +234,7 @@ check('HIC-2: issue-create sends title + extras; repo resolves from the env', ()
   assert.deepStrictEqual(c.slice(0, 2), ['issue', 'create']);
   const t = argIndex(c, '--title');
   assert.ok(t !== -1 && c[t + 1] === 'TASK: fix login', `title positional must reach --title: ${c.join(' ')}`);
-  assert.ok(c.includes('--body-file') && c.includes('/tmp/issue.md'), 'extras must pass through');
+  assert.ok(c.includes('--body-file') && c.includes(bodyFile), 'extras must pass through');
   const repo = argIndex(c, '--repo');
   assert.ok(repo !== -1 && c[repo + 1] === ENV_REPO, `env repo must be sent: ${c.join(' ')}`);
 });
@@ -221,7 +242,7 @@ check('HIC-2: issue-create sends title + extras; repo resolves from the env', ()
 // --- HIC-3: pass-through --repo never wins ------------------------------------
 
 check('HIC-3: a pass-through --repo can never override the env repo', () => {
-  const ctx = setup('hic3', DEFAULT_ENV);
+  const ctx = setupWithDocs('hic3');
   const r = runHelper(ctx, ['issue-list', '--repo', 'rogue/rogue']);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
   const c = calls(ctx)[0];
@@ -232,7 +253,7 @@ check('HIC-3: a pass-through --repo can never override the env repo', () => {
 // --- HIC-4: issue-view curated default ----------------------------------------
 
 check('HIC-4: issue-view prints curated JSON by default', () => {
-  const ctx = setup('hic4', DEFAULT_ENV);
+  const ctx = setupWithDocs('hic4');
   const r = runHelper(ctx, ['issue-view', '42']);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
   const c = calls(ctx)[0];
@@ -250,7 +271,7 @@ check('HIC-4: issue-view prints curated JSON by default', () => {
 // --- HIC-5: issue-view --comments skips the default ---------------------------
 
 check('HIC-5: issue-view --comments skips the curated default', () => {
-  const ctx = setup('hic5', DEFAULT_ENV);
+  const ctx = setupWithDocs('hic5');
   const r = runHelper(ctx, ['issue-view', '42', '--comments']);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
   const c = calls(ctx)[0];
@@ -261,7 +282,7 @@ check('HIC-5: issue-view --comments skips the curated default', () => {
 // --- HIC-6: issue-list curated default + filters ------------------------------
 
 check('HIC-6: issue-list prints curated JSON by default; filters pass through', () => {
-  const ctx = setup('hic6', DEFAULT_ENV);
+  const ctx = setupWithDocs('hic6');
   const r = runHelper(ctx, ['issue-list', '--label', 'blocked', '--state', 'closed']);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
   const c = calls(ctx)[0];
@@ -280,7 +301,7 @@ check('HIC-6: issue-list prints curated JSON by default; filters pass through', 
 // --- HIC-7: issue-list custom --json skips the default ------------------------
 
 check('HIC-7: issue-list custom --json skips the curated default', () => {
-  const ctx = setup('hic7', DEFAULT_ENV);
+  const ctx = setupWithDocs('hic7');
   const r = runHelper(ctx, ['issue-list', '--json', 'number,title']);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
   const c = calls(ctx)[0];
@@ -291,7 +312,7 @@ check('HIC-7: issue-list custom --json skips the curated default', () => {
 // --- HIC-8: thin pass-through mutations ---------------------------------------
 
 check('HIC-8: issue-comment / issue-edit / issue-close are thin pass-throughs', () => {
-  const ctx = setup('hic8', DEFAULT_ENV);
+  const ctx = setupWithDocs('hic8');
 
   let r = runHelper(ctx, ['issue-comment', '42', '--body-file', '/tmp/handoff.md']);
   assert.strictEqual(r.status, 0, `comment exit ${r.status}\nstderr:\n${r.stderr}`);
@@ -320,7 +341,7 @@ function argoAfter(call, flag) {
 // --- HIC-9: milestone-create ---------------------------------------------------
 
 check('HIC-9: milestone-create sends title/description fields and curates output', () => {
-  const ctx = setup('hic9', DEFAULT_ENV);
+  const ctx = setupWithDocs('hic9');
   fs.writeFileSync(ctx.ghOut, MILESTONE_PAYLOAD);
   const r = runHelper(ctx, ['milestone-create', 'SPEC-003: Deliverable', 'Short summary with spec link']);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
@@ -339,7 +360,7 @@ check('HIC-9: milestone-create sends title/description fields and curates output
 // --- HIC-10: milestone-create without description ------------------------------
 
 check('HIC-10: milestone-create without a description omits the field', () => {
-  const ctx = setup('hic10', DEFAULT_ENV);
+  const ctx = setupWithDocs('hic10');
   fs.writeFileSync(ctx.ghOut, MILESTONE_PAYLOAD);
   const r = runHelper(ctx, ['milestone-create', 'SPEC-003: Deliverable']);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
@@ -351,7 +372,7 @@ check('HIC-10: milestone-create without a description omits the field', () => {
 // --- HIC-11: milestone-list state handling -------------------------------------
 
 check('HIC-11: milestone-list defaults to state=open and passes closed through', () => {
-  const ctx = setup('hic11', DEFAULT_ENV);
+  const ctx = setupWithDocs('hic11');
   fs.writeFileSync(ctx.ghOut, `[${MILESTONE_PAYLOAD}]`);
   let r = runHelper(ctx, ['milestone-list']);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
@@ -370,7 +391,7 @@ check('HIC-11: milestone-list defaults to state=open and passes closed through',
 // --- HIC-12: milestone-list rejects invalid state ------------------------------
 
 check('HIC-12: milestone-list rejects an invalid state before calling gh', () => {
-  const ctx = setup('hic12', DEFAULT_ENV);
+  const ctx = setupWithDocs('hic12');
   const r = runHelper(ctx, ['milestone-list', 'bogus']);
   assert.notStrictEqual(r.status, 0, 'invalid state must fail');
   assert.ok(/Invalid milestone state/.test(r.stderr), 'friendly error expected');
@@ -380,7 +401,7 @@ check('HIC-12: milestone-list rejects an invalid state before calling gh', () =>
 // --- HIC-13: milestone-edit ----------------------------------------------------
 
 check('HIC-13: milestone-edit PATCHes with pass-through -f fields', () => {
-  const ctx = setup('hic13', DEFAULT_ENV);
+  const ctx = setupWithDocs('hic13');
   fs.writeFileSync(ctx.ghOut, MILESTONE_PAYLOAD);
   const r = runHelper(ctx, ['milestone-edit', '3', '-f', 'title=SPEC-003: Revised']);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
@@ -397,7 +418,7 @@ check('HIC-13: milestone-edit PATCHes with pass-through -f fields', () => {
 // --- HIC-14: milestone-close ---------------------------------------------------
 
 check('HIC-14: milestone-close PATCHes state=closed', () => {
-  const ctx = setup('hic14', DEFAULT_ENV);
+  const ctx = setupWithDocs('hic14');
   fs.writeFileSync(ctx.ghOut, MILESTONE_PAYLOAD);
   const r = runHelper(ctx, ['milestone-close', '3']);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
@@ -427,29 +448,43 @@ check('HIC-15: missing ANT_TEAM_GITHUB_REPO fails fast without calling gh', () =
 
 // --- HIC-16: the helper writes no files ----------------------------------------
 
-check('HIC-16: helper writes no files; env stays byte-identical, no JSON config', () => {
-  const ctx = setup('hic16', DEFAULT_ENV);
-  fs.writeFileSync(ctx.ghOut, MILESTONE_PAYLOAD);
+check('HIC-16: helper writes only local records under the docs base; env stays byte-identical', () => {
+  const ctx = setupWithDocs('hic16');
   const envPath = path.join(ctx.tmp, '.github-project.env');
   const before = fs.readFileSync(envPath, 'utf8');
   const mtimeBefore = fs.statSync(envPath).mtimeMs;
-  for (const args of [
-    ['issue-create', 'T', '--body', 'b'],
-    ['issue-list'],
-    ['milestone-create', 'M', 'D'],
-    ['milestone-close', '3'],
-  ]) {
+  const cwdBefore = fs.readdirSync(ctx.tmp).sort();
+  const cases = [
+    [['issue-create', 'T', '--body', 'b'], ISSUE_URL_OUT],
+    [['issue-list'], '{"fields":[]}'],
+    [['milestone-create', 'M', 'D'], MILESTONE_PAYLOAD],
+    [['milestone-close', '3'], MILESTONE_PAYLOAD],
+  ];
+  for (const [args, out] of cases) {
+    fs.writeFileSync(ctx.ghOut, out);
     assert.strictEqual(runHelper(ctx, args).status, 0, `${args[0]} must succeed`);
   }
   assert.strictEqual(fs.readFileSync(envPath, 'utf8'), before, 'env must stay byte-identical');
   assert.strictEqual(fs.statSync(envPath).mtimeMs, mtimeBefore, 'env must not be rewritten');
   assert.ok(!fs.existsSync(path.join(ctx.tmp, '.github-project.json')), 'no JSON config may appear');
+  // Dual-record (T7): the only new files are local records under the docs
+  // base; the repo working directory itself stays untouched.
+  assert.deepStrictEqual(
+    fs.readdirSync(ctx.tmp).sort(),
+    cwdBefore,
+    'helper must not write into the repo working directory'
+  );
+  const recordDirs = fs.readdirSync(ctx.docs).sort();
+  assert.ok(
+    recordDirs.every((d) => d === 'issue' || d === 'spec'),
+    `all local writes confined to {issue,spec}/ (got: ${recordDirs})`
+  );
 });
 
 // --- HIC-17: project subcommands stay env-only ---------------------------------
 
 check('HIC-17: project subcommands reject positional owner/project arguments', () => {
-  const ctx = setup('hic17', DEFAULT_ENV);
+  const ctx = setupWithDocs('hic17');
   for (const args of [
     ['list-statuses', 'Antpolis', '9'],
     ['list-items', 'Antpolis', '9', 'Ready'],
@@ -464,7 +499,7 @@ check('HIC-17: project subcommands reject positional owner/project arguments', (
 // --- PRC-1: usage lists pr-* subcommands; positionals enforced ------------------
 
 check('PRC-1: usage lists every pr-* subcommand and enforces required positionals', () => {
-  const ctx = setup('prc1', DEFAULT_ENV);
+  const ctx = setupWithDocs('prc1');
   const usage = runHelper(ctx, []);
   assert.notStrictEqual(usage.status, 0, 'no-args must exit non-zero');
   for (const sub of [
@@ -492,7 +527,7 @@ check('PRC-1: usage lists every pr-* subcommand and enforces required positional
 // --- PRC-2: pr-create -----------------------------------------------------------
 
 check('PRC-2: pr-create sends title + extras; env repo resolves and wins', () => {
-  const ctx = setup('prc2', DEFAULT_ENV);
+  const ctx = setupWithDocs('prc2');
   const r = runHelper(ctx, [
     'pr-create', 'SPEC-003-T1: Extend helper with PR subcommands',
     '--base', 'master', '--head', 'feat/spec-003-t1', '--body-file', '/tmp/pr.md',
@@ -514,7 +549,7 @@ check('PRC-2: pr-create sends title + extras; env repo resolves and wins', () =>
 // --- PRC-3: pass-through --repo never wins (pr-list) ----------------------------
 
 check('PRC-3: a pass-through --repo can never override the env repo (pr-list)', () => {
-  const ctx = setup('prc3', DEFAULT_ENV);
+  const ctx = setupWithDocs('prc3');
   const r = runHelper(ctx, ['pr-list', '--repo', 'rogue/rogue']);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
   const c = calls(ctx)[0];
@@ -525,7 +560,7 @@ check('PRC-3: a pass-through --repo can never override the env repo (pr-list)', 
 // --- PRC-4: pr-view curated default ---------------------------------------------
 
 check('PRC-4: pr-view prints curated JSON by default', () => {
-  const ctx = setup('prc4', DEFAULT_ENV);
+  const ctx = setupWithDocs('prc4');
   const r = runHelper(ctx, ['pr-view', '45']);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
   const c = calls(ctx)[0];
@@ -543,7 +578,7 @@ check('PRC-4: pr-view prints curated JSON by default', () => {
 // --- PRC-5: pr-view --comments skips the default --------------------------------
 
 check('PRC-5: pr-view --comments skips the curated default', () => {
-  const ctx = setup('prc5', DEFAULT_ENV);
+  const ctx = setupWithDocs('prc5');
   const r = runHelper(ctx, ['pr-view', '45', '--comments']);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
   const c = calls(ctx)[0];
@@ -554,7 +589,7 @@ check('PRC-5: pr-view --comments skips the curated default', () => {
 // --- PRC-6: pr-list curated default + filters ------------------------------------
 
 check('PRC-6: pr-list prints curated JSON by default; filters pass through', () => {
-  const ctx = setup('prc6', DEFAULT_ENV);
+  const ctx = setupWithDocs('prc6');
   const r = runHelper(ctx, ['pr-list', '--state', 'closed', '--label', 'role:builder']);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
   const c = calls(ctx)[0];
@@ -573,7 +608,7 @@ check('PRC-6: pr-list prints curated JSON by default; filters pass through', () 
 // --- PRC-7: pr-comment thin pass-through -----------------------------------------
 
 check('PRC-7: pr-comment is a thin pass-through', () => {
-  const ctx = setup('prc7', DEFAULT_ENV);
+  const ctx = setupWithDocs('prc7');
   const r = runHelper(ctx, ['pr-comment', '45', '--body-file', '/tmp/handoff.md']);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
   const c = calls(ctx)[0];
@@ -585,7 +620,7 @@ check('PRC-7: pr-comment is a thin pass-through', () => {
 // --- PRC-8: pr-close / pr-merge thin; no --admin injected -------------------------
 
 check('PRC-8: pr-close / pr-merge are thin pass-throughs; no --admin injected', () => {
-  const ctx = setup('prc8', DEFAULT_ENV);
+  const ctx = setupWithDocs('prc8');
 
   let r = runHelper(ctx, ['pr-close', '45', '--comment', 'Superseded by #46.']);
   assert.strictEqual(r.status, 0, `close exit ${r.status}\nstderr:\n${r.stderr}`);
@@ -607,7 +642,7 @@ check('PRC-8: pr-close / pr-merge are thin pass-throughs; no --admin injected', 
 // --- PRC-9: pr-checks curates tabular output into JSON ----------------------------
 
 check('PRC-9: pr-checks curates the tabular output into JSON by default; --web takes over', () => {
-  const ctx = setup('prc9', DEFAULT_ENV);
+  const ctx = setupWithDocs('prc9');
   fs.writeFileSync(
     ctx.ghOut,
     'Analyze (javascript-typescript)\tpass\t50s\thttps://example.com/job/1\t\n' +
@@ -634,7 +669,7 @@ check('PRC-9: pr-checks curates the tabular output into JSON by default; --web t
 // --- PRC-10: pr-review-reply fixed parameterized GraphQL --------------------------
 
 check('PRC-10: pr-review-reply uses the fixed parameterized GraphQL mutation', () => {
-  const ctx = setup('prc10', DEFAULT_ENV);
+  const ctx = setupWithDocs('prc10');
   const commentId = 'IC_kwDOAGcCyM4Bdw3L123456';
   const body = 'Fixed in commit abc123 — retested locally';
   const r = runHelper(ctx, ['pr-review-reply', commentId, body]);
@@ -675,7 +710,7 @@ check('PRC-11: missing ANT_TEAM_GITHUB_REPO fails fast without calling gh (pr-*)
 // --- CIC-1: usage lists run-*/workflow-* subcommands; positionals enforced -----
 
 check('CIC-1: usage lists every run-*/workflow-* subcommand and enforces required positionals', () => {
-  const ctx = setup('cic1', DEFAULT_ENV);
+  const ctx = setupWithDocs('cic1');
   const usage = runHelper(ctx, []);
   assert.notStrictEqual(usage.status, 0, 'no-args must exit non-zero');
   for (const sub of ['run-list', 'run-view', 'workflow-list', 'workflow-run']) {
@@ -694,7 +729,7 @@ check('CIC-1: usage lists every run-*/workflow-* subcommand and enforces require
 // --- CIC-2: run-list curated default + filters ----------------------------------
 
 check('CIC-2: run-list prints curated JSON by default; filters pass through', () => {
-  const ctx = setup('cic2', DEFAULT_ENV);
+  const ctx = setupWithDocs('cic2');
   const r = runHelper(ctx, ['run-list', '--workflow', 'ci.yml', '--limit', '5', '--status', 'failure']);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
   const c = calls(ctx)[0];
@@ -714,7 +749,7 @@ check('CIC-2: run-list prints curated JSON by default; filters pass through', ()
 // --- CIC-3: run-view curated default (exact argv) -------------------------------
 
 check('CIC-3: run-view prints curated JSON by default', () => {
-  const ctx = setup('cic3', DEFAULT_ENV);
+  const ctx = setupWithDocs('cic3');
   const r = runHelper(ctx, ['run-view', '1234567890']);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
   const c = calls(ctx)[0];
@@ -729,7 +764,7 @@ check('CIC-3: run-view prints curated JSON by default', () => {
 // --- CIC-4: caller format flags take over ---------------------------------------
 
 check('CIC-4: caller format flags take over (run-view --web, run-list custom --json)', () => {
-  const ctx = setup('cic4', DEFAULT_ENV);
+  const ctx = setupWithDocs('cic4');
   let r = runHelper(ctx, ['run-view', '1234567890', '--web']);
   assert.strictEqual(r.status, 0, `web exit ${r.status}\nstderr:\n${r.stderr}`);
   let c = calls(ctx)[0];
@@ -747,7 +782,7 @@ check('CIC-4: caller format flags take over (run-view --web, run-list custom --j
 // --- CIC-5: workflow-list curated default ---------------------------------------
 
 check('CIC-5: workflow-list prints curated JSON by default; --all passes through', () => {
-  const ctx = setup('cic5', DEFAULT_ENV);
+  const ctx = setupWithDocs('cic5');
   const r = runHelper(ctx, ['workflow-list', '--all']);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
   const c = calls(ctx)[0];
@@ -763,7 +798,7 @@ check('CIC-5: workflow-list prints curated JSON by default; --all passes through
 // --- CIC-6: workflow-run dispatch, caller flags only ----------------------------
 
 check('CIC-6: workflow-run dispatches caller flags only; no --admin injected', () => {
-  const ctx = setup('cic6', DEFAULT_ENV);
+  const ctx = setupWithDocs('cic6');
   const r = runHelper(ctx, ['workflow-run', 'ci.yml', '--ref', 'feat/issue-32', '-f', 'suite=smoke']);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
   const all = calls(ctx);
@@ -779,7 +814,7 @@ check('CIC-6: workflow-run dispatches caller flags only; no --admin injected', (
 // --- CIC-7: pass-through --repo never wins (run/workflow) -----------------------
 
 check('CIC-7: a pass-through --repo can never override the env repo (run/workflow)', () => {
-  const ctx = setup('cic7', DEFAULT_ENV);
+  const ctx = setupWithDocs('cic7');
   for (const args of [
     ['run-list', '--repo', 'rogue/rogue'],
     ['workflow-list', '--repo', 'rogue/rogue'],
@@ -814,7 +849,7 @@ check('CIC-8: missing ANT_TEAM_GITHUB_REPO fails fast without calling gh (run/wo
 // --- RLC-1: usage lists release-* subcommands; positionals enforced -------------
 
 check('RLC-1: usage lists every release-* subcommand and enforces required positionals', () => {
-  const ctx = setup('rlc1', DEFAULT_ENV);
+  const ctx = setupWithDocs('rlc1');
   const usage = runHelper(ctx, []);
   assert.notStrictEqual(usage.status, 0, 'no-args must exit non-zero');
   for (const sub of [
@@ -837,7 +872,7 @@ check('RLC-1: usage lists every release-* subcommand and enforces required posit
 // --- RLC-2: release-create -------------------------------------------------------
 
 check('RLC-2: release-create sends tag + extras; env repo resolves and wins', () => {
-  const ctx = setup('rlc2', DEFAULT_ENV);
+  const ctx = setupWithDocs('rlc2');
   const r = runHelper(ctx, [
     'release-create', 'v1.2.0', '--title', 'v1.2.0 — ant-teams',
     '--notes-file', '/tmp/notes.md', '--target', 'master',
@@ -857,7 +892,7 @@ check('RLC-2: release-create sends tag + extras; env repo resolves and wins', ()
 // --- RLC-3: release-list curated default + filters ------------------------------
 
 check('RLC-3: release-list prints curated JSON by default; filters pass through', () => {
-  const ctx = setup('rlc3', DEFAULT_ENV);
+  const ctx = setupWithDocs('rlc3');
   const r = runHelper(ctx, ['release-list', '--limit', '5']);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
   const c = calls(ctx)[0];
@@ -873,7 +908,7 @@ check('RLC-3: release-list prints curated JSON by default; filters pass through'
 // --- RLC-4: release-view curated default (exact argv) ---------------------------
 
 check('RLC-4: release-view prints curated JSON by default', () => {
-  const ctx = setup('rlc4', DEFAULT_ENV);
+  const ctx = setupWithDocs('rlc4');
   const r = runHelper(ctx, ['release-view', 'v1.2.0']);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
   const c = calls(ctx)[0];
@@ -888,7 +923,7 @@ check('RLC-4: release-view prints curated JSON by default', () => {
 // --- RLC-5: caller format flags take over ---------------------------------------
 
 check('RLC-5: caller format flags take over (release-view --web, release-list custom --json)', () => {
-  const ctx = setup('rlc5', DEFAULT_ENV);
+  const ctx = setupWithDocs('rlc5');
   let r = runHelper(ctx, ['release-view', 'v1.2.0', '--web']);
   assert.strictEqual(r.status, 0, `web exit ${r.status}\nstderr:\n${r.stderr}`);
   let c = calls(ctx)[0];
@@ -906,7 +941,7 @@ check('RLC-5: caller format flags take over (release-view --web, release-list cu
 // --- RLC-6: release-edit thin pass-through --------------------------------------
 
 check('RLC-6: release-edit is a thin pass-through', () => {
-  const ctx = setup('rlc6', DEFAULT_ENV);
+  const ctx = setupWithDocs('rlc6');
   const r = runHelper(ctx, ['release-edit', 'v1.2.0', '--notes', 'Revised release notes.']);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
   const c = calls(ctx)[0];
@@ -918,7 +953,7 @@ check('RLC-6: release-edit is a thin pass-through', () => {
 // --- RLC-7: release-delete caller flags only ------------------------------------
 
 check('RLC-7: release-delete passes caller flags only; no --admin/--yes injected', () => {
-  const ctx = setup('rlc7', DEFAULT_ENV);
+  const ctx = setupWithDocs('rlc7');
   const r = runHelper(ctx, ['release-delete', 'v1.2.0', '--cleanup-tag']);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
   const all = calls(ctx);
@@ -934,7 +969,7 @@ check('RLC-7: release-delete passes caller flags only; no --admin/--yes injected
 // --- RLC-8: pass-through --repo never wins (release-*) --------------------------
 
 check('RLC-8: a pass-through --repo can never override the env repo (release-*)', () => {
-  const ctx = setup('rlc8', DEFAULT_ENV);
+  const ctx = setupWithDocs('rlc8');
   for (const args of [
     ['release-list', '--repo', 'rogue/rogue'],
     ['release-view', 'v1.2.0', '--repo', 'rogue/rogue'],
@@ -953,7 +988,7 @@ check('RLC-8: a pass-through --repo can never override the env repo (release-*)'
 // --- RLC-9: invalid canonical tags fail before gh (create/edit/delete) ----------
 
 check('RLC-9: invalid canonical tags fail before gh is invoked (create/edit/delete)', () => {
-  const ctx = setup('rlc9', DEFAULT_ENV);
+  const ctx = setupWithDocs('rlc9');
   const invalidTags = [
     '-v1',        // leading dash (positional safety)
     '.v1',        // leading dot
@@ -985,7 +1020,7 @@ check('RLC-9: invalid canonical tags fail before gh is invoked (create/edit/dele
 // --- RLC-10: valid canonical tags reach gh untouched ----------------------------
 
 check('RLC-10: valid canonical tags reach gh untouched', () => {
-  const ctx = setup('rlc10', DEFAULT_ENV);
+  const ctx = setupWithDocs('rlc10');
   // NOTE: tags containing ']' round-trip gh fine but cannot be asserted
   // here because the fake-gh log parser splits args on brackets.
   const validTags = ['v1', 'v1.0.0', 'v1.0.0-rc.1', 'rel/2026-08-23', 'build.42', 'a@b'];
