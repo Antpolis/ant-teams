@@ -118,10 +118,14 @@ echo "operator content" > "$HOME1/.agents/skills/my-custom-skill/keep.md"
 rc=$?
 assert_eq "F1 recovery exit code" "$rc" 0
 assert_count_line "F1 recovery collisions (expect 0)" "$OUT" "[SKIP collision]" 0
-# 33 managed entries = 26 source skills + 7 command-derived commands (the
-# /migrate command retirement removed one command-derived entry; matches
-# tests/test_sync_e2e_company_run.sh).
-assert_count_line "F1 recovery NOOPs (expect 33)"    "$OUT" "[NOOP]" 33
+# Managed entry count is computed from the REAL source tree (31 source skills
+# + 7 command-derived = 38 today); an exact recovery-run NOOP count proves the
+# manifest reclaim covers every managed entry (matches
+# tests/test_sync_e2e_company_run.sh EXPECTED_TOTAL).
+REAL_SKILLS_COUNT="$(find "$REPO_ROOT/templates/opencode/skills" -mindepth 2 -maxdepth 2 -type f -name SKILL.md | wc -l | tr -d ' ')"
+REAL_CMDS_COUNT="$(find "$REPO_ROOT/templates/opencode/commands" -maxdepth 1 -name '*.md' -type f 2>/dev/null | wc -l | tr -d ' ')"
+EXPECTED_NOOPS=$(( REAL_SKILLS_COUNT + REAL_CMDS_COUNT ))
+assert_count_line "F1 recovery NOOPs (== managed inventory)" "$OUT" "[NOOP]" "$EXPECTED_NOOPS"
 assert_contains    "F1 recovery manifest rewritten" "$HOME1/.agents/skills/.manifest.json" "managed_entries"
 assert_eq "F1 unmanaged content preserved" \
   "$(cat "$HOME1/.agents/skills/my-custom-skill/keep.md" 2>/dev/null || echo MISSING)" \
@@ -185,11 +189,13 @@ fi
 # ---------------------------------------------------------------------------
 echo
 echo "--- F3: permission preservation on update ---"
-# Temp repo copy so we can mutate source to drive the UPDATE path.
-TREPO="$WORK/repo"; mkdir -p "$TREPO/scripts" "$TREPO/.opencode"
+# Temp repo copy so we can mutate source to drive the UPDATE path. The
+# managed-sync engine reads templates/opencode/ (canonical layout post
+# restructure), so the fixture stages that tree.
+TREPO="$WORK/repo"; mkdir -p "$TREPO/scripts" "$TREPO/templates/opencode"
 cp "$SYNC" "$TREPO/scripts/sync-managed-skills.sh"
-cp -R "$REPO_ROOT/.opencode/skills"   "$TREPO/.opencode/skills"
-cp -R "$REPO_ROOT/.opencode/commands" "$TREPO/.opencode/commands"
+cp -R "$REPO_ROOT/templates/opencode/skills"   "$TREPO/templates/opencode/skills"
+cp -R "$REPO_ROOT/templates/opencode/commands" "$TREPO/templates/opencode/commands"
 TSCRIPT="$TREPO/scripts/sync-managed-skills.sh"
 chmod +x "$TSCRIPT"
 
@@ -198,8 +204,8 @@ export HOME="$HOME3"
 OUT="$WORK/f3.out"
 "$TSCRIPT" >"$OUT" 2>&1 || { echo "F3 fresh install failed"; cat "$OUT"; FAIL=$((FAIL + 1)); }
 
-src_sh="$TREPO/.opencode/skills/project-initialization/scripts/init_project_docs.sh"
-src_md="$TREPO/.opencode/skills/documentation-standard/SKILL.md"
+src_sh="$TREPO/templates/opencode/skills/project-initialization/scripts/init_project_docs.sh"
+src_md="$TREPO/templates/opencode/skills/documentation-standard/SKILL.md"
 tgt_sh="$HOME3/.agents/skills/project-initialization/scripts/init_project_docs.sh"
 tgt_md="$HOME3/.agents/skills/documentation-standard/SKILL.md"
 
@@ -273,7 +279,7 @@ assert_count_line "F4 fresh install collisions" "$ERR" "[SKIP collision]" 0
 # Number of source files that live under project-initialization/scripts/. Every
 # one of them must be skipped once that intermediate dir is replaced by a file.
 blocked_subdir_rel="project-initialization/scripts"
-expected_skips="$(find "$REPO_ROOT/.opencode/skills/$blocked_subdir_rel" -type f 2>/dev/null | wc -l | tr -d ' ')"
+expected_skips="$(find "$REPO_ROOT/templates/opencode/skills/$blocked_subdir_rel" -type f 2>/dev/null | wc -l | tr -d ' ')"
 assert_ge "F4 source has files under blocked subdir" "$expected_skips" 1
 
 # Replace the intermediate directory with a regular file (the reviewer repro).
@@ -366,7 +372,7 @@ mkdir -p "$escape_dir"
 # replace .../project-initialization/scripts (a real managed subdir) with a
 # symlink pointing at the external escape dir.
 blocked_subdir_rel="project-initialization/scripts"
-expected_skips="$(find "$REPO_ROOT/.opencode/skills/$blocked_subdir_rel" -type f 2>/dev/null | wc -l | tr -d ' ')"
+expected_skips="$(find "$REPO_ROOT/templates/opencode/skills/$blocked_subdir_rel" -type f 2>/dev/null | wc -l | tr -d ' ')"
 assert_ge "F5 source has files under symlinked subdir" "$expected_skips" 1
 link_path="$HOME5/.agents/skills/$blocked_subdir_rel"
 rm -rf "$link_path"

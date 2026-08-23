@@ -32,7 +32,7 @@ assert_exists "gone installed initially" "$HOME_DIR/.agents/skills/gone/SKILL.md
 GONE_HASH="$(sync_sha256 "$HOME_DIR/.agents/skills/gone/SKILL.md")"
 
 # Remove the "gone" source skill entirely.
-rm -rf "$FIX/.opencode/skills/gone"
+rm -rf "$FIX/templates/opencode/skills/gone"
 
 # Run 2: gone becomes an orphan => preserved + WARNING, alpha NOOP, exit 0.
 sync_capture "$OUT" "$SCRIPT" "$HOME_DIR"

@@ -22,8 +22,8 @@ trap 'rm -rf "$FIX" "$HOME_DIR"' EXIT
 SCRIPT="$FIX/scripts/sync-managed-skills.sh"
 OUT="$(mktemp)"
 
-mkdir -p "$FIX/.opencode/commands"
-cat > "$FIX/.opencode/commands/do-tasks.md" <<'CMD'
+mkdir -p "$FIX/templates/opencode/commands"
+cat > "$FIX/templates/opencode/commands/do-tasks.md" <<'CMD'
 ---
 description: Continue or finish existing approved tasks.
 agent: orchestrator
@@ -33,7 +33,7 @@ Drive the next approved task work. Arguments: $ARGUMENTS
 Multiple body lines preserved.
 CMD
 
-cat > "$FIX/.opencode/commands/plan.md" <<'CMD'
+cat > "$FIX/templates/opencode/commands/plan.md" <<'CMD'
 ---
 description: "Plan: a \"sprint\" now"
 agent: strategist

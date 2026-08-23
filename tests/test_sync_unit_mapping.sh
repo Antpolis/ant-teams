@@ -3,7 +3,7 @@
 # test_sync_unit_mapping.sh — SPEC-002 TEST-1.5: source-to-target path mapping.
 #
 # Traceability:
-#   - DM-3.1 source_skill .opencode/skills/<name>/<sub> -> ~/.agents/skills/<name>/<sub>.
+#   - DM-3.1 source_skill templates/opencode/skills/<name>/<sub> -> ~/.agents/skills/<name>/<sub>. (command-derived entries still record the literal `.opencode/commands/<name>.md` key — the engine contract.)
 #   - DM-3.2 command_derived .opencode/commands/<name>.md -> ~/.agents/skills/<name>/SKILL.md.
 #   - DM-3.3 command-derived dir contains ONLY SKILL.md (no other files).
 #   - FR-2.2a source skills copied in full (subdirs preserved).
@@ -22,14 +22,14 @@ MANIFEST="$HOME_DIR/.agents/skills/.manifest.json"
 OUT="$(mktemp)"
 
 # Source skill with nested subdirs + multiple files.
-mkdir -p "$FIX/.opencode/skills/multi/scripts" "$FIX/.opencode/skills/multi/references"
-printf -- '---\nname: multi\ndescription: m\n---\n\nmulti\n' > "$FIX/.opencode/skills/multi/SKILL.md"
-printf '#!/usr/bin/env bash\necho hi\n'        > "$FIX/.opencode/skills/multi/scripts/run.sh"
-printf 'reference text\n'                       > "$FIX/.opencode/skills/multi/references/ref.md"
+mkdir -p "$FIX/templates/opencode/skills/multi/scripts" "$FIX/templates/opencode/skills/multi/references"
+printf -- '---\nname: multi\ndescription: m\n---\n\nmulti\n' > "$FIX/templates/opencode/skills/multi/SKILL.md"
+printf '#!/usr/bin/env bash\necho hi\n'        > "$FIX/templates/opencode/skills/multi/scripts/run.sh"
+printf 'reference text\n'                       > "$FIX/templates/opencode/skills/multi/references/ref.md"
 
 # Command-derived skill.
-mkdir -p "$FIX/.opencode/commands"
-cat > "$FIX/.opencode/commands/do-tasks.md" <<'CMD'
+mkdir -p "$FIX/templates/opencode/commands"
+cat > "$FIX/templates/opencode/commands/do-tasks.md" <<'CMD'
 ---
 description: do things
 agent: orchestrator
@@ -51,7 +51,7 @@ assert_file_contains_str "nested run.sh content preserved" \
 
 # Manifest file keys are repository-relative source paths (DM-3.1).
 assert_eq "manifest has multi SKILL.md key" \
-  "$(sync_manifest_file_hash "$MANIFEST" multi ".opencode/skills/multi/SKILL.md" >/dev/null && echo present)" "present"
+  "$(sync_manifest_file_hash "$MANIFEST" multi "templates/opencode/skills/multi/SKILL.md" >/dev/null && echo present)" "present"
 
 # --- DM-3.2 / DM-3.3: command-derived -> <name>/SKILL.md only ----------------
 assert_exists "command-derived SKILL.md" "$HOME_DIR/.agents/skills/do-tasks/SKILL.md"

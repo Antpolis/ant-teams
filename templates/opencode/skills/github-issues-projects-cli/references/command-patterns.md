@@ -222,6 +222,21 @@ Resolve the project item ID for an issue:
 "$ANT_TEAM_SCRIPTS/gh_project_helper.sh" item-id ISSUE_NUMBER
 ```
 
+Curated board output contract: `set-status`, `set-status-id`, `list-items`, and `item-id` print curated JSON objects that always carry `issue_number`, `title`, `state`, and `url` (locked by `tests/test_gh_project_helper_board_output.js`). The two mutators re-read the board item AFTER the edit, so their printed `state` is the post-edit verification value — parse it directly instead of re-querying the board:
+
+```bash
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" set-status 37 "Ready"
+# {"issue_number":37,"title":"SPEC-003-T7: Local-first dual-record sync","state":"Ready","url":"https://github.com/Antpolis/ant-teams/issues/37"}
+
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" item-id 37
+# {"item_id":"PVTI_...","issue_number":37,"title":"...","url":"...","state":"Ready"}
+
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" list-items "Ready"
+# {"issue_number":37,"title":"...","assignees":["chrissim"],"url":"...","state":"Ready"}
+```
+
+`list-items` additionally reports `assignees`; `item-id` additionally reports `item_id`.
+
 Find the project item for a specific issue number directly:
 
 ```bash

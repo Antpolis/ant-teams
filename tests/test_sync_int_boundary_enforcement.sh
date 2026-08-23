@@ -31,9 +31,9 @@ MANIFEST="$HOME_DIR/.agents/skills/.manifest.json"
 OUT="$(mktemp)"
 
 # --- FR-7.2 / SEC-1.1: filename with '..' => exit 2, no write ---------------
-mkdir -p "$FIX/.opencode/skills/bad/sub..escape"
-printf -- '---\nname: bad\ndescription: b\n---\n\nbad\n' > "$FIX/.opencode/skills/bad/SKILL.md"
-printf 'escape\n' > "$FIX/.opencode/skills/bad/sub..escape/file.txt"
+mkdir -p "$FIX/templates/opencode/skills/bad/sub..escape"
+printf -- '---\nname: bad\ndescription: b\n---\n\nbad\n' > "$FIX/templates/opencode/skills/bad/SKILL.md"
+printf 'escape\n' > "$FIX/templates/opencode/skills/bad/sub..escape/file.txt"
 sync_capture "$OUT" "$SCRIPT" "$HOME_DIR"
 assert_eq "boundary violation exit 2" "$SYNC_RC" "2"
 assert_file_contains_str "boundary: error message" "$OUT" "[ERROR]"
@@ -43,9 +43,9 @@ assert_file_contains_str "boundary: traversal detected reason" "$OUT" "traversal
 assert_not_exists "boundary: escaping subdir not created" "$HOME_DIR/.agents/skills/bad/sub..escape"
 
 # --- SEC-2.2: malicious manifest target_path => no out-of-bounds write -------
-rm -rf "$HOME_DIR/.agents"; rm -rf "$FIX/.opencode/skills"
-mkdir -p "$FIX/.opencode/skills/alpha"
-printf -- '---\nname: alpha\ndescription: a\n---\n\nalpha\n' > "$FIX/.opencode/skills/alpha/SKILL.md"
+rm -rf "$HOME_DIR/.agents"; rm -rf "$FIX/templates/opencode/skills"
+mkdir -p "$FIX/templates/opencode/skills/alpha"
+printf -- '---\nname: alpha\ndescription: a\n---\n\nalpha\n' > "$FIX/templates/opencode/skills/alpha/SKILL.md"
 # On-disk alpha differs from source => "modified" => default run preserves it
 # and carries the (malicious) manifest_target forward, but NEVER writes to it.
 mkdir -p "$HOME_DIR/.agents/skills/alpha"
@@ -59,10 +59,10 @@ cat > "$MANIFEST" <<JSON
   "managed_entries": {
     "alpha": {
       "type": "source_skill",
-      "source_path": ".opencode/skills/alpha/",
+      "source_path": "templates/opencode/skills/alpha/",
       "installed_at": "2026-08-01T00:00:00Z",
       "files": {
-        ".opencode/skills/alpha/SKILL.md": {
+        "templates/opencode/skills/alpha/SKILL.md": {
           "hash": "0000000000000000000000000000000000000000000000000000000000000000",
           "target_path": "$OOB_DIR/escape.md"
         }

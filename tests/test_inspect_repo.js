@@ -4,7 +4,7 @@
 /*
  * tests/test_inspect_repo.js — SPEC-001-T1 unit tests.
  *
- * Runs `.opencode/skills/project-initialization/scripts/inspect_repo.js` against
+ * Runs `templates/opencode/skills/project-initialization/scripts/inspect_repo.js` against
  * every fixture under tests/fixtures/ and compares the JSON evidence record
  * against the canonical expected record under tests/expected/.
  *
@@ -35,7 +35,7 @@ const assert = require('assert');
 const REPO_ROOT = path.resolve(__dirname, '..');
 const SCRIPT = path.join(
   REPO_ROOT,
-  '.opencode/skills/project-initialization/scripts/inspect_repo.js'
+  'templates/opencode/skills/project-initialization/scripts/inspect_repo.js'
 );
 const FIXTURES_DIR = path.join(REPO_ROOT, 'tests', 'fixtures');
 const EXPECTED_DIR = path.join(REPO_ROOT, 'tests', 'expected');

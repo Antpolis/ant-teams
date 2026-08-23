@@ -4,7 +4,7 @@
 # full-directory copy.
 #
 # Traceability:
-#   - FR-2.2a every directory under .opencode/skills/<name>/ is copied in full
+#   - FR-2.2a every directory under templates/opencode/skills/<name>/ is copied in full
 #     to ~/.agents/skills/<name>/, including all subdirectories (scripts,
 #     references, assets, evals, agents, examples) and all files.
 #   - INT-1.2 the entire tree is copied recursively (excluding only in-skill
@@ -24,17 +24,17 @@ SCRIPT="$FIX/scripts/sync-managed-skills.sh"
 OUT="$(mktemp)"
 
 # A richly-structured source skill exercising nested subdirs + an executable.
-mkdir -p "$FIX/.opencode/skills/rich/scripts/nested" \
-         "$FIX/.opencode/skills/rich/references" \
-         "$FIX/.opencode/skills/rich/assets"
-printf -- '---\nname: rich\ndescription: r\n---\n\nrich\n' > "$FIX/.opencode/skills/rich/SKILL.md"
-printf '#!/usr/bin/env bash\necho run\n'                 > "$FIX/.opencode/skills/rich/scripts/run.sh"
-printf 'deep\n'                                          > "$FIX/.opencode/skills/rich/scripts/nested/deep.txt"
-printf 'ref\n'                                            > "$FIX/.opencode/skills/rich/references/ref.md"
-printf 'asset-data\n'                                     > "$FIX/.opencode/skills/rich/assets/logo.bin"
-chmod 0755 "$FIX/.opencode/skills/rich/scripts/run.sh"
+mkdir -p "$FIX/templates/opencode/skills/rich/scripts/nested" \
+         "$FIX/templates/opencode/skills/rich/references" \
+         "$FIX/templates/opencode/skills/rich/assets"
+printf -- '---\nname: rich\ndescription: r\n---\n\nrich\n' > "$FIX/templates/opencode/skills/rich/SKILL.md"
+printf '#!/usr/bin/env bash\necho run\n'                 > "$FIX/templates/opencode/skills/rich/scripts/run.sh"
+printf 'deep\n'                                          > "$FIX/templates/opencode/skills/rich/scripts/nested/deep.txt"
+printf 'ref\n'                                            > "$FIX/templates/opencode/skills/rich/references/ref.md"
+printf 'asset-data\n'                                     > "$FIX/templates/opencode/skills/rich/assets/logo.bin"
+chmod 0755 "$FIX/templates/opencode/skills/rich/scripts/run.sh"
 # An in-skill .gitignore that must be EXCLUDED from the install target (INT-1.2).
-printf 'ignored\n' > "$FIX/.opencode/skills/rich/.gitignore"
+printf 'ignored\n' > "$FIX/templates/opencode/skills/rich/.gitignore"
 
 sync_capture "$OUT" "$SCRIPT" "$HOME_DIR"
 assert_exit_zero "full-dir install exit 0" "$SYNC_RC"
@@ -56,7 +56,7 @@ assert_exec "executable script preserves exec bit" "$T/scripts/run.sh"
 assert_not_exists ".gitignore excluded from install" "$T/.gitignore"
 
 # Tree identical to source excluding .gitignore (AC-9.1).
-DIFF_OUT="$(diff -r "$FIX/.opencode/skills/rich" "$T" 2>&1 || true)"
+DIFF_OUT="$(diff -r "$FIX/templates/opencode/skills/rich" "$T" 2>&1 || true)"
 if echo "$DIFF_OUT" | grep -qv 'Only in.*\.gitignore'; then
   if [[ -z "$DIFF_OUT" ]]; then
     check OK "source tree installed intact"

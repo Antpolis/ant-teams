@@ -66,7 +66,7 @@ const assert = require('assert');
 const REPO_ROOT = path.resolve(__dirname, '..');
 const INIT_SCRIPT = path.join(
   REPO_ROOT,
-  '.opencode/skills/project-initialization/scripts/init_project_docs.sh'
+  'templates/opencode/skills/project-initialization/scripts/init_project_docs.sh'
 );
 
 let passed = 0;
@@ -112,8 +112,8 @@ function walkFiles(dir, exts, out = []) {
 
 function activeMarkdownSurfaces() {
   return [
-    ...walkFiles('.opencode/skills', ['.md']),
-    ...walkFiles('.opencode/commands', ['.md']),
+    ...walkFiles('templates/opencode/skills', ['.md']),
+    ...walkFiles('templates/opencode/commands', ['.md']),
     'README.md',
     'AGENTS.md',
     '.github/ISSUE_TEMPLATE/task.yml',
@@ -123,7 +123,7 @@ function activeMarkdownSurfaces() {
 function activeScriptSurfaces() {
   return [
     ...walkFiles('scripts', ['.sh']),
-    ...walkFiles('.opencode/skills', ['.sh']),
+    ...walkFiles('templates/opencode/skills', ['.sh']),
   ];
 }
 
@@ -189,14 +189,14 @@ const OPTION_VAR_NAMES = [
 // --- INV-1: canonical state model in skills + metadata -----------------------
 
 check('INV-1a: state-transitions defines the canonical happy path in order', () => {
-  const s = read('.opencode/skills/state-transitions/SKILL.md');
+  const s = read('templates/opencode/skills/state-transitions/SKILL.md');
   mustContain(s, '`Open` -> `Backlog` -> `Ready` -> `In Progress` -> `In Review` -> `Ready to Merge` -> `Done`', 'state-transitions');
   mustContain(s, '`Open` -> `Backlog`', 'state-transitions');
   mustContain(s, '`Backlog` -> `Ready`', 'state-transitions');
 });
 
 check('INV-1b: state-transitions has no legacy Inbox/Shaping transitions', () => {
-  const s = read('.opencode/skills/state-transitions/SKILL.md');
+  const s = read('templates/opencode/skills/state-transitions/SKILL.md');
   mustNotContain(s, '### `Inbox`', 'state-transitions');
   mustNotContain(s, '### `Shaping`', 'state-transitions');
   // Legacy names may only appear in the explicit legacy-alias note.
@@ -207,32 +207,32 @@ check('INV-1b: state-transitions has no legacy Inbox/Shaping transitions', () =>
 
 check('INV-1c: Need attentions is founder-only after strategist and tech-lead review', () => {
   const files = [
-    '.opencode/skills/state-transitions/SKILL.md',
-    '.opencode/skills/approval-or-escalation/SKILL.md',
-    '.opencode/skills/github-agentic-delivery-flow/SKILL.md',
-    '.opencode/skills/github-conventions/SKILL.md',
+    'templates/opencode/skills/state-transitions/SKILL.md',
+    'templates/opencode/skills/approval-or-escalation/SKILL.md',
+    'templates/opencode/skills/github-agentic-delivery-flow/SKILL.md',
+    'templates/opencode/skills/github-conventions/SKILL.md',
   ];
   for (const f of files) {
     const s = read(f);
     mustContain(s, 'founder-only', f);
   }
-  const st = read('.opencode/skills/state-transitions/SKILL.md');
+  const st = read('templates/opencode/skills/state-transitions/SKILL.md');
   mustContain(st, 'after strategist and tech-lead review', 'state-transitions');
 });
 
 check('INV-1d: Blocked is an exception state, any state may enter, typically In Progress/In Review', () => {
-  const st = read('.opencode/skills/state-transitions/SKILL.md');
+  const st = read('templates/opencode/skills/state-transitions/SKILL.md');
   mustContain(st, 'Any State` -> `Blocked` (exception)', 'state-transitions');
   mustContain(st, 'typically `In Progress` or `In Review`', 'state-transitions');
 });
 
 check('INV-1e: flow and conventions skills list the canonical states, not legacy ones', () => {
-  const flow = read('.opencode/skills/github-agentic-delivery-flow/SKILL.md');
+  const flow = read('templates/opencode/skills/github-agentic-delivery-flow/SKILL.md');
   mustContain(flow, '- `Open`', 'github-agentic-delivery-flow');
   mustContain(flow, '- `Backlog`', 'github-agentic-delivery-flow');
   mustNotContain(flow, '- `Inbox`', 'github-agentic-delivery-flow');
   mustNotContain(flow, '- `Shaping`', 'github-agentic-delivery-flow');
-  const conv = read('.opencode/skills/github-conventions/SKILL.md');
+  const conv = read('templates/opencode/skills/github-conventions/SKILL.md');
   mustContain(conv, '- `Open`', 'github-conventions');
   mustContain(conv, '- `Backlog`', 'github-conventions');
   mustNotContain(conv, '- `Inbox`', 'github-conventions');
@@ -249,11 +249,11 @@ check('INV-2a: no .github-project.json config exists (env-only contract)', () =>
 });
 
 check('INV-2b: state-transitions and the helper carry the canonical model as constants', () => {
-  const st = read('.opencode/skills/state-transitions/SKILL.md');
+  const st = read('templates/opencode/skills/state-transitions/SKILL.md');
   for (const state of [...CANONICAL_STATES, ...EXCEPTION_STATES]) {
     mustContain(st, state, 'state-transitions canonical state name');
   }
-  const h = read('.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh');
+  const h = read('templates/opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh');
   mustContain(h, 'CANONICAL_FIELD_NAME="Workflow State"', 'helper');
 });
 
@@ -277,20 +277,20 @@ check('INV-2c: .github-project.env carries the canonical Workflow State field an
 // --- INV-3: helper targets Workflow State, never mutates remote options ------
 
 check('INV-3a: gh_project_helper targets the canonical Workflow State field', () => {
-  const h = read('.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh');
+  const h = read('templates/opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh');
   mustContain(h, 'CANONICAL_FIELD_NAME="Workflow State"', 'helper');
   mustContain(h, 'ANT_TEAM_GITHUB_WORKFLOW_STATE_FIELD_ID', 'helper');
   mustContain(h, 'ANT_TEAM_GITHUB_WORKFLOW_STATE_OPTION_', 'helper');
 });
 
 check('INV-3b: helper contains no legacy Status-field selection or list-todo', () => {
-  const h = read('.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh');
+  const h = read('templates/opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh');
   mustNotContain(h, 'select(.name == "Status")', 'helper');
   mustNotContain(h, 'list-todo', 'helper');
 });
 
 check('INV-3c: helper performs no option-mutating mutations (no field/option create or rename)', () => {
-  const h = read('.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh');
+  const h = read('templates/opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh');
   mustNotContain(h, 'field-update', 'helper');
   mustNotContain(h, 'option-update', 'helper');
   mustNotContain(h, 'updateProjectV2Field', 'helper'); // raw GraphQL option mutation
@@ -298,21 +298,21 @@ check('INV-3c: helper performs no option-mutating mutations (no field/option cre
 });
 
 check('INV-3d: helper resolves option IDs by exact remote name or known local IDs only', () => {
-  const h = read('.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh');
+  const h = read('templates/opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh');
   mustContain(h, 'select(.name == $state)', 'helper');
 });
 
 // --- INV-4: record split ------------------------------------------------------
 
 check('INV-4a: top-level flow skill states the Obsidian/GitHub record split', () => {
-  const flow = read('.opencode/skills/github-agentic-delivery-flow/SKILL.md');
+  const flow = read('templates/opencode/skills/github-agentic-delivery-flow/SKILL.md');
   mustContain(flow, 'central Obsidian project folder is the canonical full agent communication and role-memory record', 'flow skill');
   mustContain(flow, 'GitHub issue comments and PR comments carry only final decisions, status, closure, and code-review results', 'flow skill');
 });
 
 check('INV-4b: no skill or agent prompt still claims GitHub comments are the canonical handoff log', () => {
   const offenders = [];
-  const roots = ['.opencode/skills', '.opencode/commands', 'AGENTS.md'];
+  const roots = ['templates/opencode/skills', 'templates/opencode/commands', 'AGENTS.md'];
   const walk = (dir) => {
     for (const e of fs.readdirSync(path.join(REPO_ROOT, dir), { withFileTypes: true })) {
       const rel = path.join(dir, e.name);
@@ -327,13 +327,13 @@ check('INV-4b: no skill or agent prompt still claims GitHub comments are the can
     if (fs.statSync(full).isDirectory()) walk(r);
     else if (read(r).includes('canonical handoff and review log')) offenders.push(r);
   }
-  const oc = read('.opencode/opencode.json');
-  if (oc.includes('canonical handoff and review log')) offenders.push('.opencode/opencode.json');
+  const oc = read('templates/opencode/opencode.json');
+  if (oc.includes('canonical handoff and review log')) offenders.push('templates/opencode/opencode.json');
   assert.deepStrictEqual(offenders, [], 'no file may claim GitHub comments are the canonical handoff log');
 });
 
 check('INV-4c: agent prompts carry the Obsidian record rule', () => {
-  const oc = JSON.parse(read('.opencode/opencode.json'));
+  const oc = JSON.parse(read('templates/opencode/opencode.json'));
   const agents = Object.values(oc.agent || {});
   assert.ok(agents.length >= 5, 'expected at least 5 role agents');
   for (const a of agents) {
@@ -344,12 +344,12 @@ check('INV-4c: agent prompts carry the Obsidian record rule', () => {
 // --- INV-5: tech-lead owns merge and cleanup ---------------------------------
 
 check('INV-5a: tech-lead merge gate stays exclusive', () => {
-  const flow = read('.opencode/skills/github-agentic-delivery-flow/SKILL.md');
+  const flow = read('templates/opencode/skills/github-agentic-delivery-flow/SKILL.md');
   mustContain(flow, 'Tech-lead is the only role that merges', 'flow skill');
 });
 
 check('INV-5b: tech-lead owns post-merge cleanup', () => {
-  const oc = JSON.parse(read('.opencode/opencode.json'));
+  const oc = JSON.parse(read('templates/opencode/opencode.json'));
   const agents = Object.values(oc.agent || {});
   const techLead = agents.find((a) => (a.prompt || '').includes('technical gatekeeper'));
   assert.ok(techLead, 'tech-lead agent prompt not found');
@@ -357,7 +357,7 @@ check('INV-5b: tech-lead owns post-merge cleanup', () => {
   const builder = agents.find((a) => (a.prompt || '').includes('You implement approved work'));
   assert.ok(builder, 'builder agent prompt not found');
   mustNotContain(builder.prompt, 'clean up the task worktree and local branch once they are no longer needed', 'builder prompt');
-  const doTask = read('.opencode/skills/do-task/SKILL.md');
+  const doTask = read('templates/opencode/skills/do-task/SKILL.md');
   mustContain(doTask, '`tech-lead` cleans up the issue worktree and local branch', 'do-task skill');
 });
 
@@ -395,7 +395,7 @@ check('INV-6c: init-project wrappers route through ANT_TEAM_SCRIPTS', () => {
   mustContain(w, '${ANT_TEAM_SCRIPTS:', 'init-project.sh');
   mustContain(w, 'init-company.sh', 'init-project.sh');
   mustNotContain(w, '$(dirname "$0")/../.opencode', 'init-project.sh');
-  const wrappers = ['scripts/create-task-branch.sh', 'scripts/cleanup-task-worktree.sh'];
+  const wrappers = ['templates/scripts/create-task-branch.sh', 'templates/scripts/cleanup-task-worktree.sh'];
   for (const f of wrappers) {
     mustContain(read(f), '${ANT_TEAM_SCRIPTS:', f);
   }
@@ -411,13 +411,13 @@ check('INV-6d: sync-company installs team scripts and exports ANT_TEAM_SCRIPTS',
 
 check('INV-7a: /migrate command file is gone', () => {
   assert.ok(
-    !fs.existsSync(path.join(REPO_ROOT, '.opencode/commands/migrate.md')),
-    '.opencode/commands/migrate.md must not exist'
+    !fs.existsSync(path.join(REPO_ROOT, 'templates/opencode/commands/migrate.md')),
+    'templates/opencode/commands/migrate.md must not exist'
   );
 });
 
 check('INV-7b: init engine has no --migrate-agent-md flag', () => {
-  const s = read('.opencode/skills/project-initialization/scripts/init_project_docs.sh');
+  const s = read('templates/opencode/skills/project-initialization/scripts/init_project_docs.sh');
   mustNotContain(s, '--migrate-agent-md', 'init engine');
   mustNotContain(s, 'opt_migrate_agent_md', 'init engine');
 });
@@ -425,7 +425,7 @@ check('INV-7b: init engine has no --migrate-agent-md flag', () => {
 // --- INV-8: orchestrator model ------------------------------------------------
 
 check('INV-8: orchestrator agent model is openai/gpt-5.6-luna-fast', () => {
-  const oc = JSON.parse(read('.opencode/opencode.json'));
+  const oc = JSON.parse(read('templates/opencode/opencode.json'));
   assert.ok(oc.agent && oc.agent.orchestrator, 'orchestrator agent not found');
   assert.strictEqual(oc.agent.orchestrator.model, 'openai/gpt-5.6-luna-fast');
 });
@@ -532,15 +532,15 @@ check('INV-10a: AGENTS.md is the primary runtime guidance for .github-project.en
 // documentation paths. Every JSON mention must sit in an allowed context:
 // env-paired, no-JSON, or canonical-source.
 const RUNTIME_FACING_GUIDANCE_FILES = [
-  '.opencode/commands/plan-sprint.md',
-  '.opencode/commands/sprint-clean.md',
-  '.opencode/commands/sync-spec.md',
-  '.opencode/skills/documentation-standard/SKILL.md',
-  '.opencode/skills/agent-communication-log/SKILL.md',
-  '.opencode/skills/role-memory/SKILL.md',
-  '.opencode/skills/founder-escalation-preflight/SKILL.md',
-  '.opencode/skills/pr-review-flow/SKILL.md',
-  '.opencode/skills/development-hygiene/SKILL.md',
+  'templates/opencode/commands/plan-sprint.md',
+  'templates/opencode/commands/sprint-clean.md',
+  'templates/opencode/commands/sync-spec.md',
+  'templates/opencode/skills/documentation-standard/SKILL.md',
+  'templates/opencode/skills/agent-communication-log/SKILL.md',
+  'templates/opencode/skills/role-memory/SKILL.md',
+  'templates/opencode/skills/founder-escalation-preflight/SKILL.md',
+  'templates/opencode/skills/pr-review-flow/SKILL.md',
+  'templates/opencode/skills/development-hygiene/SKILL.md',
   'AGENTS.md',
 ];
 const JSON_MENTION_ALLOWED_CONTEXT = [
@@ -596,9 +596,9 @@ check('INV-11a: no active surface claims GitHub comments are the canonical/durab
       if (read(f).includes(phrase)) offenders.push(`${f}: ${phrase}`);
     }
   }
-  const oc = read('.opencode/opencode.json');
+  const oc = read('templates/opencode/opencode.json');
   for (const phrase of GITHUB_AUTHORITY_PHRASES) {
-    if (oc.includes(phrase)) offenders.push(`.opencode/opencode.json: ${phrase}`);
+    if (oc.includes(phrase)) offenders.push(`templates/opencode/opencode.json: ${phrase}`);
   }
   assert.deepStrictEqual(
     offenders,
@@ -610,17 +610,17 @@ check('INV-11a: no active surface claims GitHub comments are the canonical/durab
 
 check('INV-11b: the finding-1 files route the full record through Obsidian', () => {
   const files = [
-    '.opencode/skills/how-to-create-task/SKILL.md',
-    '.opencode/commands/new-spec.md',
-    '.opencode/commands/deliver.md',
-    '.opencode/skills/product-shaping/SKILL.md',
+    'templates/opencode/skills/how-to-create-task/SKILL.md',
+    'templates/opencode/commands/new-spec.md',
+    'templates/opencode/commands/deliver.md',
+    'templates/opencode/skills/product-shaping/SKILL.md',
   ];
   for (const f of files) {
     const s = read(f);
     mustContain(s, 'Obsidian', f);
     mustNotContain(s, 'only canonical collaboration log', f);
   }
-  const log = read('.opencode/skills/agent-communication-log/SKILL.md');
+  const log = read('templates/opencode/skills/agent-communication-log/SKILL.md');
   mustContain(log, 'The full agent communication and role-memory record is stored in Obsidian', 'agent-communication-log');
   mustContain(
     log,
@@ -674,9 +674,9 @@ check('INV-12c: no backticked legacy states on active surfaces outside legacy-al
 
 check('INV-12d: sprint/spec command surfaces use Open/Backlog semantics, not Shaping', () => {
   const files = [
-    '.opencode/commands/new-spec.md',
-    '.opencode/commands/sync-spec.md',
-    '.opencode/commands/plan-sprint.md',
+    'templates/opencode/commands/new-spec.md',
+    'templates/opencode/commands/sync-spec.md',
+    'templates/opencode/commands/plan-sprint.md',
   ];
   for (const f of files) {
     const s = read(f);
@@ -707,11 +707,11 @@ check('INV-13a: no legacy role names on active surfaces', () => {
     }
     if (/\b(CPO|CTO)\b/.test(c)) offenders.push(`${f}: CPO/CTO`);
   }
-  const oc = read('.opencode/opencode.json');
+  const oc = read('templates/opencode/opencode.json');
   for (const term of OLD_ROLE_TERMS) {
     if (oc.includes(term)) offenders.push(`.opencode/opencode.json: ${term}`);
   }
-  if (/\b(CPO|CTO)\b/.test(oc)) offenders.push('.opencode/opencode.json: CPO/CTO');
+  if (/\b(CPO|CTO)\b/.test(oc)) offenders.push('templates/opencode/opencode.json: CPO/CTO');
   assert.deepStrictEqual(
     offenders,
     [],
@@ -769,8 +769,8 @@ check('INV-14b: README makes no retired command, role, or script claims', () => 
 check('INV-15: no ANT_TEAM_GITHUB_STATUS_* legacy keys in the env or its seed sources', () => {
   const files = [
     '.github-project.env',
-    '.opencode/skills/project-initialization/scripts/init_project_docs.sh',
-    '.opencode/skills/github-issues-projects-cli/references/command-patterns.md',
+    'templates/opencode/skills/project-initialization/scripts/init_project_docs.sh',
+    'templates/opencode/skills/github-issues-projects-cli/references/command-patterns.md',
   ];
   for (const f of files) {
     mustNotContain(read(f), 'ANT_TEAM_GITHUB_STATUS_', f);
@@ -788,7 +788,6 @@ check('INV-16: ANT_TEAM_DOCS_PROJECT_PATH_TEMPLATE is retired', () => {
     ...activeMarkdownSurfaces(),
     ...activeScriptSurfaces(),
     '.github-project.env',
-    'OBSIDIAN_VAULT.md',
   ];
   for (const f of files) {
     if (read(f).includes('ANT_TEAM_DOCS_PROJECT_PATH_TEMPLATE')) offenders.push(f);

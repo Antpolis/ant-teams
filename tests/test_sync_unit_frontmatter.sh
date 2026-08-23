@@ -32,8 +32,8 @@ gen_and_read() {
 }
 
 # --- FR-4.1/4.2/4.3: valid frontmatter, agent dropped, $ARGUMENTS preserved ---
-mkdir -p "$FIX/.opencode/commands"
-cat > "$FIX/.opencode/commands/do-tasks.md" <<'CMD'
+mkdir -p "$FIX/templates/opencode/commands"
+cat > "$FIX/templates/opencode/commands/do-tasks.md" <<'CMD'
 ---
 description: Continue or finish existing approved tasks.
 agent: orchestrator
@@ -59,8 +59,8 @@ assert_gt "description before disable" "$DMI_LN" "$DESC_LN"
 
 # --- INT-2.2b: description with colon + quotes copied verbatim ---------------
 rm -rf "$HOME_DIR/.agents"
-mkdir -p "$FIX/.opencode/commands"
-cat > "$FIX/.opencode/commands/plan-sprint.md" <<'CMD'
+mkdir -p "$FIX/templates/opencode/commands"
+cat > "$FIX/templates/opencode/commands/plan-sprint.md" <<'CMD'
 ---
 description: "Plan: a \"sprint\" with care"
 agent: strategist
@@ -74,7 +74,7 @@ assert_file_contains_str "description with colon+quotes preserved" \
 
 # --- INT-2.2c: missing description => empty string ---------------------------
 rm -rf "$HOME_DIR/.agents"
-cat > "$FIX/.opencode/commands/fix-bug.md" <<'CMD'
+cat > "$FIX/templates/opencode/commands/fix-bug.md" <<'CMD'
 ---
 agent: builder
 ---
@@ -88,8 +88,8 @@ assert_file_contains_str "missing description defaults empty" \
 # --- INT-2.2d: no frontmatter at all => body is whole file, desc "" ----------
 rm -rf "$HOME_DIR/.agents"
 # Remove all commands except one with no frontmatter.
-rm -f "$FIX/.opencode/commands/"*.md
-printf '%s\n' 'Just a body with no frontmatter at all.' > "$FIX/.opencode/commands/bare.md"
+rm -f "$FIX/templates/opencode/commands/"*.md
+printf '%s\n' 'Just a body with no frontmatter at all.' > "$FIX/templates/opencode/commands/bare.md"
 gen_and_read bare >/dev/null
 assert_file_contains_str "no-frontmatter: name set" \
   "$HOME_DIR/.agents/skills/bare/SKILL.md" 'name: bare'
@@ -100,8 +100,8 @@ assert_file_contains_str "no-frontmatter: body preserved" \
 
 # --- ERR-1.1: unclosed frontmatter => WARNING + default desc, body from L2 ----
 rm -rf "$HOME_DIR/.agents"
-rm -f "$FIX/.opencode/commands/"*.md
-cat > "$FIX/.opencode/commands/broken.md" <<'CMD'
+rm -f "$FIX/templates/opencode/commands/"*.md
+cat > "$FIX/templates/opencode/commands/broken.md" <<'CMD'
 ---
 description: never closed
 this is still body-ish
@@ -116,8 +116,8 @@ assert_file_contains_str "unclosed frontmatter: name still set" \
 
 # --- FR-4.1d: generated SKILL.md has a trailing newline ----------------------
 rm -rf "$HOME_DIR/.agents"
-rm -f "$FIX/.opencode/commands/"*.md
-printf '%s' 'no trailing newline in source body' > "$FIX/.opencode/commands/trail.md"
+rm -f "$FIX/templates/opencode/commands/"*.md
+printf '%s' 'no trailing newline in source body' > "$FIX/templates/opencode/commands/trail.md"
 gen_and_read trail >/dev/null
 LAST_BYTE="$(( $(wc -c < "$HOME_DIR/.agents/skills/trail/SKILL.md") ))"
 # Verify the file ends with a newline (FR-4.1d) by reading last char.

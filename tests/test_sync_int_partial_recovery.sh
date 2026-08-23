@@ -30,8 +30,8 @@ OUT="$(mktemp)"
 # Two source skills.
 sync_write_skill "$FIX" "alpha" $'---\nname: alpha\ndescription: a\n---\n\nalpha\n'
 sync_write_skill "$FIX" "beta"  $'---\nname: beta\ndescription: b\n---\n\nbeta original\n'
-ALPHA_SRC="$FIX/.opencode/skills/alpha/SKILL.md"
-BETA_SRC="$FIX/.opencode/skills/beta/SKILL.md"
+ALPHA_SRC="$FIX/templates/opencode/skills/alpha/SKILL.md"
+BETA_SRC="$FIX/templates/opencode/skills/beta/SKILL.md"
 
 # Simulate a crash AFTER file writes but BEFORE manifest commit:
 #  - alpha on disk, content MATCHES source (recoverable as NOOP).

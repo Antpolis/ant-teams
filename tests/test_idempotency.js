@@ -5,7 +5,7 @@
  * tests/test_idempotency.js — SPEC-001-T6 unit tests (issue #7).
  *
  * Asserts the TR-2 idempotency contract and ERR-3.2 backup behavior. Drives
- * `.opencode/skills/project-initialization/scripts/init_project_docs.sh`
+ * `templates/opencode/skills/project-initialization/scripts/init_project_docs.sh`
  * against throwaway target project directories.
  *
  * Coverage:
@@ -35,7 +35,7 @@ const assert = require('assert');
 const REPO_ROOT = path.resolve(__dirname, '..');
 const INIT_SCRIPT = path.join(
   REPO_ROOT,
-  '.opencode/skills/project-initialization/scripts/init_project_docs.sh'
+  'templates/opencode/skills/project-initialization/scripts/init_project_docs.sh'
 );
 
 let pass = 0;

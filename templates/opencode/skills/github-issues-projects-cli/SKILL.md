@@ -244,6 +244,23 @@ Assume issue-to-project linking is usually automatic in this repository workflow
 
 Use the project item ID whenever you need to update project status or any project field for that issue.
 
+### Curated Board Command Output Contract
+
+The curated board commands do not merely call the underlying CLI — they return useful structured results. `set-status`, `set-status-id`, `list-items`, and `item-id` print curated JSON objects that always carry `issue_number`, `title`, `state`, and `url`:
+
+- `set-status ISSUE_NUMBER "Ready"` and `set-status-id ISSUE_NUMBER OPTION_ID` print exactly `{"issue_number", "title", "state", "url"}` after the edit, where `state` is re-read from the board AFTER the mutation — the printed object is the verification, so an edit that silently failed cannot report a stale state
+- `list-items [state]` prints one object per item with `issue_number`, `title`, `state`, `url`, and `assignees` (filtered on the canonical `Workflow State` field when a state name is given)
+- `item-id ISSUE_NUMBER` prints `{"item_id", "issue_number", "title", "url", "state"}` so the ID lookup doubles as a state check
+
+Example (founder demo contract):
+
+```bash
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" set-status 37 "Ready"
+# {"issue_number":37,"title":"SPEC-003-T7: Local-first dual-record sync","state":"Ready","url":"https://github.com/Antpolis/ant-teams/issues/37"}
+```
+
+Treat these shapes as a locked contract (`tests/test_gh_project_helper_board_output.js`); parse them directly instead of re-querying the board after a mutation.
+
 ### List Issues In A Workflow State
 
 Use:

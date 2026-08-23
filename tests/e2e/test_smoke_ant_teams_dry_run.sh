@@ -21,9 +21,9 @@
 #   3. `git ls-files --others --exclude-standard` list BEFORE and AFTER —
 #      catches any new untracked non-ignored file init might create.
 #   4. Direct sha256 of every init-managed artifact (AGENTS.md if present,
-#      .github-project.env if present, the entire .opencode/skills/ tree)
+#      .github-project.env if present, the entire templates/opencode/skills/ tree)
 #      BEFORE and AFTER — catches mutations even when the path is untracked
-#      or ignored (e.g. .opencode/.gitignore'd entries), where git status
+#      or ignored (e.g. templates/opencode/.gitignore'd entries), where git status
 #      would be silent.
 #   5. sourceable-env validation of `.github-project.env` when present
 #      (AC-SPEC-008): sourceable with canonical ANT_TEAM_* keys present.
@@ -70,10 +70,10 @@ fi
 # Sanity: the live ant-teams shape really is there. The smoke test's value
 # depends on exercising the actual repo, so a missing source init tree would
 # make the test trivially pass without exercising anything.
-assert_exists "live checkout has .opencode/skills (source repo init tree)" \
-  "$REPO_ROOT/.opencode/skills"
+assert_exists "live checkout has templates/opencode/skills (source repo init tree)" \
+  "$REPO_ROOT/templates/opencode/skills"
 assert_exists "live checkout has init_project_docs.sh" \
-  "$REPO_ROOT/.opencode/skills/project-initialization/scripts/init_project_docs.sh"
+  "$REPO_ROOT/templates/opencode/skills/project-initialization/scripts/init_project_docs.sh"
 
 LOG=$(mktemp)
 trap 'rm -f "$LOG" "$LOG.gh-validate"' EXIT
@@ -112,7 +112,7 @@ GIT_STATUS_BEFORE=$( cd "$REPO_ROOT" && git status --porcelain=v1 | sort | sha25
 #     (issue #11 self-init pending); hash when present.
 AGENTS_PATH="$REPO_ROOT/AGENTS.md"
 GH_PATH="$REPO_ROOT/.github-project.env"
-SKILLS_TREE_BEFORE=$( e2e_snapshot_files "$REPO_ROOT/.opencode/skills" \
+SKILLS_TREE_BEFORE=$( e2e_snapshot_files "$REPO_ROOT/templates/opencode/skills" \
   | sha256sum | cut -d' ' -f1 )
 AGENTS_HASH_BEFORE=""
 if [[ -f "$AGENTS_PATH" ]]; then
@@ -176,9 +176,9 @@ assert_eq "git status porcelain unchanged (live checkout)" \
 
 # Init-managed artifacts: byte-identical before/after, AND present (not
 # silently deleted by a misrouted dry-run branch).
-SKILLS_TREE_AFTER=$( e2e_snapshot_files "$REPO_ROOT/.opencode/skills" \
+SKILLS_TREE_AFTER=$( e2e_snapshot_files "$REPO_ROOT/templates/opencode/skills" \
   | sha256sum | cut -d' ' -f1 )
-assert_eq ".opencode/skills tree byte-identical (live checkout)" \
+assert_eq "templates/opencode/skills tree byte-identical (live checkout)" \
   "$SKILLS_TREE_BEFORE" "$SKILLS_TREE_AFTER"
 
 if [[ -n "$AGENTS_HASH_BEFORE" ]]; then

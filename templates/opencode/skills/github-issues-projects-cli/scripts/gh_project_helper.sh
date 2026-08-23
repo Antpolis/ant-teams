@@ -87,6 +87,11 @@ Usage:
 
 Notes:
   - all board operations target the canonical "Workflow State" project field
+  - curated board output contract: set-status, set-status-id, list-items, and
+    item-id print curated JSON objects that always carry issue_number, title,
+    state, and url (list-items also reports assignees; item-id also reports
+    item_id). set-status / set-status-id re-read the board item AFTER the
+    edit, so the printed state is the post-edit verification value
   - canonical state model: Open -> Backlog -> Ready -> In Progress -> In Review
     -> Ready to Merge -> Done; exceptions: Need attentions (founder-only) and
     Blocked
@@ -412,13 +417,14 @@ print_item_id() {
   local issue_number="$3"
 
   gh project item-list "$project_number" --owner "$owner" --format json \
-    | jq --argjson n "$issue_number" '.items[]
+    | jq -r --argjson n "$issue_number" --arg key "$CANONICAL_ITEM_KEY" '.items[]
       | select(.content.number == $n)
       | {
           item_id: .id,
           issue_number: .content.number,
           title: (.content.title // ""),
-          url: (.content.url // "")
+          url: (.content.url // ""),
+          state: (.[$key] // "")
         }'
 }
 

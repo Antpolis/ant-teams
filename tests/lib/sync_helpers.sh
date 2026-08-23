@@ -20,10 +20,12 @@
 # Two fixture strategies are supported:
 #   1. Controlled fixture repo (TEST-1 unit + TEST-2 integration): the REAL
 #      `scripts/sync-managed-skills.sh` is COPIED into a temp repo at
-#      `<fix>/scripts/`, and a controlled `.opencode/{skills,commands}/` is
-#      staged alongside it. The script resolves REPO_ROOT from its own
-#      location (`dirname/..`), so it reads the fixture's `.opencode/` while
-#      running the production code path byte-for-byte.
+#      `<fix>/scripts/`, and a controlled `templates/opencode/{skills,commands}`
+#      is staged alongside it. The script resolves REPO_ROOT from its own
+#      location (`dirname/..`) and reads its managed sources from
+#      `templates/opencode/` (post-restructure canonical layout, commit
+#      3bb6ec4), so fixtures stage that tree while running the production
+#      code path byte-for-byte.
 #   2. Real repo (TEST-3 E2E): the real repo script + real
 #      `templates/opencode/` are exercised directly with `$HOME` overridden,
 #      validating the real install counts (31 source skills + 7
@@ -86,12 +88,14 @@ sync_count_files_recursively() {
 # ---------------------------------------------------------------------------
 
 # sync_make_fixture_repo — mktemp -d a fixture repo, copy the REAL script into
-# <fix>/scripts/, and create empty <fix>/.opencode/{skills,commands}/. Echoes
-# the fixture root path. Each test then stages the skills/commands it needs.
+# <fix>/scripts/, and create empty <fix>/templates/opencode/{skills,commands}/.
+# Echoes the fixture root path. Each test then stages the skills/commands it
+# needs. (The managed-sync engine reads templates/opencode/ — the repo-local
+# .opencode/ mirror was retired in the 3bb6ec4 restructure.)
 sync_make_fixture_repo() {
   local fix
   fix="$(mktemp -d 2>/dev/null || mktemp -d -t synctests)"
-  mkdir -p "$fix/scripts" "$fix/.opencode/skills" "$fix/.opencode/commands"
+  mkdir -p "$fix/scripts" "$fix/templates/opencode/skills" "$fix/templates/opencode/commands"
   cp "$SYNC_REAL_SCRIPT" "$fix/scripts/sync-managed-skills.sh"
   chmod 0755 "$fix/scripts/sync-managed-skills.sh" 2>/dev/null || true
   printf '%s' "$fix"
@@ -99,8 +103,8 @@ sync_make_fixture_repo() {
 
 # sync_make_fixture_repo_with_company — like the above but also copies the real
 # init-company.sh (for tests that exercise the two-target coordinator). The
-# canonical install source is the fixture's `.opencode/`, so a real run is
-# isolated. Echoes the fixture root path.
+# canonical install source is the fixture's `templates/opencode/`, so a real
+# run is isolated. Echoes the fixture root path.
 sync_make_fixture_repo_with_company() {
   local fix
   fix="$(sync_make_fixture_repo)"
@@ -119,35 +123,36 @@ sync_make_home() {
 }
 
 # sync_write_skill FIX NAME SKILLMD_BODY — create a minimal source skill
-# <fix>/.opencode/skills/<NAME>/SKILL.md with the given body.
+# <fix>/templates/opencode/skills/<NAME>/SKILL.md with the given body.
 sync_write_skill() {
   local fix="$1" name="$2" body="$3"
-  mkdir -p "$fix/.opencode/skills/$name"
-  printf '%s' "$body" > "$fix/.opencode/skills/$name/SKILL.md"
+  mkdir -p "$fix/templates/opencode/skills/$name"
+  printf '%s' "$body" > "$fix/templates/opencode/skills/$name/SKILL.md"
 }
 
 # sync_write_skill_file FIX NAME RELPATH CONTENT — write an arbitrary file at
-# <fix>/.opencode/skills/<NAME>/<RELPATH> (creating parent dirs).
+# <fix>/templates/opencode/skills/<NAME>/<RELPATH> (creating parent dirs).
 sync_write_skill_file() {
   local fix="$1" name="$2" rel="$3" content="$4"
-  local dest="$fix/.opencode/skills/$name/$rel"
+  local dest="$fix/templates/opencode/skills/$name/$rel"
   mkdir -p "$(dirname "$dest")"
   printf '%s' "$content" > "$dest"
 }
 
 # sync_write_command FIX NAME FRONTMATTER_BLOCK BODY — create a source command
-# <fix>/.opencode/commands/<NAME>.md. FRONTMATTER_BLOCK is written verbatim
-# between `---` fences (pass the inner lines); BODY follows a blank separator.
+# <fix>/templates/opencode/commands/<NAME>.md. FRONTMATTER_BLOCK is written
+# verbatim between `---` fences (pass the inner lines); BODY follows a blank
+# separator.
 sync_write_command() {
   local fix="$1" name="$2" fm="$3" body="$4"
-  mkdir -p "$fix/.opencode/commands"
+  mkdir -p "$fix/templates/opencode/commands"
   {
     printf '%s\n' '---'
     printf '%s\n' "$fm"
     printf '%s\n' '---'
     printf '\n'
     printf '%s' "$body"
-  } > "$fix/.opencode/commands/$name.md"
+  } > "$fix/templates/opencode/commands/$name.md"
 }
 
 # ---------------------------------------------------------------------------
