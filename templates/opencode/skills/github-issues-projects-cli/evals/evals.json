@@ -16,7 +16,7 @@
     {
       "id": 3,
       "prompt": "show me how to find work on the GitHub project board that has no assignee, and return it in a compact readable format",
-      "expected_output": "Provides a gh project item-list based command sequence plus jq filtering to identify unassigned items and summarize them cleanly.",
+      "expected_output": "Provides the bundled helper's list-unassigned command (one shared GraphQL project-items query returning curated JSON — item_id, issue_number, title, state, assignees, url — for issue-linked board items with zero assignees), plus an optional jq filter for a compact summary.",
       "files": []
     }
   ]

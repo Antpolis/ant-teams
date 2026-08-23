@@ -94,9 +94,9 @@ Do not guess field names, single-select option IDs, or project item IDs.
 
 Prefer commands in this order:
 
-1. the bundled helper for issue, milestone, PR/review, CI/testing, release, and dual-record sync operations (`issue-create`, `issue-view`, `issue-list`, `issue-edit`, `issue-comment`, `issue-close`, `milestone-create`, `milestone-list`, `milestone-edit`, `milestone-close`, `pr-create`, `pr-view`, `pr-list`, `pr-comment`, `pr-close`, `pr-merge`, `pr-checks`, `pr-review-reply`, `run-list`, `run-view`, `workflow-list`, `workflow-run`, `release-create`, `release-list`, `release-view`, `release-edit`, `release-delete`, `issue-sync`, `milestone-sync`) — thin wrappers around the matching `gh` subcommands and `gh api` that resolve the target repository from `.github-project.env` (`ANT_TEAM_GITHUB_REPO`) so no `--repo` has to be repeated
+1. the bundled helper for issue, milestone, PR/review, CI/testing, release, board/project query, and dual-record sync operations (`issue-create`, `issue-view`, `issue-list`, `issue-edit`, `issue-comment`, `issue-close`, `milestone-create`, `milestone-list`, `milestone-edit`, `milestone-close`, `pr-create`, `pr-view`, `pr-list`, `pr-comment`, `pr-close`, `pr-merge`, `pr-checks`, `pr-review-reply`, `run-list`, `run-view`, `workflow-list`, `workflow-run`, `release-create`, `release-list`, `release-view`, `release-edit`, `release-delete`, `issue-sync`, `milestone-sync`, plus the board/project query family: `item-id`, `list-statuses`, `list-items`, `list-unassigned`, `project-list`, `project-view`, `project-field-list`, `set-status`, `set-status-id`, `next-status`, `add-issue`, `gh-item-edit`) — thin wrappers around the matching `gh` subcommands and `gh api` that resolve the target repository and board from `.github-project.env` so no `--repo` or owner has to be repeated
 2. `gh issue ...` directly when operating outside a repository with `.github-project.env`
-3. `gh project ...` for supported project inspection commands
+3. raw `gh project ...` only for board operations the helper does not cover (every board read the workflow uses — items, statuses, fields, project metadata — has a helper subcommand)
 4. `gh api graphql` when GitHub Projects v2 mutations or richer joins are needed
 5. `jq` to extract only the fields needed for the next step
 
@@ -148,11 +148,11 @@ Common operations:
 Use this flow when the user wants to understand a GitHub Project board:
 
 1. Identify owner type and owner login.
-2. List projects and confirm the correct project number.
-3. Read project fields and Workflow State options.
-4. List project items in JSON.
-5. Use `jq` to extract item titles, statuses, assignees, and linked issue URLs.
-6. When a mutation targets a specific issue on the board, resolve the project item ID from the issue number before editing status fields.
+2. List projects with the helper (`project-list [--owner OWNER]`) and confirm the correct project number.
+3. Read the project and its fields with the helper (`project-view N`, `project-field-list N`).
+4. List board items with the helper (`list-items`, optionally filtered by a canonical Workflow State; `list-unassigned` for unassigned work).
+5. Shape the output with `jq` only when the curated helper output needs further summarizing.
+6. When a mutation targets a specific issue on the board, resolve the project item ID from the issue number (`item-id`) before editing status fields.
 
 Do not jump straight to mutation until the board schema is known.
 
@@ -242,24 +242,50 @@ Use:
 
 Assume issue-to-project linking is usually automatic in this repository workflow. Do not manually link an issue unless the board automation failed or the user explicitly asks for a manual add.
 
-Use the project item ID whenever you need to update project status or any project field for that issue.
+Use the project item ID whenever you need to update project status or any project field for that issue. When the issue has no board item, `item-id` exits non-zero with stderr naming the issue number — treat that as a linking failure, not an empty result.
 
-### Curated Board Command Output Contract
+### Curated Board Query Output Contract
 
-The curated board commands do not merely call the underlying CLI — they return useful structured results. `set-status`, `set-status-id`, `list-items`, and `item-id` print curated JSON objects that always carry `issue_number`, `title`, `state`, and `url`:
+The curated board commands do not merely call the underlying CLI — they return useful structured results (locked by `tests/test_gh_project_helper_board_output.js` and `tests/test_gh_project_helper_board_project_queries.js`):
 
 - `set-status ISSUE_NUMBER "Ready"` and `set-status-id ISSUE_NUMBER OPTION_ID` print exactly `{"issue_number", "title", "state", "url"}` after the edit, where `state` is re-read from the board AFTER the mutation — the printed object is the verification, so an edit that silently failed cannot report a stale state
-- `list-items [state]` prints one object per item with `issue_number`, `title`, `state`, `url`, and `assignees` (filtered on the canonical `Workflow State` field when a state name is given)
-- `item-id ISSUE_NUMBER` prints `{"item_id", "issue_number", "title", "url", "state"}` so the ID lookup doubles as a state check
+- `list-items [STATE]` prints one object per issue-linked item with exactly `{"item_id", "issue_number", "title", "state", "assignees", "url"}`; `assignees` are real (the helper runs one shared GraphQL project-items query, because the flattened item-list payload carries no assignees). `list-unassigned` prints the same shape for items with zero assignees
+- `item-id ISSUE_NUMBER` prints `{"item_id", "issue_number", "title", "url", "state"}` so the ID lookup doubles as a state check; a not-found issue exits non-zero
+
+Workflow State semantics in board queries (founder-confirmed 2026-08-23):
+
+- `state` in item-query output is the REMOTE Workflow State option name, preserved and displayed as-is — never translated to the canonical name (until a founder-approved rename lands, a Backlog-state item may legitimately display a legacy remote name)
+- `list-items STATE` accepts a canonical state name and filters by option id (`optionId`), resolved with the same env-first resolver as `set-status` — the filter is name-agnostic, so it stays correct under any remote display name; an unknown state exits non-zero with the same guidance as `set-status`
+- the shared items query reads `first: 100` items with no pagination loop — a documented limitation for boards larger than 100 items
 
 Example (founder demo contract):
 
 ```bash
 "$ANT_TEAM_SCRIPTS/gh_project_helper.sh" set-status 37 "Ready"
 # {"issue_number":37,"title":"SPEC-003-T7: Local-first dual-record sync","state":"Ready","url":"https://github.com/Antpolis/ant-teams/issues/37"}
+
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" list-items "In Review"
+# {"item_id":"PVTI_...","issue_number":45,"title":"...","state":"In Review","assignees":["chrissim"],"url":"..."}
 ```
 
-Treat these shapes as a locked contract (`tests/test_gh_project_helper_board_output.js`); parse them directly instead of re-querying the board after a mutation.
+Treat these shapes as a locked contract; parse them directly instead of re-querying the board after a mutation.
+
+### Inspect Project Metadata
+
+Use the thin project metadata wrappers (curated JSON out; the owner resolves `--owner` flag → `ANT_TEAM_GITHUB_OWNER` env → legacy `OWNER` and is never a positional argument — an empty owner fails before any call, because the underlying list command would otherwise silently target the authenticated user):
+
+```bash
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" project-list [--owner OWNER]
+# [{"number":9,"title":"Ant Teams","url":"https://github.com/orgs/Antpolis/projects/9","public":false,"closed":false,"items_count":25,"fields_count":14}]
+
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" project-view PROJECT_NUMBER [--owner OWNER] [--format json]
+# {"number":9,"title":"Ant Teams","url":"...","public":false,"closed":false,"items_count":25,"fields_count":14,"owner":"Antpolis"}
+
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" project-field-list PROJECT_NUMBER [--owner OWNER] [--format json]
+# {"total_count":14,"fields":[{"id":"PVTF_...","name":"Title","type":"ProjectV2Field"},{"id":"PVTSSF_...","name":"Workflow State","type":"ProjectV2SingleSelectField","options":[{"name":"Inbox","id":"eb66d5a6"}]}]}
+```
+
+`PROJECT_NUMBER` is a required positional validated numeric before any call, `--format` accepts only `json`, and `options` appears only on single-select fields. These commands never use the GraphQL items engine — the field-list payload already carries single-select options.
 
 ### Curated Mutator Output Contract
 
@@ -290,7 +316,13 @@ Use:
 "$ANT_TEAM_SCRIPTS/gh_project_helper.sh" list-items "Ready"
 ```
 
-All helper commands are env-only: owner, project number, and repository resolve from `.github-project.env`; there are no positional owner/project arguments. To list repo issues instead of board items:
+The state argument is a CANONICAL state name; the helper resolves it to its option id (env-first, same resolver as `set-status`) and filters by option id, so the filter stays correct even when the remote board still displays a legacy option name for that state. The printed `state` is always the remote option name as-is. An unknown state exits non-zero with guidance. For unassigned work:
+
+```bash
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" list-unassigned
+```
+
+All helper commands are env-only: owner, project number, and repository resolve from `.github-project.env`; there are no positional owner/project arguments (the project metadata family takes an optional `--owner` flag instead). To list repo issues instead of board items:
 
 ```bash
 "$ANT_TEAM_SCRIPTS/gh_project_helper.sh" issue-list --label blocked --state open
@@ -318,9 +350,8 @@ The helper resolves the Workflow State field and option IDs from `.github-projec
 
 Important:
 
-- `gh project item-list`, `gh project field-list`, and `gh project view` use `--owner` and the project number
-- `gh project item-edit` does not accept `--owner`
-- `gh project item-edit` requires `--project-id`
+- board and project reads go through the helper's query subcommands (`list-items`, `list-unassigned`, `item-id`, `list-statuses`, `project-list`, `project-view`, `project-field-list`) — they already join assignees and Workflow State option ids
+- the underlying item-edit mutation does not accept `--owner` and requires `--project-id`; the helper's `set-status`/`set-status-id` resolve both from `.github-project.env`
 
 If the user hits `unknown flag: --owner`, switch immediately to `gh project item-edit --project-id ...`.
 
@@ -456,7 +487,7 @@ For Projects v2:
 - field names are not enough for mutation
 - single-select values usually need option IDs
 - item updates often require `gh api graphql`
-- read operations should still begin with `gh project field-list` and `gh project item-list` when available
+- board reads go through the helper's query subcommands (`list-items`, `list-unassigned`, `item-id`, `list-statuses`, `project-list`, `project-view`, `project-field-list`) — they already join assignees and Workflow State option ids where the flattened CLI payloads cannot
 
 If the CLI subcommand does not support the exact mutation needed, use `gh api graphql` rather than inventing a brittle workaround.
 
@@ -530,6 +561,6 @@ Input: "show me what work is on the project board but has no assignee"
 
 Output shape:
 
-- project item listing command
-- `jq` filter for missing assignees
+- the helper command `gh_project_helper.sh list-unassigned` (curated JSON: item_id, issue_number, title, state, assignees, url — issue-linked board items with zero assignees)
+- a `jq` filter if a tighter shape is needed
 - concise summary of results

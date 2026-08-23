@@ -3,7 +3,7 @@
 
 /*
  * tests/test_gh_project_helper_board_output.js — curated board-command
- * output contract (SPEC-003 follow-up #44, Gap 1).
+ * output contract (SPEC-003 follow-up #44, Gap 1; extended by #46).
  *
  * Founder demo contract (2026-08-23): helper board commands must not merely
  * call gh; they return useful structured results — `set-status 37 Ready`
@@ -11,11 +11,14 @@
  * board AFTER the edit. This suite locks that contract for all four curated
  * board commands:
  *
- *   BOC-1  list-items prints one curated JSON object per item, each with
- *          issue_number, title, state, url (plus assignees)
- *   BOC-2  list-items <state> filters on the canonical Workflow State key
- *          and keeps the same curated shape
- *   BOC-3  item-id prints {item_id, issue_number, title, url, state}
+ *   BOC-1  list-items prints one curated JSON object per issue-linked item,
+ *          each with item_id, issue_number, title, state, url, and REAL
+ *          assignees served by the shared GraphQL items query (issue #46:
+ *          gh project item-list never returns assignees)
+ *   BOC-2  list-items <state> filters on the canonical Workflow State via
+ *          optionId and keeps the same curated shape
+ *   BOC-3  item-id prints {item_id, issue_number, title, url, state}; a
+ *          not-found issue exits non-zero with stderr naming the issue
  *   BOC-4  set-status <n> <state> resolves IDs (env first), performs the
  *          item-edit mutation with them, then prints
  *          {issue_number, title, state, url} where state is the POST-EDIT
@@ -25,10 +28,14 @@
  *   BOC-6  set-status fails cleanly (exit 1, no mutation) when the state
  *          option cannot be resolved
  *
- * The fake gh is stateful: the first gh project item-edit flips the fake
- * board item's Workflow State, so the post-edit re-read in BOC-4/BOC-5
- * observably differs from the pre-edit value — proving the printed state is
- * a verification re-read, not an echo of the request.
+ * The fake gh is stateful and serves BOTH data sources by contract: the
+ * flattened gh project item-list payload (item-id, resolve_item_id, and
+ * set-status verification keep it — no assignees/optionId needed there)
+ * and the gh api graphql project-items payload (list-items). The first gh
+ * project item-edit flips the fake board item's Workflow State, so the
+ * post-edit re-read in BOC-4/BOC-5 observably differs from the pre-edit
+ * value — proving the printed state is a verification re-read, not an echo
+ * of the request.
  *
  * The helper under test is the canonical engine in templates/opencode/
  * (the repo-local .opencode/ skills mirror is not tracked since the
@@ -92,11 +99,64 @@ function boardPayload(stateFor42) {
   return JSON.stringify({ items: [...items] }); // fresh copies per call
 }
 
+// gh api graphql project-items payload (issue #46 shared items query):
+// carries the assignees and the single-select optionId that the flattened
+// item-list payload cannot. Mirrors the same two items.
+function graphqlItemsPayload() {
+  return JSON.stringify({
+    data: {
+      node: {
+        items: {
+          nodes: [
+            {
+              id: ITEM_37_READY.id,
+              content: {
+                number: 37,
+                title: ITEM_37_READY.content.title,
+                url: ITEM_37_READY.content.url,
+                assignees: { nodes: [{ login: 'chrissim' }] },
+              },
+              fieldValues: {
+                nodes: [
+                  {
+                    name: 'Ready',
+                    optionId: 'PVTFS_optReady',
+                    field: { id: 'PVTFS_testFieldId' },
+                  },
+                ],
+              },
+            },
+            {
+              id: ITEM_42_TODO.id,
+              content: {
+                number: 42,
+                title: ITEM_42_TODO.content.title,
+                url: ITEM_42_TODO.content.url,
+                assignees: { nodes: [] },
+              },
+              fieldValues: {
+                nodes: [
+                  {
+                    name: 'Todo',
+                    optionId: 'PVTFS_optTodo',
+                    field: { id: 'PVTFS_testFieldId' },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      },
+    },
+  });
+}
+
 // Stateful fake gh: dispatches on argv.
 //   gh project item-list ...        -> prints the current board payload
 //   gh project item-edit ...        -> flips issue 42's state to In Review,
 //                                      prints {"itemId": ...}
 //   gh project field-list ...       -> prints the Workflow State field
+//   gh api graphql ...              -> prints the project-items payload
 // Every invocation is logged as one CALL line of [arg] groups.
 function setup(prefix, { withOptionEnv } = { withOptionEnv: true }) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), `${prefix}-`));
@@ -121,9 +181,11 @@ function setup(prefix, { withOptionEnv } = { withOptionEnv: true }) {
   const board = path.join(bin, 'board.json');
   const boardTodo = path.join(bin, 'board-todo.json');
   const boardReview = path.join(bin, 'board-inreview.json');
+  const gql = path.join(bin, 'graphql-items.json');
   fs.writeFileSync(boardTodo, boardPayload('Todo'));
   fs.writeFileSync(boardReview, boardPayload('In Review'));
   fs.writeFileSync(board, boardPayload('Todo')); // issue 42 starts in Todo
+  fs.writeFileSync(gql, graphqlItemsPayload());
 
   fs.writeFileSync(
     path.join(bin, 'gh'),
@@ -134,6 +196,7 @@ function setup(prefix, { withOptionEnv } = { withOptionEnv: true }) {
       `echo '{"itemId":"PVTI_lADOAGcCyM4Bdw3L_issue42"}'; exit 0; fi\n` +
       `if [[ "$1 $2" == "project field-list" ]]; then ` +
       `echo '{"fields":[{"name":"Workflow State","id":"PVTFS_testFieldId","options":[{"name":"Ready","id":"PVTFS_optReady"},{"name":"In Review","id":"PVTFS_testOptionInReview"}]}]}'; exit 0; fi\n` +
+      `if [[ "$1 $2" == "api graphql" ]]; then cat '${gql}'; exit 0; fi\n` +
       `echo 'unexpected gh invocation: "$@"' >&2; exit 1\n`
   );
   fs.chmodSync(path.join(bin, 'gh'), 0o755);
@@ -174,29 +237,34 @@ function calls(ctx) {
     });
 }
 
-// --- BOC-1: list-items curated shape ------------------------------------------
+// --- BOC-1: list-items curated shape (GraphQL-backed, issue #46) -----------------
 
-check('BOC-1: list-items prints curated JSON with issue_number/title/state/url (+assignees)', () => {
+check('BOC-1: list-items prints curated JSON with item_id/issue_number/title/state/url (+REAL assignees)', () => {
   const ctx = setup('boc1');
   const r = runHelper(ctx, ['list-items']);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}\nstdout:\n${r.stdout}`);
   const items = parseJqObjects(r.stdout);
   assert.strictEqual(items.length, 2, 'both board items listed');
   for (const it of items) {
-    for (const key of ['issue_number', 'title', 'state', 'url', 'assignees']) {
-      assert.ok(key in it, `every item must carry ${key}: ${JSON.stringify(it)}`);
-    }
+    assert.deepStrictEqual(
+      Object.keys(it).sort(),
+      ['assignees', 'issue_number', 'item_id', 'state', 'title', 'url'],
+      `every item must carry exactly the curated #46 keys: ${JSON.stringify(it)}`
+    );
   }
   const byNumber = Object.fromEntries(items.map((i) => [i.issue_number, i]));
+  assert.strictEqual(byNumber[37].item_id, ITEM_37_READY.id, 'item_id from the GraphQL node id');
   assert.strictEqual(byNumber[37].state, 'Ready');
   assert.strictEqual(byNumber[42].state, 'Todo');
-  assert.deepStrictEqual(byNumber[37].assignees, ['chrissim']);
+  assert.deepStrictEqual(byNumber[37].assignees, ['chrissim'],
+    'assignees are REAL — served by the shared GraphQL items query');
+  assert.deepStrictEqual(byNumber[42].assignees, []);
   assert.strictEqual(byNumber[42].url, ITEM_42_TODO.content.url);
 });
 
-// --- BOC-2: list-items <state> filters + same shape ----------------------------
+// --- BOC-2: list-items <state> filters by optionId + same shape ------------------
 
-check('BOC-2: list-items <state> filters on the canonical Workflow State key', () => {
+check('BOC-2: list-items <state> filters on the canonical Workflow State via optionId', () => {
   const ctx = setup('boc2');
   const r = runHelper(ctx, ['list-items', 'Ready']);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
@@ -204,14 +272,16 @@ check('BOC-2: list-items <state> filters on the canonical Workflow State key', (
   assert.strictEqual(items.length, 1, 'only the Ready item is listed');
   assert.strictEqual(items[0].issue_number, 37);
   assert.strictEqual(items[0].state, 'Ready');
-  for (const key of ['issue_number', 'title', 'state', 'url', 'assignees']) {
-    assert.ok(key in items[0], `filtered item must keep the curated ${key}`);
-  }
+  assert.deepStrictEqual(
+    Object.keys(items[0]).sort(),
+    ['assignees', 'issue_number', 'item_id', 'state', 'title', 'url'],
+    'filtered item must keep the curated #46 shape'
+  );
 });
 
-// --- BOC-3: item-id curated shape ----------------------------------------------
+// --- BOC-3: item-id curated shape + not-found hard failure -----------------------
 
-check('BOC-3: item-id prints {item_id, issue_number, title, url, state}', () => {
+check('BOC-3: item-id prints {item_id, issue_number, title, url, state}; not-found exits non-zero', () => {
   const ctx = setup('boc3');
   const r = runHelper(ctx, ['item-id', '37']);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}\nstdout:\n${r.stdout}`);
@@ -221,6 +291,13 @@ check('BOC-3: item-id prints {item_id, issue_number, title, url, state}', () => 
   assert.strictEqual(out.title, ITEM_37_READY.content.title);
   assert.strictEqual(out.url, ITEM_37_READY.content.url);
   assert.strictEqual(out.state, 'Ready', 'item-id must report the Workflow State');
+
+  // Not-found is a hard failure (issue #46): non-zero exit, stderr naming
+  // the issue, no partial stdout.
+  const nf = runHelper(ctx, ['item-id', '999']);
+  assert.notStrictEqual(nf.status, 0, 'a missing board item must exit non-zero');
+  assert.ok(/#999/.test(nf.stderr), `stderr must name the issue number: ${nf.stderr}`);
+  assert.strictEqual(nf.stdout.trim(), '', 'no output may be printed on not-found');
 });
 
 // --- BOC-4: set-status post-edit verification output ----------------------------
