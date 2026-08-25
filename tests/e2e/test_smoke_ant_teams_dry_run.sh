@@ -72,8 +72,8 @@ fi
 # make the test trivially pass without exercising anything.
 assert_exists "live checkout has templates/opencode/skills (source repo init tree)" \
   "$REPO_ROOT/templates/opencode/skills"
-assert_exists "live checkout has init_project_docs.sh" \
-  "$REPO_ROOT/templates/opencode/skills/project-initialization/scripts/init_project_docs.sh"
+assert_exists "live checkout has the init engine" \
+  "$REPO_ROOT/templates/scripts/init-project.sh"
 
 LOG=$(mktemp)
 trap 'rm -f "$LOG" "$LOG.gh-validate"' EXIT
@@ -211,12 +211,11 @@ assert_file_contains "would-write lines present" "$LOG" '\[would-write\]'
 assert_file_contains "dry-run summary line" "$LOG" '\[summary\] Dry run complete'
 
 # Sanity: the live checkout is the ant-teams source repo, so the dry-run must
-# specifically reference an ant-teams-shaped would-write. The init source
-# skills tree is already present, so would-write lines must NOT include a
-# would-write of `init_project_docs.sh` (it's already there); they SHOULD
-# reference AGENTS.md (which issue #11 will commit) and/or .github-project.env
-# (untracked today) and/or .opencode/.gitignore. This is a smoke-grade
-# sanity check, not an exact-shape assertion, so it stays loose.
+# specifically reference an ant-teams-shaped would-write. The engine lives on
+# the tooling path (never copied into targets), so would-write lines must NOT
+# include any init-project engine copy; they SHOULD reference AGENTS.md
+# and/or .github-project.env and/or .opencode/.gitignore. This is a
+# smoke-grade sanity check, not an exact-shape assertion, so it stays loose.
 if grep -qE '\[would-write\] (AGENTS\.md|\.github-project\.env|\.opencode/)' "$LOG"; then
   check OK "would-write lines reference init-managed ant-teams artifacts"
 else

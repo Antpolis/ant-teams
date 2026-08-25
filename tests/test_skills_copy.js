@@ -4,16 +4,17 @@
 /*
  * tests/test_skills_copy.js — SPEC-001-T4 unit tests.
  *
- * Drives `templates/opencode/skills/project-initialization/scripts/init_project_docs.sh`
- * against throwaway target project directories and asserts the FR-7 / AC-T4
- * contract:
+ * Drives `templates/scripts/init-project.sh` (the engine since the 2026-08
+ * tooling-path migration) against throwaway target project directories and
+ * asserts the FR-7 / AC-T4 contract:
  *
  *   - AC-T4-001: github-issues-projects-cli/scripts/gh_project_helper.sh
  *                exists with execute permission.
  *   - AC-T4-002: do-task/scripts/create_task_worktree.sh and
  *                cleanup_task_worktree.sh exist WITH execute permission.
- *   - AC-T4-003: project-initialization/scripts/init_project_docs.sh (and
- *                permission.
+ *   - AC-T4-003: the retired project-initialization skill is NOT copied
+ *                (the engine lives at $ANT_TEAM_SCRIPTS/init-project.sh and
+ *                is not re-installed into targets).
  *   - AC-T4-004: skill-creator/, webapp-testing/, doc-coauthoring/,
  *                frontend-design/ are NOT copied.
  *   - AC-T4-005: a project-customized SKILL.md is preserved verbatim
@@ -28,9 +29,10 @@
  * failure mode (do-task scripts landing at mode 664 from a non-executable
  * source).
  *
- * Tests use the real source skill tree from the worktree's `.opencode/skills/`
- * so the assertion reflects what production init would actually emit. No
- * external npm dependencies.
+ * Tests use the real source skill tree from templates/opencode/skills/
+ * (resolved by the engine as the sibling skills root of a source-checkout
+ * run) so the assertion reflects what production init would actually emit.
+ * No external npm dependencies.
  */
 
 const { execFileSync } = require('child_process');
@@ -42,14 +44,13 @@ const assert = require('assert');
 const REPO_ROOT = path.resolve(__dirname, '..');
 const INIT_SCRIPT = path.join(
   REPO_ROOT,
-  'templates/opencode/skills/project-initialization/scripts/init_project_docs.sh'
+  'templates/scripts/init-project.sh'
 );
 const SOURCE_SKILLS_DIR = path.join(REPO_ROOT, 'templates/opencode/skills');
 
 const REQUIRED_SKILLS = [
   'github-issues-projects-cli',
   'do-task',
-  'project-initialization',
 ];
 
 const EXCLUDED_SKILLS = [
@@ -68,7 +69,6 @@ const REQUIRED_SCRIPT_PATHS = [
   'github-issues-projects-cli/scripts/gh_project_helper.sh',
   'do-task/scripts/create_task_worktree.sh',
   'do-task/scripts/cleanup_task_worktree.sh',
-  'project-initialization/scripts/init_project_docs.sh',
 ];
 
 // Lists every `.sh` file under `<skillsRoot>/<required-skill>/scripts/`.
@@ -114,7 +114,7 @@ function check(name, fn) {
 
 function mkdtempRepo(prefix) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), `skills-copy-${prefix}-`));
-  // init_project_docs.sh expects a git project (used by other steps in the
+  // init-project.sh expects a git project (used by other steps in the
   // script); a `.git/` directory marker is sufficient for our skills-copy
   // scope. Use a real `git init` so the script does not break on future
   // preflight additions.
@@ -261,24 +261,15 @@ function testRequiredScriptsPresent(projectDir) {
       'AC-T4-002 cleanup_task_worktree.sh'
     );
   });
+}
 
-  check('AC-T4-003: project-initialization/scripts/init_project_docs.sh exists', () => {
-    assert.ok(
-      fs.existsSync(path.join(projectDir, '.opencode/skills/project-initialization/scripts/init_project_docs.sh')),
-      'missing project-initialization/scripts/init_project_docs.sh'
-    );
-  });
-  check('AC-T4-003: init_project_docs.sh has execute permission', () => {
-    assertExecutable(
-      path.join(projectDir, '.opencode/skills/project-initialization/scripts/init_project_docs.sh'),
-      'AC-T4-003 init_project_docs.sh'
-    );
-  });
-  check('AC-T4-003: project-initialization/SKILL.md exists', () => {
-    assert.ok(
-      fs.existsSync(path.join(projectDir, '.opencode/skills/project-initialization/SKILL.md')),
-      'missing project-initialization/SKILL.md'
-    );
+// --- AC-T4-003: retired project-initialization skill is NOT copied -----------
+
+function testRetiredSkillNotCopied(projectDir) {
+  process.stdout.write('Suite: AC-T4-003 retired project-initialization not copied\n');
+  check('AC-T4-003: project-initialization/ not copied into targets', () => {
+    const p = path.join(projectDir, '.opencode/skills/project-initialization');
+    assert.ok(!fs.existsSync(p), `retired skill was copied: ${p}`);
   });
 }
 
@@ -457,7 +448,7 @@ function testConsoleContract() {
       assert.ok(/\[writing\]\s+\.opencode\/skills\//.test(result.stdout), `expected [writing] line for skills copy; got:\n${result.stdout}`);
     });
     check('console emits skills copy summary line', () => {
-      assert.ok(/\.opencode\/skills\/ \(3 required skills, \d+ copied, \d+ merged\)/.test(result.stdout), `expected skills summary; got:\n${result.stdout}`);
+      assert.ok(/\.opencode\/skills\/ \(2 required skills, \d+ copied, \d+ merged\)/.test(result.stdout), `expected skills summary; got:\n${result.stdout}`);
     });
     check('console emits [writing] .opencode/.gitignore line', () => {
       assert.ok(/\[writing\]\s+\.opencode\/\.gitignore/.test(result.stdout), `expected gitignore writing line; got:\n${result.stdout}`);
@@ -471,7 +462,7 @@ function testConsoleContract() {
 
 function main() {
   if (!fs.existsSync(INIT_SCRIPT)) {
-    process.stderr.write(`[error] init_project_docs.sh not found at ${INIT_SCRIPT}\n`);
+    process.stderr.write(`[error] init-project.sh not found at ${INIT_SCRIPT}\n`);
     process.exit(1);
   }
 
@@ -489,6 +480,7 @@ function main() {
     });
     if (freshInit.status === 0) {
       testRequiredScriptsPresent(fresh);
+      testRetiredSkillNotCopied(fresh);
       testExcludedSkillsAbsent(fresh);
       testGitignorePresent(fresh);
       testAllCopiedShellScriptsExecutable(fresh);

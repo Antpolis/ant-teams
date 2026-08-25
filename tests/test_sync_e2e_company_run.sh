@@ -10,8 +10,10 @@
 #     skills + command-derived skills.
 #   - FR-12.2 init-company.sh invokes sync-managed-skills after the canonical
 #     install; exit code reflects the worst outcome (here 0).
-#   - AC-1.1 / AC-2.1 exactly 38 managed entries (31 source + 7 command-derived;
-#     0 name collisions in the real source tree); unmanaged content untouched.
+#   - AC-1.1 / AC-2.1 exactly 38 managed entries (30 source + 8 command-derived;
+#     the project-initialization skill was removed and the init-project command
+#     added by the 2026-08 tooling-path migration; 0 name collisions in the
+#     real source tree); unmanaged content untouched.
 #
 # Runs the REAL repo scripts against a temp HOME so neither the real
 # ~/.config/opencode nor ~/.agents/skills is touched.
@@ -70,7 +72,7 @@ assert_ge "managed dir count >= skills + commands" \
   "$(sync_count_dirs "$HOME_DIR/.agents/skills")" "$EXPECTED_TOTAL"
 assert_eq "manifest records 38 managed entries" \
   "$(sync_manifest_count_entries "$MANIFEST")" "$EXPECTED_TOTAL"
-assert_eq "expected total is 38 (31+7)" "$EXPECTED_TOTAL" "38"
+assert_eq "expected total is 38 (30+8)" "$EXPECTED_TOTAL" "38"
 assert_eq "manifest present" "$(sync_manifest_is_valid_json "$MANIFEST")" "yes"
 
 # A representative source skill and a command-derived skill are present.

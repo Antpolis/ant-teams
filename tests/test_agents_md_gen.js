@@ -4,7 +4,8 @@
 /*
  * tests/test_agents_md_gen.js — SPEC-001-T3 unit tests.
  *
- * Drives `templates/opencode/skills/project-initialization/scripts/init_project_docs.sh`
+ * Drives `templates/scripts/init-project.sh` (the engine since the 2026-08
+ * tooling-path migration)
  * through the AGENTS.md generation surface added by issue #4:
  *
  *   - AC-T3-001: interactive mode on repo-bare generates AGENTS.md with
@@ -46,7 +47,7 @@ const assert = require('assert');
 const REPO_ROOT = path.resolve(__dirname, '..');
 const INIT_SCRIPT = path.join(
   REPO_ROOT,
-  'templates/opencode/skills/project-initialization/scripts/init_project_docs.sh'
+  'templates/scripts/init-project.sh'
 );
 const BARE_FIXTURE = path.join(REPO_ROOT, 'tests', 'fixtures', 'repo-bare');
 const NODE_FIXTURE = path.join(REPO_ROOT, 'tests', 'fixtures', 'repo-node-npm');
@@ -143,11 +144,11 @@ function runNoninteractive(projectDir, extraArgs = [], opts = {}) {
 
 process.stdout.write('Suite: preflight\n');
 
-check('init_project_docs.sh exists', () => {
+check('init-project.sh exists', () => {
   assert.ok(fs.existsSync(INIT_SCRIPT), `init script missing at ${INIT_SCRIPT}`);
 });
 
-check('init_project_docs.sh is syntactically valid', () => {
+check('init-project.sh is syntactically valid', () => {
   const { spawnSync } = require('child_process');
   const r = spawnSync('bash', ['-n', INIT_SCRIPT], { encoding: 'utf8' });
   assert.strictEqual(r.status, 0, `syntax error:\n${r.stderr}`);
@@ -243,7 +244,6 @@ check('DM-2.4: Local Configuration Files lists all created artifacts', () => {
     '.github-project.env',
     '.opencode/skills/github-issues-projects-cli/',
     '.opencode/skills/do-task/',
-    '.opencode/skills/project-initialization/',
   ]) {
     assert.ok(agents.includes(`\`${entry}\``), `expected "${entry}" in Local Configuration Files`);
   }

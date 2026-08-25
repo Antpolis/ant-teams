@@ -37,7 +37,7 @@ const assert = require('assert');
 const REPO_ROOT = path.resolve(__dirname, '..');
 const INIT_SCRIPT = path.join(
   REPO_ROOT,
-  'templates/opencode/skills/project-initialization/scripts/init_project_docs.sh'
+  'templates/scripts/init-project.sh'
 );
 const HELPER = path.join(
   REPO_ROOT,

@@ -107,7 +107,7 @@ function goodAgentsMd(extra) {
     '',
     '- `AGENTS.md` — canonical agent guidance for this repository',
     '- `.github-project.env` — ANT_TEAM_* runtime exports (sole project config source)',
-    '- `.opencode/skills/project-initialization/` — re-initialization scripts',
+    '- `.opencode/skills/do-task/` — task worktree management scripts',
   ];
   if (extra) lines.push(...extra);
   return lines.join('\n') + '\n';
@@ -116,7 +116,7 @@ function goodAgentsMd(extra) {
 // Files the known-good fixture claims exist (AC-T8-006 happy path).
 function materializeGoodArtifacts(dir) {
   fs.writeFileSync(path.join(dir, '.github-project.env'), "export ANT_TEAM_GITHUB_OWNER='o'\n");
-  fs.mkdirSync(path.join(dir, '.opencode', 'skills', 'project-initialization'), {
+  fs.mkdirSync(path.join(dir, '.opencode', 'skills', 'do-task'), {
     recursive: true,
   });
 }
@@ -164,7 +164,7 @@ check('AC-T8-001: validator passes on real generator output (regression)', () =>
   // the generator on every section the generator actually emits.
   const initScript = path.join(
     REPO_ROOT,
-    'templates/opencode/skills/project-initialization/scripts/init_project_docs.sh'
+    'templates/scripts/init-project.sh'
   );
   const fixtureSrc = path.join(REPO_ROOT, 'tests', 'fixtures', 'repo-node-npm');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'validate-amd-real-'));

@@ -10,7 +10,7 @@
 #     `if/then/fi` conditionals so a non-match never aborts the caller).
 #   - No external dependencies: bash + coreutils + grep only.
 #   - The interactive e2e test does NOT use `expect` or a Node pseudo-TTY
-#     wrapper: `init_project_docs.sh --interactive` forces interactive mode
+#     wrapper: `init-project.sh --interactive` forces interactive mode
 #     regardless of TTY, and `safe_read` reads piped stdin lines. Feeding
 #     newline-delimited answers via a pipe is the portable, dependency-free
 #     path endorsed by SPEC-001 TEST-2.2 ("plain shell scripts" for the
@@ -42,10 +42,10 @@ e2e_repo_root() {
   ( cd "$script_dir/../.." && pwd )
 }
 
-# The init engine lives in the canonical templates tree (the repo-local
-# .opencode/ skills mirror was retired in the 3bb6ec4 restructure; only
-# scripts/init-company.sh installs it into ~/.agents + ~/.config/opencode).
-e2e_init_script() { printf '%s/templates/opencode/skills/project-initialization/scripts/init_project_docs.sh' "$1"; }
+# The init engine lives in the canonical team-scripts tree (it moved from the
+# project-initialization skill to the tooling path in 2026-08;
+# scripts/init-company.sh installs templates/scripts/ into ~/.agents/scripts).
+e2e_init_script() { printf '%s/templates/scripts/init-project.sh' "$1"; }
 e2e_fixtures_dir() { printf '%s/tests/fixtures' "$1"; }
 
 # e2e_make_fixture_repo FIXTURE_DIR — copy a fixture into a fresh mktemp -d and

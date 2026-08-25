@@ -346,3 +346,12 @@
 - Verification Command: N/A — the reviewer's approval comment on PR #29 was the final verification gate for issue #25. Milestone closure confirmed all issues Done.
 - Known Gap: README Install Model bullet updated for managed sync; the broader README structure (Start Here steps) remains pre-SPEC-002. No README rewrite scope in this milestone.
 - Related Docs: PR #29, issue #25, milestone #2, ARCH-004, SPEC-002, RB-001.
+
+### 2026-08-23 - SPEC-003 / #45 (PR #49, approval)
+
+- Context: Reviewed PR #49 (commit `6d79eb3`) for curated structured output + verification on all helper mutators except issue-comment/pr-comment. 6 files changed (+913/-97). Node.js unavailable in this environment; test logic verified by full code review; bash -n clean; leakage gate verified by scan.
+- Smoke Result: Pass; `bash -n` clean on engine + all shell scripts; leakage gate scan shows no new raw `gh` patterns outside engine; full diff review confirms all 10 mutators emit curated JSON with correct mutate→verify pattern; test contracts extended never weakened; docs consistent.
+- Runtime Requirement: Use the issue-45 worktree for smoke; node tests require Node.js runtime (unavailable in review env); builder evidence: node 15/15, sync 29/29, e2e 7/7, leakage gate 5/5.
+- Verification Command: `bash -n templates/opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh`; `bash -n scripts/*.sh templates/scripts/*.sh`; `rg '\bgh\b[\s\\]*(pr|release|workflow|run)\b' templates/opencode/ templates/scripts/` (leakage gate spot-check); code review of full diff.
+- Known Gap: Node.js tests could not be run in this environment; test logic verified by code review (MOC-1..13 stateful fake-gh suite, updated HIC/PRC/CIC/RLC contracts). Residual risk: `pr-merge --delete-branch` + re-read same failure mode class as `set-status` (documented in PR body).
+- Related Docs: SPEC-003 FR-01, ARCH-003, issue #45, PR #49, builder handover `2026-08-23-builder-handover-open.md`, strategist resolution `2026-08-23-strategist-mutator-scope-resolution-closed.md`.

@@ -4,7 +4,8 @@
 /*
  * tests/test_cli_flags.js — SPEC-001-T2 unit tests.
  *
- * Drives `templates/opencode/skills/project-initialization/scripts/init_project_docs.sh`
+ * Drives `templates/scripts/init-project.sh` (the engine since the 2026-08
+ * tooling-path migration)
  * through the CLI surface added by issue #3 (CLI-2 / FR-4 / ERR-4):
  *
  *   - AC-T2-001: TTY present + no flags → interactive mode (no required-flag
@@ -43,7 +44,7 @@ const assert = require('assert');
 const REPO_ROOT = path.resolve(__dirname, '..');
 const INIT_SCRIPT = path.join(
   REPO_ROOT,
-  'templates/opencode/skills/project-initialization/scripts/init_project_docs.sh'
+  'templates/scripts/init-project.sh'
 );
 
 const REPO_ROLE_VALUES = ['service', 'library', 'infra', 'monorepo-root', 'tool', 'docs', 'other'];
@@ -77,7 +78,7 @@ function check(name, fn) {
 
 function mkdtempRepo(prefix) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), `cli-flags-${prefix}-`));
-  // init_project_docs.sh expects a git project (used by other steps in the
+  // init-project.sh expects a git project (used by other steps in the
   // script). A real `git init` keeps the test forward-compatible with future
   // preflight additions (T6 / issue #7 / ERR-1).
   fs.mkdirSync(path.join(dir, '.git'), { recursive: true });
@@ -163,11 +164,11 @@ function noninteractiveRequired(exclude) {
 // --- Pre-flight: script is present ------------------------------------------
 
 process.stdout.write('Suite: preflight\n');
-check('init_project_docs.sh exists', () => {
+check('init-project.sh exists', () => {
   assert.ok(fs.existsSync(INIT_SCRIPT), `init script missing at ${INIT_SCRIPT}`);
 });
 
-check('init_project_docs.sh is syntactically valid', () => {
+check('init-project.sh is syntactically valid', () => {
   const r = spawnSync('bash', ['-n', INIT_SCRIPT], { encoding: 'utf8' });
   assert.strictEqual(r.status, 0, `syntax error:\n${r.stderr}`);
 });

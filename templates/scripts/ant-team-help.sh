@@ -53,6 +53,9 @@ describe_script() {
     gh_project_helper.sh)
       printf 'Centralized entry for the GitHub Projects helper engine: issue, milestone, and project-board operations via gh.'
       ;;
+    init-project.sh)
+      printf 'Project initialization engine: seeds/updates .github-project.env, minimal runtime config, required skills copy, and AGENTS.md generation.'
+      ;;
     record-communication.sh)
       printf 'Record or list agent communication event files in the central Obsidian project folder (no GitHub writes).'
       ;;

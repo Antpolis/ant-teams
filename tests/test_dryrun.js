@@ -5,8 +5,9 @@
  * tests/test_dryrun.js — SPEC-001-T6 unit tests (issue #7).
  *
  * Asserts the OBS-2 dry-run contract (true no-write) and the ERR-1 pre-flight
- * validation contract. Drives `templates/opencode/skills/project-initialization/scripts
- * /init_project_docs.sh` against throwaway target project directories.
+ * validation contract. Drives `templates/scripts/init-project.sh` (the engine
+ * since the 2026-08 tooling-path migration) against throwaway target project
+ * directories.
  *
  * Coverage:
  *   - AC-T6-002: --dry-run produces [would-write] lines and ZERO file changes
@@ -37,7 +38,7 @@ const assert = require('assert');
 const REPO_ROOT = path.resolve(__dirname, '..');
 const INIT_SCRIPT = path.join(
   REPO_ROOT,
-  'templates/opencode/skills/project-initialization/scripts/init_project_docs.sh'
+  'templates/scripts/init-project.sh'
 );
 
 let pass = 0;
@@ -89,11 +90,11 @@ function noninteractiveRequired() {
 
 process.stdout.write('Suite: preflight\n');
 
-check('init_project_docs.sh exists', () => {
+check('init-project.sh exists', () => {
   assert.ok(fs.existsSync(INIT_SCRIPT), `init script missing at ${INIT_SCRIPT}`);
 });
 
-check('init_project_docs.sh is syntactically valid', () => {
+check('init-project.sh is syntactically valid', () => {
   const { spawnSync } = require('child_process');
   const r = spawnSync('bash', ['-n', INIT_SCRIPT], { encoding: 'utf8' });
   assert.strictEqual(r.status, 0, `syntax error:\n${r.stderr}`);

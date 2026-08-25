@@ -5,7 +5,7 @@
 # manual file editing) + AC-SPEC-007 (required skills copied) + AC-SPEC-012
 # (AGENTS.md generation timestamp present).
 #
-# Approach: `init_project_docs.sh --interactive` forces interactive mode
+# Approach: `init-project.sh --interactive` forces interactive mode
 # regardless of TTY, and `safe_read` reads piped stdin lines (tolerant of EOF).
 # We feed 6 blank prompt responses (accept all detected defaults) plus a final
 # "y" confirmation. This is the portable, dependency-free path allowed by
@@ -62,11 +62,12 @@ fi
 # No JSON config exists under the env-only contract.
 assert_not_exists ".github-project.json legacy artifact absent" "$TMP/.github-project.json"
 
-# AC-T7-002 / AC-SPEC-007: exactly 3 required skills copied, no extras.
-assert_eq "exactly 3 skills copied" "$(e2e_count_skill_dirs "$TMP")" "3"
+# AC-T7-002 / AC-SPEC-007: exactly 2 required skills copied, no extras.
+assert_eq "exactly 2 skills copied" "$(e2e_count_skill_dirs "$TMP")" "2"
 assert_eq "github-issues-projects-cli present" "$(e2e_has_skill_dir "$TMP" github-issues-projects-cli)" "yes"
 assert_eq "do-task present" "$(e2e_has_skill_dir "$TMP" do-task)" "yes"
-assert_eq "project-initialization present" "$(e2e_has_skill_dir "$TMP" project-initialization)" "yes"
+# The retired project-initialization skill is never copied into targets.
+assert_not_exists "project-initialization not copied" "$TMP/.opencode/skills/project-initialization"
 # Forbidden skills absent (ARCH-003 Artifact 3 guarantee 2).
 assert_not_exists "skill-creator not copied" "$TMP/.opencode/skills/skill-creator"
 assert_not_exists "webapp-testing not copied" "$TMP/.opencode/skills/webapp-testing"
@@ -76,7 +77,6 @@ assert_not_exists "webapp-testing not copied" "$TMP/.opencode/skills/webapp-test
 assert_exec "$TMP/.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh"
 assert_exec "$TMP/.opencode/skills/do-task/scripts/create_task_worktree.sh"
 assert_exec "$TMP/.opencode/skills/do-task/scripts/cleanup_task_worktree.sh"
-assert_exec "$TMP/.opencode/skills/project-initialization/scripts/init_project_docs.sh"
 
 # Interactive preview + write path must have surfaced the confirmation prompt
 # and the final structured summary (OBS-1).

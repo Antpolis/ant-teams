@@ -69,12 +69,13 @@ else
   check FAIL "opencode config missing worktree permission ($OC_JSON)"
 fi
 
-# AC-SPEC-007: exactly 3 skills + required scripts present.
-assert_eq "exactly 3 skills" "$(e2e_count_skill_dirs "$TMP")" "3"
+# AC-SPEC-007: exactly 2 required skills + required scripts present.
+assert_eq "exactly 2 skills" "$(e2e_count_skill_dirs "$TMP")" "2"
 assert_exec "$TMP/.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh"
 assert_exec "$TMP/.opencode/skills/do-task/scripts/create_task_worktree.sh"
 assert_exec "$TMP/.opencode/skills/do-task/scripts/cleanup_task_worktree.sh"
-assert_exec "$TMP/.opencode/skills/project-initialization/scripts/init_project_docs.sh"
+# The retired project-initialization skill is never copied into targets.
+assert_not_exists "project-initialization not copied" "$TMP/.opencode/skills/project-initialization"
 
 assert_file_contains "structured summary line" "$OUT" '\[summary\] Initialization complete'
 

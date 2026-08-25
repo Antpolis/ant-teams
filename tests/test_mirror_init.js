@@ -2,27 +2,29 @@
 'use strict';
 
 /*
- * tests/test_mirror_init.js — initializer runs from the managed skill mirror.
+ * tests/test_mirror_init.js — initializer runs from the team-scripts install.
  *
- * Regression suite for the project-init skill/script conflict (2026-08):
- * "$ANT_TEAM_SCRIPTS/init-project.sh" executes the ENGINE copy installed
- * in the managed mirror (~/.agents/skills/project-initialization/...), not a
- * source checkout. The engine therefore resolves required skills from the
- * SIBLING skills root (the directory the skill lives in), and the wrapper
- * invokes the engine with `bash` so the mirror's execute bits are never
- * required (managed sync may tighten updated files to mode 0644 per
- * ARCH-004 SEC-3.2).
+ * Regression suite for the project-init engine location contract (2026-08
+ * tooling-path migration): "$ANT_TEAM_SCRIPTS/init-project.sh" IS the engine
+ * (installed from templates/scripts/ by scripts/init-company.sh), with
+ * support assets in the sibling init-project/ directory. The engine resolves
+ * required skills from the SIBLING skills root (~/.agents/skills), and the
+ * source-checkout wrapper scripts/init-project.sh delegates to the installed
+ * engine via `bash`, so no execute bits are required anywhere in the install
+ * (managed sync may tighten updated files to mode 0644 per ARCH-004 SEC-3.2).
  *
- *   MIR-1  the installed wrapper initializes a target repo from a simulated
- *          ~/.agents/skills mirror in which NO file is executable, and the
- *          copied skills come from the mirror (sentinel), not the checkout
+ *   MIR-1  the source-checkout wrapper initializes a target repo through a
+ *          simulated team-scripts install (~/.agents/scripts + ~/.agents/
+ *          skills) in which NO file is executable, and the copied skills
+ *          come from the install (sentinel), not the checkout
  *   MIR-2  preflight fails cleanly ([error], exit 1) when a required sibling
- *          skill is missing from the mirror — before any write happens
+ *          skill is missing from the install — before any write happens
  *   MIR-3  the REAL scripts/init-company.sh installs into a temp HOME, then
  *          "$ANT_TEAM_SCRIPTS/gh_project_helper.sh" is invoked directly and
  *          executes the engine from the managed mirror — with the mirror
  *          engine forced non-executable (0644), proving centralized wrapper
- *          execution without mirror execute bits
+ *          execution without mirror execute bits; the init engine and its
+ *          support assets must be installed into ~/.agents/scripts
  *
  * No external npm dependencies — Node built-ins only. No network access.
  */
@@ -37,7 +39,6 @@ const REPO_ROOT = path.resolve(__dirname, '..');
 const REQUIRED_SKILLS = [
   'github-issues-projects-cli',
   'do-task',
-  'project-initialization',
 ];
 
 let passed = 0;
@@ -59,8 +60,8 @@ function mkdtemp(prefix) {
 }
 
 // Recursively copy a directory, then force EVERY file to mode 0644 and every
-// directory to 0755 — a worst-case mirror in which nothing is executable.
-// This is the regression condition: the wrapper must still work.
+// directory to 0755 — a worst-case install in which nothing is executable.
+// This is the regression condition: the wrapper + engine must still work.
 function copyTreeNoExec(src, dst) {
   fs.cpSync(src, dst, { recursive: true });
   const walk = (dir) => {
@@ -74,10 +75,15 @@ function copyTreeNoExec(src, dst) {
   walk(dst);
 }
 
-// Build a simulated post-sync-company install layout:
+// Build a simulated post-init-company install layout (the real installer
+// copies templates/scripts → ~/.agents/scripts and syncs
+// templates/opencode/skills → ~/.agents/skills):
 //   <home>/.agents/skills/{required skills}   (managed mirror, no exec bits)
-//   <home>/.agents/scripts/*.sh               (installed wrappers, 0755)
-// Returns { home, mirrorSkills, teamScripts, wrapper }.
+//   <home>/.agents/scripts/                   (engine + assets + helpers, no
+//                                               exec bits)
+// Returns { home, mirrorSkills, teamScripts, wrapper }. The wrapper is the
+// SOURCE-CHECKOUT delegator scripts/init-project.sh — the real repo entry
+// point, which must reach the simulated engine through ANT_TEAM_SCRIPTS.
 function buildSimulatedInstall(home) {
   const agentsDir = path.join(home, '.agents');
   const mirrorSkills = path.join(agentsDir, 'skills');
@@ -92,17 +98,15 @@ function buildSimulatedInstall(home) {
     );
   }
 
-  for (const f of fs.readdirSync(path.join(REPO_ROOT, 'scripts'))) {
-    if (!f.endsWith('.sh')) continue;
-    fs.copyFileSync(path.join(REPO_ROOT, 'scripts', f), path.join(teamScripts, f));
-    fs.chmodSync(path.join(teamScripts, f), 0o755);
-  }
+  // Engine + support assets + sibling helpers, exactly as init-company.sh
+  // installs them from templates/scripts/ (minus execute bits).
+  copyTreeNoExec(path.join(REPO_ROOT, 'templates', 'scripts'), teamScripts);
 
   return {
     home,
     mirrorSkills,
     teamScripts,
-    wrapper: path.join(teamScripts, 'init-project.sh'),
+    wrapper: path.join(REPO_ROOT, 'scripts', 'init-project.sh'),
   };
 }
 
@@ -136,22 +140,28 @@ function runWrapper(sim, args, cwd) {
   });
 }
 
-// --- MIR-1: wrapper initializes a target from the mirror ----------------------
+// --- MIR-1: wrapper initializes a target through the simulated install ------
 
-check('MIR-1: installed wrapper runs the mirror engine with no execute bits anywhere', () => {
+check('MIR-1: source wrapper runs the installed engine with no execute bits anywhere', () => {
   const home = mkdtemp('mir-home');
   const sim = buildSimulatedInstall(home);
 
-  // Sentinel: proves the copied skills come from the MIRROR, not the checkout.
+  // Sentinel: proves the copied skills come from the INSTALL, not the checkout.
   fs.writeFileSync(path.join(sim.mirrorSkills, 'do-task', 'MIRROR-SENTINEL'), 'mirror\n');
   fs.chmodSync(path.join(sim.mirrorSkills, 'do-task', 'MIRROR-SENTINEL'), 0o644);
 
-  // Sanity: the engine really is non-executable in the simulated mirror.
-  const engine = path.join(sim.mirrorSkills, 'project-initialization', 'scripts', 'init_project_docs.sh');
+  // Sanity: the engine really is non-executable in the simulated install.
+  const engine = path.join(sim.teamScripts, 'init-project.sh');
+  assert.ok(fs.existsSync(engine), 'test setup: engine must be installed into the simulated team scripts');
   assert.strictEqual(
     fs.statSync(engine).mode & 0o111,
     0,
-    'test setup: mirror engine must be non-executable for this regression'
+    'test setup: installed engine must be non-executable for this regression'
+  );
+  // Support assets ship next to the engine.
+  assert.ok(
+    fs.existsSync(path.join(sim.teamScripts, 'init-project', 'inspect_repo.js')),
+    'test setup: engine support assets must be installed next to the engine'
   );
 
   const target = mkTargetRepo();
@@ -162,7 +172,7 @@ check('MIR-1: installed wrapper runs the mirror engine with no execute bits anyw
   assert.ok(fs.existsSync(path.join(target, '.github-project.env')), '.github-project.env created');
   assert.ok(fs.existsSync(path.join(target, 'AGENTS.md')), 'AGENTS.md created');
 
-  // All three required skills were copied from the sibling mirror root.
+  // All required skills were copied from the sibling skills root.
   for (const skill of REQUIRED_SKILLS) {
     assert.ok(
       fs.existsSync(path.join(target, '.opencode', 'skills', skill, 'SKILL.md')),
@@ -171,7 +181,12 @@ check('MIR-1: installed wrapper runs the mirror engine with no execute bits anyw
   }
   assert.ok(
     fs.existsSync(path.join(target, '.opencode', 'skills', 'do-task', 'MIRROR-SENTINEL')),
-    'skills must be sourced from the mirror (sentinel file missing at target)'
+    'skills must be sourced from the install (sentinel file missing at target)'
+  );
+  // The retired project-initialization skill is never copied into targets.
+  assert.ok(
+    !fs.existsSync(path.join(target, '.opencode', 'skills', 'project-initialization')),
+    'project-initialization skill must not be copied into targets'
   );
 
   // The simulated HOME layout contains no checkout-style .opencode/skills —
@@ -211,7 +226,7 @@ check('MIR-2: missing required sibling skill fails preflight before any write', 
 
 // --- MIR-3: real sync install, then direct centralized wrapper invocation ----
 
-check('MIR-3: real init-company.sh into temp HOME; direct $ANT_TEAM_SCRIPTS/gh_project_helper.sh executes the mirror engine', () => {
+check('MIR-3: real init-company.sh into temp HOME; engine + assets installed; direct $ANT_TEAM_SCRIPTS/gh_project_helper.sh executes the mirror engine', () => {
   const home = mkdtemp('mir-sync-home');
 
   // Real install with the REAL scripts/init-company.sh (canonical config,
@@ -235,6 +250,21 @@ check('MIR-3: real init-company.sh into temp HOME; direct $ANT_TEAM_SCRIPTS/gh_p
     fs.statSync(wrapper).mode & 0o111,
     0,
     'installed wrapper must be executable (sync_team_scripts chmod 0755)'
+  );
+
+  // Tooling-path contract: the init engine installs at
+  // $ANT_TEAM_SCRIPTS/init-project.sh with its support assets alongside.
+  assert.ok(
+    fs.existsSync(path.join(teamScripts, 'init-project.sh')),
+    'sync must install the init engine into the team scripts'
+  );
+  assert.ok(
+    fs.existsSync(path.join(teamScripts, 'init-project', 'inspect_repo.js')),
+    'sync must install the engine support assets (inspect_repo.js)'
+  );
+  assert.ok(
+    fs.existsSync(path.join(teamScripts, 'init-project', 'github-project.env.template')),
+    'sync must install the engine support assets (github-project.env.template)'
   );
 
   // The install configures the centralized entry in the shell rc files.

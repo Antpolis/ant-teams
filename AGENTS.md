@@ -25,7 +25,7 @@ Generated local OpenCode runtime: `.opencode/` (created by `scripts/init-company
 - Run the standalone managed-sync regression smoke: bash tests/e2e/test_smoke_sync_managed_skills.sh
 - Install the canonical OpenCode configuration and refresh managed skills and team scripts: bash scripts/init-company.sh
 - Validate AGENTS.md structure (DM-2 contract): bash templates/scripts/validate-agents-md.sh AGENTS.md
-- Syntax-check shell scripts: bash -n scripts/*.sh templates/scripts/*.sh templates/opencode/skills/project-initialization/scripts/init_project_docs.sh
+- Syntax-check shell scripts: bash -n scripts/*.sh templates/scripts/*.sh
 
 ## Documentation
 
@@ -65,6 +65,10 @@ source ./.github-project.env
 ## Scratch and Log Directories
 
 Scratch directory for work-in-progress and logs: `./tmp/`
+
+## GitHub Project Helper
+
+When GitHub Issues, Projects, milestones, pull requests, or workflow-state operations require the repository helper, load the `github-issues-projects-cli` skill first. Use the helper commands documented by that skill; do not hard-code or hunt for the helper shell-script path in agent instructions. Source `.github-project.env` before using the skill.
 
 ## GitHub Project Configuration
 

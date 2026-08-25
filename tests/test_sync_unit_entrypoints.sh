@@ -43,10 +43,10 @@ assert_file_contains_str "sync-company forwards --force to managed" "$SYNC_REAL_
 # Post-audit scripts/ layout: the retired init-company/update-company wrapper
 # pair was consolidated — scripts/init-company.sh IS the coordinator that owns
 # --force (asserted above), and scripts/init-project.sh is the remaining thin
-# delegator (exec the init engine, no flags of its own).
+# delegator (exec the installed init engine, no flags of its own).
 INIT_PROJECT="$SYNC_REPO_ROOT/scripts/init-project.sh"
 assert_exists "init-project.sh present" "$INIT_PROJECT"
-assert_file_contains_str "init-project delegates to the init engine" "$INIT_PROJECT" "init_project_docs.sh"
+assert_file_contains_str "init-project delegates to the init engine" "$INIT_PROJECT" 'init-project.sh" "$@"'
 assert_file_not_contains_str "init-project adds no --force handling" "$INIT_PROJECT" --force
 
 # --- CLI-1.3: --force and --dry-run combined (reports, writes nothing) -------

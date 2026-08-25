@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 #
-# init_project_docs.sh — project-local initialization entrypoint (SPEC-001).
+# init-project.sh — project-local initialization engine (SPEC-001).
+#
+# Tooling-path contract (founder-approved 2026-08): the engine lives in
+# templates/scripts/ and is installed by scripts/init-company.sh to
+# ~/.agents/scripts/init-project.sh, with its support assets in the sibling
+# init-project/ directory (inspect_repo.js, github-project.env.template).
+# The project-initialization skill wrapper was removed; the repo entry is the
+# thin delegator scripts/init-project.sh → "$ANT_TEAM_SCRIPTS/init-project.sh".
 #
 # T2 (issue #3): CLI flag expansion, env-var resolution, TTY-based mode
 # detection, and validation per CLI-2 / FR-4 / ERR-4.
@@ -207,8 +214,8 @@ expand_path() {
 #
 # Checks (ERR-1.1):
 #   1. target project dir exists AND is a git repo (has .git/ or .git file)
-#   2. sibling managed skills root contains every required skill
-#      (github-issues-projects-cli, do-task, project-initialization)
+#   2. the sibling managed skills root contains every required skill
+#      (github-issues-projects-cli, do-task)
 #   3. node (≥18) is on PATH — required by ensure_opencode_config /
 #      ensure_project_runtime_env (OBS-3.2)
 #   4. coreutils cp/mkdir/cat/rm/mktemp are on PATH
@@ -234,16 +241,17 @@ run_preflight() {
   fi
 
   # ERR-1.1 item 2 / OBS-3.1: the sibling managed skills root contains every
-  # required skill. This holds identically in a source checkout
-  # (<repo>/.opencode/skills) and in the managed mirror (~/.agents/skills
-  # after scripts/init-company.sh). Include the resolved path the script
+  # required skill. This holds identically in the installed tooling layout
+  # (~/.agents/scripts with skills at ~/.agents/skills after
+  # scripts/init-company.sh) and in a source checkout (templates/scripts with
+  # skills at templates/opencode/skills). Include the resolved path the script
   # actually checked so the operator can see why an init from a wrong
   # location failed.
   local required_skill
-  for required_skill in github-issues-projects-cli do-task project-initialization; do
+  for required_skill in github-issues-projects-cli do-task; do
     if [[ ! -d "$managed_skills_root_arg/$required_skill" ]]; then
       echo "[error] Required skill not found in the sibling skills root: $managed_skills_root_arg/$required_skill" >&2
-      echo "[error] init-project must run from a source checkout (.opencode/skills/) or the managed mirror (~/.agents/skills/ after scripts/init-company.sh) (OBS-3.1)." >&2
+      echo "[error] init-project must run from the team-scripts install (~/.agents/scripts/ after scripts/init-company.sh; skills at ~/.agents/skills) or a source checkout (templates/scripts/; skills at templates/opencode/skills) (OBS-3.1)." >&2
       echo "[error] Resolved sibling skills root: $managed_skills_root_arg" >&2
       exit 1
     fi
@@ -705,16 +713,18 @@ ensure_opencode_gitignore() {
   fi
 }
 
-# FR-7.1 / FR-7.2 / FR-7.3 / SEC-3.2 / ARCH-003 guarantee 4: copy the three
-# required script-bearing skills (github-issues-projects-cli, do-task,
-# project-initialization) from the sibling managed skills root into the
-# project-local `.opencode/skills/` directory. The sibling root is the
-# directory this skill lives in: <repo>/.opencode/skills in a source checkout
-# or ~/.agents/skills in the managed mirror — the copy source is identical in
-# both locations. Copy is a per-file merge: every regular source file is
-# copied when absent at target and preserved when already present (this is
-# what protects project-customized SKILL.md files). No other skill is ever
-# copied.
+# FR-7.1 / FR-7.2 / FR-7.3 / SEC-3.2 / ARCH-003 guarantee 4: copy the two
+# required script-bearing skills (github-issues-projects-cli, do-task) from
+# the sibling managed skills root into the project-local `.opencode/skills/`
+# directory. The sibling root is resolved next to the engine's install
+# location: ~/.agents/skills in the team-scripts install, or
+# templates/opencode/skills in a source checkout — the copy source is
+# identical in both locations. Copy is a per-file merge: every regular source
+# file is copied when absent at target and preserved when already present
+# (this is what protects project-customized SKILL.md files). No other skill
+# is ever copied. (The project-initialization skill was removed from the
+# copy contract with the tooling-path migration: the engine now lives at
+# $ANT_TEAM_SCRIPTS/init-project.sh and is not re-installed into targets.)
 #
 # Execute-bit policy (smallest robust approach): the source repository owns the
 # execute bit for every shell script under `.opencode/skills/*/scripts/`, and
@@ -734,7 +744,6 @@ copy_required_skills() {
   local -a required_skills=(
     "github-issues-projects-cli"
     "do-task"
-    "project-initialization"
   )
   local -a excluded_skills=(
     "skill-creator"
@@ -847,6 +856,7 @@ ensure_project_runtime_env() {
   local repo_name="$3"
   local opt_github_owner="$4"
   local opt_github_project_number="$5"
+  local env_template="$6"
   local env_path="$project_dir/.github-project.env"
 
   # COMPUTE-ONLY node helper (no writes). It prints:
@@ -861,7 +871,8 @@ ensure_project_runtime_env() {
     "$worktree_root" \
     "$repo_name" \
     "$opt_github_owner" \
-    "$opt_github_project_number" <<'NODE'
+    "$opt_github_project_number" \
+    "$env_template" <<'NODE'
 const fs = require("fs");
 const path = require("path");
 
@@ -871,6 +882,7 @@ const [
   repoName,
   optOwner,
   optProjectNumber,
+  envTemplatePath,
 ] = process.argv.slice(2);
 
 // jq @sh equivalent: single-quote a value for a sourceable shell file.
@@ -973,9 +985,16 @@ values.ANT_TEAM_WORKTREE_ROOT = pick(envMap.ANT_TEAM_WORKTREE_ROOT, worktreeRoot
 // vault/repository are founder-owned and omitted when unset. The concrete
 // project path preserves a founder-set value verbatim; otherwise it resolves
 // as VAULT_PATH/02-Architecture-Landscape/projects/PROJECT_NAME.
-values.ANT_TEAM_DOCS_VAULT_PATH = pick(envMap.ANT_TEAM_DOCS_VAULT_PATH);
+const template = fs.readFileSync(envTemplatePath, "utf8");
+const templateValue = (name, fallback) => {
+  const m = template.match(new RegExp("^export " + name + "='([^']*)'$", "m"));
+  return m ? m[1] : fallback;
+};
+const docsVaultPath = templateValue("ANT_TEAM_DOCS_VAULT_PATH", "").replace("__HOME__", process.env.HOME || "");
+const docsRepository = templateValue("ANT_TEAM_DOCS_REPOSITORY", "");
+values.ANT_TEAM_DOCS_VAULT_PATH = pick(envMap.ANT_TEAM_DOCS_VAULT_PATH, docsVaultPath);
 values.ANT_TEAM_DOCS_PROJECT_NAME = pick(envMap.ANT_TEAM_DOCS_PROJECT_NAME, repoName);
-values.ANT_TEAM_DOCS_REPOSITORY = pick(envMap.ANT_TEAM_DOCS_REPOSITORY);
+values.ANT_TEAM_DOCS_REPOSITORY = pick(envMap.ANT_TEAM_DOCS_REPOSITORY, docsRepository.replace("__GITHUB_OWNER__", owner));
 values.ANT_TEAM_DOCS_PROJECT_PATH = pick(
   envMap.ANT_TEAM_DOCS_PROJECT_PATH,
   nonempty(values.ANT_TEAM_DOCS_VAULT_PATH) && nonempty(values.ANT_TEAM_DOCS_PROJECT_NAME)
@@ -1097,7 +1116,7 @@ NODE
 # produce valid AGENTS.md).
 run_repo_inspection() {
   local project_dir="$1"
-  local inspect_script="$skill_root/scripts/inspect_repo.js"
+  local inspect_script="$engine_assets/inspect_repo.js"
   if [[ ! -f "$inspect_script" ]]; then
     emit_warning "inspect_repo.js not found at $inspect_script; AGENTS.md will rely on operator inputs only"
     printf '{}'
@@ -1554,7 +1573,6 @@ generate_agents_md_content() {
         { p: ocPath, d: "OpenCode runtime config (worktree permission, agents, providers)" },
         { p: ".opencode/skills/github-issues-projects-cli/", d: "GitHub Projects CLI helper scripts" },
         { p: ".opencode/skills/do-task/", d: "Task worktree management scripts" },
-        { p: ".opencode/skills/project-initialization/", d: "Re-initialization scripts (this skill)" },
       );
       sections.push({ heading: "Local Configuration Files", body: artifacts.map((a) => `- \`${a.p}\` — ${a.d}`).join("\n") });
     }
@@ -1717,16 +1735,31 @@ write_agents_md_atomic() {
   write_file_atomic "$1" "$2"
 }
 
-skill_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# Sibling managed skills root: the skills directory this skill lives in. In a
-# source checkout that is <repo>/.opencode/skills; in the managed mirror
-# installed by scripts/sync-managed-skills.sh it is ~/.agents/skills. The
-# engine must run correctly from BOTH locations (the installed wrapper
-# "$ANT_TEAM_SCRIPTS/init-project.sh" executes the mirror copy), so
-# required-skill discovery resolves from the sibling root — never from a
-# checkout-derived repo root, which would resolve to $HOME in the mirror and
-# fail preflight against a nonexistent $HOME/.opencode/skills.
-managed_skills_root="$(cd "$skill_root/.." && pwd)"
+# Engine install root: the directory this script lives in — either the
+# team-scripts install (~/.agents/scripts, populated by scripts/init-company.sh
+# from templates/scripts/) or a source checkout (templates/scripts). Support
+# assets (inspect_repo.js, github-project.env.template) ship in the sibling
+# init-project/ directory next to the engine and are copied with it.
+engine_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+engine_assets="$engine_root/init-project"
+
+# Sibling managed skills root: where the required skills live relative to the
+# engine. Two layouts are supported, resolved by first match:
+#   1. team-scripts install:  <engine_root>/../skills      (~/.agents/skills)
+#   2. source checkout:       <engine_root>/../opencode/skills
+#                             (templates/scripts/../opencode/skills)
+# The engine must run correctly from BOTH locations (tests drive the source
+# checkout directly; production invokes "$ANT_TEAM_SCRIPTS/init-project.sh"),
+# so required-skill discovery resolves from the engine's install root — never
+# from a CWD-derived path. When neither candidate exists, the first candidate
+# is kept so run_preflight reports the expected install location.
+managed_skills_root="$engine_root/../skills"
+if [[ ! -d "$managed_skills_root" && -d "$engine_root/../opencode/skills" ]]; then
+  managed_skills_root="$engine_root/../opencode/skills"
+fi
+if [[ -d "$managed_skills_root" ]]; then
+  managed_skills_root="$(cd "$managed_skills_root" && pwd)"
+fi
 project_dir="$(pwd)"
 docs_root="docs"
 worktree_root=""
@@ -1945,7 +1978,8 @@ ensure_project_runtime_env \
   "$worktree_root" \
   "$repo_name" \
   "$opt_github_owner" \
-  "$opt_github_project_number"
+  "$opt_github_project_number" \
+  "$engine_assets/github-project.env.template"
 ensure_opencode_config "$project_dir" "$worktree_root"
 copy_required_skills "$project_dir" "$managed_skills_root"
 

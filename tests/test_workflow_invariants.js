@@ -66,7 +66,7 @@ const assert = require('assert');
 const REPO_ROOT = path.resolve(__dirname, '..');
 const INIT_SCRIPT = path.join(
   REPO_ROOT,
-  'templates/opencode/skills/project-initialization/scripts/init_project_docs.sh'
+  'templates/scripts/init-project.sh'
 );
 
 let passed = 0;
@@ -123,6 +123,7 @@ function activeMarkdownSurfaces() {
 function activeScriptSurfaces() {
   return [
     ...walkFiles('scripts', ['.sh']),
+    ...walkFiles('templates/scripts', ['.sh']),
     ...walkFiles('templates/opencode/skills', ['.sh']),
   ];
 }
@@ -417,7 +418,7 @@ check('INV-7a: /migrate command file is gone', () => {
 });
 
 check('INV-7b: init engine has no --migrate-agent-md flag', () => {
-  const s = read('templates/opencode/skills/project-initialization/scripts/init_project_docs.sh');
+  const s = read('templates/scripts/init-project.sh');
   mustNotContain(s, '--migrate-agent-md', 'init engine');
   mustNotContain(s, 'opt_migrate_agent_md', 'init engine');
 });
@@ -769,7 +770,7 @@ check('INV-14b: README makes no retired command, role, or script claims', () => 
 check('INV-15: no ANT_TEAM_GITHUB_STATUS_* legacy keys in the env or its seed sources', () => {
   const files = [
     '.github-project.env',
-    'templates/opencode/skills/project-initialization/scripts/init_project_docs.sh',
+    'templates/scripts/init-project.sh',
     'templates/opencode/skills/github-issues-projects-cli/references/command-patterns.md',
   ];
   for (const f of files) {

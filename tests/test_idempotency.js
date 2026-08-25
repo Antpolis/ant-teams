@@ -5,8 +5,8 @@
  * tests/test_idempotency.js — SPEC-001-T6 unit tests (issue #7).
  *
  * Asserts the TR-2 idempotency contract and ERR-3.2 backup behavior. Drives
- * `templates/opencode/skills/project-initialization/scripts/init_project_docs.sh`
- * against throwaway target project directories.
+ * `templates/scripts/init-project.sh` (the engine since the 2026-08
+ * tooling-path migration) against throwaway target project directories.
  *
  * Coverage:
  *   - AC-T6-006: idempotent rerun (no --force) → exit 0, "No changes needed",
@@ -35,7 +35,7 @@ const assert = require('assert');
 const REPO_ROOT = path.resolve(__dirname, '..');
 const INIT_SCRIPT = path.join(
   REPO_ROOT,
-  'templates/opencode/skills/project-initialization/scripts/init_project_docs.sh'
+  'templates/scripts/init-project.sh'
 );
 
 let pass = 0;
@@ -99,11 +99,11 @@ function hashFile(p) {
 
 process.stdout.write('Suite: preflight\n');
 
-check('init_project_docs.sh exists', () => {
+check('init-project.sh exists', () => {
   assert.ok(fs.existsSync(INIT_SCRIPT), `init script missing at ${INIT_SCRIPT}`);
 });
 
-check('init_project_docs.sh is syntactically valid', () => {
+check('init-project.sh is syntactically valid', () => {
   const { spawnSync } = require('child_process');
   const r = spawnSync('bash', ['-n', INIT_SCRIPT], { encoding: 'utf8' });
   assert.strictEqual(r.status, 0, `syntax error:\n${r.stderr}`);

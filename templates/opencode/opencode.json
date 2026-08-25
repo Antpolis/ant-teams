@@ -12,7 +12,6 @@
           ".opencode/**": "allow",
           "*": "deny"
         },
-        "bash": "allow",
         "webfetch": "allow",
         "websearch": "allow",
         "question": "allow",
@@ -40,7 +39,6 @@
           ".opencode/**": "allow",
           "*": "deny"
         },
-        "bash": "allow",
         "glob": "allow",
         "grep": "allow",
         "task": {
@@ -63,7 +61,6 @@
           ".opencode/**": "allow",
           "*": "deny"
         },
-        "bash": "allow",
         "apply_patch": "allow",
         "glob": "allow",
         "task": {
@@ -81,7 +78,6 @@
       "model": "zai-coding-plan/glm-5.3",
       "permission": {
         "edit": "allow",
-        "bash": "allow",
         "apply_patch": "allow",
         "glob": "allow",
         "task": {
@@ -99,7 +95,6 @@
       "model": "opencode/qwen-3.6-plus",
       "permission": {
         "edit": "deny",
-        "bash": "allow",
         "glob": "allow",
         "task": {
           "*": "deny",
@@ -112,10 +107,30 @@
     }
   },
   "permission": {
+    "bash": {
+      "*": "ask",
+      "pwd": "allow",
+      "ls *": "allow",
+      "git status *": "allow",
+      "git diff *": "allow",
+      "git log *": "allow",
+      "git branch *": "allow",
+      "git show *": "allow",
+      "git rev-parse *": "allow",
+      "git ls-files *": "allow",
+      "rg *": "allow",
+      "find *": "allow",
+      "node --version": "allow",
+      "npm test *": "allow",
+      "npm run test *": "allow",
+      "bash -n *": "allow",
+      "source ./.github-project.env": "allow"
+    },
     "read": "allow",
     "grep": "allow",
-    "question": "allow",
     "webfetch": "allow",
+    "websearch": "allow",
+    "question": "allow",
     "external_directory": {
       "/home/chrissim/Projects/worktree/ant-teams/**": "allow",
       "~/.config/opencode/skills/**": "allow",
