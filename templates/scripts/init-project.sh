@@ -1048,6 +1048,7 @@ generate_agents_md_content() {
   local project_dir="${AGENTSMD_PROJECT_DIR:-.}"
   local repo_name="${AGENTSMD_REPO_NAME:-}"
   local version="${AGENTSMD_VERSION:-}"
+  local scratch_dir="${AGENTSMD_SCRATCH_DIR:-}"
 
   # Read env values for documentation routing and GitHub config.
   local vault_path="" project_path="" gh_owner="" gh_project=""
@@ -1059,6 +1060,14 @@ generate_agents_md_content() {
     # Filter placeholder values.
     [[ "$gh_owner" == "your-github-owner" ]] && gh_owner=""
     [[ "$gh_project" == "1" ]] && gh_project=""
+  fi
+
+  # Resolve scratch directory: passed value > env > default.
+  if [[ -z "$scratch_dir" ]]; then
+    scratch_dir="$(sed -n "s/^export ANT_TEAM_SCRATCH_DIR='\(.*\)'/\1/p" "$project_dir/.github-project.env" 2>/dev/null || true)"
+  fi
+  if [[ -z "$scratch_dir" ]]; then
+    scratch_dir="./tmp/"
   fi
 
   local ts
@@ -1073,12 +1082,20 @@ ${repo_name}
 
 ## Documentation
 
-Central Obsidian documentation vault: \`\$ANT_TEAM_DOCS_VAULT_PATH\`
-Product documentation is stored in the central Obsidian vault; this repository keeps only code-adjacent guidance.
+Central Obsidian documentation vault: \`\$ANT_TEAM_DOCS_VAULT_PATH\` from \`.github-project.env\` (currently \`${vault_path:-not set}\`)
+EOF
+
+  if [[ -n "$project_path" ]]; then
+    printf '\nProject documentation path: `$ANT_TEAM_DOCS_PROJECT_PATH` from `.github-project.env` (currently `%s`)\n' "$project_path"
+  else
+    printf '\nProduct documentation is stored in the central Obsidian vault; this repository keeps only code-adjacent guidance.\n'
+  fi
+
+  cat <<EOF
 
 ## Scratch and Log Directories
 
-Scratch directory for work-in-progress and logs: \`./tmp/\`
+Scratch directory for work-in-progress and logs: \`${scratch_dir}\`
 
 ## GitHub Project Helper
 
@@ -1473,7 +1490,7 @@ run_preflight "$project_dir" "$managed_skills_root"
 
 project_dir="$(mkdir -p "$project_dir" && cd "$project_dir" && pwd)"
 docs_root="${docs_root%/}"
-repo_name="$(basename "$project_dir")"
+repo_name="${opt_name:-$(basename "$project_dir")}"
 
 if [[ -z "$worktree_root" ]]; then
   worktree_root="$HOME/Projects/worktree/$repo_name"
@@ -1542,6 +1559,7 @@ AGENTS_MD_CONTENT="$(
   AGENTSMD_PROJECT_DIR="$project_dir" \
   AGENTSMD_REPO_NAME="$repo_name" \
   AGENTSMD_VERSION="$INIT_PROJECT_VERSION" \
+  AGENTSMD_SCRATCH_DIR="$opt_scratch_dir" \
   generate_agents_md_content
 )"
 
