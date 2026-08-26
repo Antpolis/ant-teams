@@ -12,7 +12,7 @@
 #   1  Usage error, or a source file was skipped due to error (ERR-1.2/ERR-2.1)
 #   2  Boundary violation (attempted write to an unmanaged/out-of-bounds path)
 #   3  Source ambiguity (duplicate source names)
-#   4  Missing dependency (sha256sum/shasum, or node)
+#   4  Missing dependency (sha256sum/shasum, or jq)
 #   5  File-system error (permission denied, disk full, etc.)
 #
 set -euo pipefail
@@ -140,8 +140,7 @@ USAGE
 
 # ---------------------------------------------------------------------------
 # Dependency detection (TR-1.2). sha256sum with shasum -a 256 fallback.
-# node is already a repository runtime dependency (init-company.sh requires it)
-# and is used here only for reliable JSON validate/serialize (DM-4.2).
+# jq is used for manifest JSON I/O (DM-4.2).
 # ---------------------------------------------------------------------------
 SHA_CMD=""
 if command -v sha256sum >/dev/null 2>&1; then
@@ -150,9 +149,9 @@ elif command -v shasum >/dev/null 2>&1; then
   SHA_CMD=shasum
 fi
 
-NODE_BIN=""
-if command -v node >/dev/null 2>&1; then
-  NODE_BIN=node
+JQ_BIN=""
+if command -v jq >/dev/null 2>&1; then
+  JQ_BIN=jq
 fi
 
 # ---------------------------------------------------------------------------
@@ -169,112 +168,66 @@ compute_hash() {
 }
 
 # ---------------------------------------------------------------------------
-# Manifest I/O helpers (node-backed). TSV wire format, 7 tab-separated columns,
+# Manifest I/O helpers (jq-backed). TSV wire format, 7 tab-separated columns,
 # one line per managed file:
 #   name \t type \t source_path \t installed_at \t file_key \t hash \t target_path
 # ---------------------------------------------------------------------------
-write_node_helper() {
-  cat > "$1" <<'NODE_SCRIPT'
-"use strict";
-const fs = require("fs");
-const mode = process.argv[2];
-
-if (mode === "read") {
-  const path = process.argv[3];
-  if (!path || !fs.existsSync(path)) {
-    process.stdout.write("MANIFEST_MISSING\n");
-    process.exit(0);
+manifest_read() {
+  # Reads manifest JSON from $1, writes TSV to stdout.
+  # Prints status line first: MANIFEST_OK, MANIFEST_MISSING, or MANIFEST_CORRUPT.
+  local path="$1"
+  if [[ ! -f "$path" ]]; then
+    printf 'MANIFEST_MISSING\n'
+    return 0
+  fi
+  local status
+  status=$(jq -e '
+    if type != "object" or .version != 1 or (.managed_entries | type) != "object"
+    then error("schema violation")
+    else "ok"
+    end
+  ' "$path" 2>/dev/null) || {
+    printf 'MANIFEST_CORRUPT\n'
+    return 0
   }
-  let raw;
-  try {
-    raw = fs.readFileSync(path, "utf8");
-  } catch (e) {
-    process.stdout.write("MANIFEST_CORRUPT\n");
-    process.exit(0);
-  }
-  let obj;
-  try {
-    obj = JSON.parse(raw);
-  } catch (e) {
-    process.stdout.write("MANIFEST_CORRUPT\n");
-    process.exit(0);
-  }
-  // DM-4.2: must be an object with version===1 and a managed_entries object.
-  if (typeof obj !== "object" || obj === null ||
-      obj.version !== 1 ||
-      typeof obj.managed_entries !== "object" || obj.managed_entries === null) {
-    process.stdout.write("MANIFEST_CORRUPT\n");
-    process.exit(0);
-  }
-  process.stdout.write("MANIFEST_OK\n");
-  for (const name of Object.keys(obj.managed_entries)) {
-    const e = obj.managed_entries[name] || {};
-    const type = typeof e.type === "string" ? e.type : "";
-    const sp = typeof e.source_path === "string" ? e.source_path : "";
-    const ia = typeof e.installed_at === "string" ? e.installed_at : "";
-    const files = (e.files && typeof e.files === "object") ? e.files : {};
-    const fkeys = Object.keys(files);
-    if (fkeys.length === 0) {
-      // Keep file-less entries visible for orphan detection.
-      process.stdout.write([name, type, sp, ia, "", "", ""].join("\t") + "\n");
-    } else {
-      for (const fk of fkeys) {
-        const frec = files[fk] || {};
-        const hash = typeof frec.hash === "string" ? frec.hash.replace(/[^a-f0-9]/g, "") : "";
-        const tp = typeof frec.target_path === "string" ? frec.target_path : "";
-        process.stdout.write([name, type, sp, ia, fk, hash, tp].join("\t") + "\n");
-      }
-    }
-  }
-  process.exit(0);
+  printf 'MANIFEST_OK\n'
+  jq -r '
+    .managed_entries | to_entries | sort_by(.key)[] |
+    .key as $name | .value as $entry |
+    if ($entry.files | length) == 0 then
+      [$name, ($entry.type // ""), ($entry.source_path // ""), ($entry.installed_at // ""), "", "", ""] | @tsv
+    else
+      $entry.files | to_entries | sort_by(.key)[] |
+      [$name, ($entry.type // ""), ($entry.source_path // ""), ($entry.installed_at // ""), .key, ((.value.hash // "") | gsub("[^a-f0-9]";"")), ((.value.target_path // "") )] | @tsv
+    end
+  ' "$path" 2>/dev/null || printf ''
 }
 
-if (mode === "write") {
-  const inTsv = process.argv[3];
-  const outPath = process.argv[4];
-  const lastSync = process.argv[5];
-  const sourceRepo = process.argv[6] || "";
-  const manifest = {
-    version: 1,
-    source_repo: sourceRepo,
-    last_sync: lastSync,
-    managed_entries: {}
-  };
-  const raw = fs.readFileSync(inTsv, "utf8");
-  for (const line of raw.split("\n")) {
-    if (line === "") continue;
-    const parts = line.split("\t");
-    if (parts.length < 7) continue;
-    const [name, type, sp, ia, fk, hash, tp] = parts;
-    if (fk === "") continue; // skip file-less placeholder rows on write
-    if (!manifest.managed_entries[name]) {
-      manifest.managed_entries[name] = { type, source_path: sp, installed_at: ia, files: {} };
+manifest_write() {
+  # Reads TSV from $1, writes manifest JSON to $2.
+  local in_tsv="$1" out_path="$2" last_sync="$3" source_repo="$4"
+  jq -n --arg last_sync "$last_sync" --arg source_repo "$source_repo" '
+    {
+      version: 1,
+      source_repo: $source_repo,
+      last_sync: $last_sync,
+      managed_entries: {}
     }
-    manifest.managed_entries[name].files[fk] = { hash, target_path: tp };
-  }
-  // Deterministic output (TR-4.1): fixed top-level key order + sorted entries
-  // and sorted file keys, so idempotent re-runs are byte-identical except
-  // last_sync (FR-10.1, TR-4.3).
-  const sorted = {};
-  for (const name of Object.keys(manifest.managed_entries).sort()) {
-    const e = manifest.managed_entries[name];
-    const sf = {};
-    for (const fk of Object.keys(e.files).sort()) sf[fk] = e.files[fk];
-    sorted[name] = {
-      type: e.type,
-      source_path: e.source_path,
-      installed_at: e.installed_at,
-      files: sf
-    };
-  }
-  manifest.managed_entries = sorted;
-  fs.writeFileSync(outPath, JSON.stringify(manifest, null, 2) + "\n");
-  process.exit(0);
-}
-
-process.stderr.write("[ERROR] manifest_io: unknown mode " + mode + "\n");
-process.exit(1);
-NODE_SCRIPT
+  ' > "$out_path.tmp" || return 1
+  # Build the manifest incrementally from TSV rows.
+  while IFS=$'\t' read -r name type sp ia fk hash tp; do
+    [[ -z "$name" || -z "$fk" ]] && continue
+    jq --arg name "$name" --arg type "$type" --arg sp "$sp" --arg ia "$ia" \
+       --arg fk "$fk" --arg hash "$hash" --arg tp "$tp" '
+      .managed_entries[$name] //= {type: $type, source_path: $sp, installed_at: $ia, files: {}} |
+      .managed_entries[$name].files[$fk] = {hash: $hash, target_path: $tp}
+    ' "$out_path.tmp" > "$out_path.tmp2" && mv "$out_path.tmp2" "$out_path.tmp"
+  done < "$in_tsv"
+  # Deterministic sort of entries and file keys.
+  jq '
+    .managed_entries = (.managed_entries | to_entries | sort_by(.key) | from_entries |
+      to_entries | map(.value.files = (.value.files | to_entries | sort_by(.key) | from_entries)) | from_entries)
+  ' "$out_path.tmp" > "$out_path" && rm -f "$out_path.tmp"
 }
 
 # ---------------------------------------------------------------------------
@@ -475,8 +428,8 @@ done
 if [[ -z "$SHA_CMD" ]]; then
   die_dep "sha256sum (or 'shasum -a 256' on macOS) is required but was not found."
 fi
-if [[ -z "$NODE_BIN" ]]; then
-  die_dep "node is required for manifest JSON I/O but was not found."
+if [[ -z "$JQ_BIN" ]]; then
+  die_dep "jq is required for manifest JSON I/O but was not found."
 fi
 
 # ---------------------------------------------------------------------------
@@ -500,8 +453,6 @@ umask 022
 
 # Scratch space for this run (SEC-3.3, TR-5).
 TEMP_DIR="$(mktemp -d 2>/dev/null || mktemp -d -t syncmanaged)"
-NODE_HELPER="$TEMP_DIR/manifest_io.js"
-write_node_helper "$NODE_HELPER"
 
 # Source inventory TSV. Columns:
 #   entry_name \t entry_type \t entry_source_path \t file_subpath \t file_key \t source_abs
@@ -622,7 +573,7 @@ fi
 # ---------------------------------------------------------------------------
 OLD_TSV="$TEMP_DIR/old_manifest.tsv"
 MANIFEST_READ_OUTPUT="$TEMP_DIR/read_status.txt"
-"$NODE_BIN" "$NODE_HELPER" read "$MANIFEST_PATH" > "$MANIFEST_READ_OUTPUT" || die_fs "manifest read failed"
+manifest_read "$MANIFEST_PATH" > "$MANIFEST_READ_OUTPUT" || die_fs "manifest read failed"
 read -r _manifest_status < "$MANIFEST_READ_OUTPUT"
 case "$_manifest_status" in
   MANIFEST_OK)
@@ -901,7 +852,7 @@ unset orphan
 if [[ "$DRY_RUN" != "1" ]]; then
   mkdir -p "$TARGET_DIR" || die_fs "cannot create $TARGET_DIR"
   MANIFEST_TMP="$TEMP_DIR/.manifest.json.tmp"
-  "$NODE_BIN" "$NODE_HELPER" write "$NEW_TSV" "$MANIFEST_TMP" "$NOW" "$REPO_ROOT" || die_fs "manifest serialization failed"
+  manifest_write "$NEW_TSV" "$MANIFEST_TMP" "$NOW" "$REPO_ROOT" || die_fs "manifest serialization failed"
   chmod 0644 "$MANIFEST_TMP" 2>/dev/null || true
   mv -f "$MANIFEST_TMP" "$MANIFEST_PATH" || die_fs "cannot commit manifest to $MANIFEST_PATH"
 fi

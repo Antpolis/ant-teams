@@ -14,8 +14,7 @@
 #     via `trap '...' EXIT`. Tests NEVER touch the real `~/.agents/skills/`
 #     or `~/.config/opencode/`: they override `$HOME` to a temp dir (TR-1.3 —
 #     the script resolves `~` via `$HOME`, never tilde expansion).
-#   - No external dependencies: bash + coreutils + grep + the repo's existing
-#     `node` runtime (already required by init-company.sh for provider merge).
+#   - No external dependencies: bash + coreutils + grep + jq (used for manifest JSON I/O).
 #
 # Two fixture strategies are supported:
 #   1. Controlled fixture repo (TEST-1 unit + TEST-2 integration): the REAL
@@ -178,14 +177,14 @@ sync_capture() {
 # (Provided for completeness; most tests call sync_capture directly.)
 
 # ---------------------------------------------------------------------------
-# Manifest queries (node-backed; the manifest is JSON per DM-2).
+# Manifest queries (jq-backed; the manifest is JSON per DM-2).
 # ---------------------------------------------------------------------------
 
 # sync_manifest_count_entries MANIFEST — number of managed_entries keys.
 sync_manifest_count_entries() {
   local m="$1"
   if [[ ! -f "$m" ]]; then printf '0'; return; fi
-  node -e 'const m=require(process.argv[1]); console.log(Object.keys(m.managed_entries||{}).length)' "$m" 2>/dev/null \
+  jq '.managed_entries | keys | length' "$m" 2>/dev/null \
     || printf '0'
 }
 
@@ -193,8 +192,7 @@ sync_manifest_count_entries() {
 sync_manifest_has_entry() {
   local m="$1" name="$2"
   if [[ ! -f "$m" ]]; then printf 'no'; return; fi
-  if node -e 'const m=require(process.argv[1]); process.exit(m.managed_entries&&m.managed_entries[process.argv[2]]?0:1)' \
-        "$m" "$name" 2>/dev/null; then
+  if jq -e --arg n "$name" '.managed_entries[$n] != null' "$m" >/dev/null 2>&1; then
     printf 'yes'
   else
     printf 'no'
@@ -205,40 +203,35 @@ sync_manifest_has_entry() {
 sync_manifest_entry_type() {
   local m="$1" name="$2"
   if [[ ! -f "$m" ]]; then printf ''; return; fi
-  node -e 'const m=require(process.argv[1]); const e=m.managed_entries&&m.managed_entries[process.argv[2]]; process.stdout.write((e&&e.type)||"")' \
-    "$m" "$name" 2>/dev/null || printf ''
+  jq -r --arg n "$name" '(.managed_entries[$n].type // "")' "$m" 2>/dev/null || printf ''
 }
 
 # sync_manifest_file_hash MANIFEST NAME FILEKEY — echoes recorded hash or "".
 sync_manifest_file_hash() {
   local m="$1" name="$2" fk="$3"
   if [[ ! -f "$m" ]]; then printf ''; return; fi
-  node -e 'const m=require(process.argv[1]); const e=m.managed_entries&&m.managed_entries[process.argv[2]]; const f=e&&e.files&&e.files[process.argv[3]]; process.stdout.write((f&&f.hash)||"")' \
-    "$m" "$name" "$fk" 2>/dev/null || printf ''
+  jq -r --arg n "$name" --arg fk "$fk" '(.managed_entries[$n].files[$fk].hash // "")' "$m" 2>/dev/null || printf ''
 }
 
 # sync_manifest_entry_filekeys MANIFEST NAME — newline-joined file keys.
 sync_manifest_entry_filekeys() {
   local m="$1" name="$2"
   if [[ ! -f "$m" ]]; then printf ''; return; fi
-  node -e 'const m=require(process.argv[1]); const e=m.managed_entries&&m.managed_entries[process.argv[2]]; process.stdout.write(Object.keys((e&&e.files)||{}).join("\n"))' \
-    "$m" "$name" 2>/dev/null || printf ''
+  jq -r --arg n "$name" '(.managed_entries[$n].files // {}) | keys | .[]' "$m" 2>/dev/null || printf ''
 }
 
 # sync_manifest_target_path MANIFEST NAME FILEKEY — echoes recorded target_path or "".
 sync_manifest_target_path() {
   local m="$1" name="$2" fk="$3"
   if [[ ! -f "$m" ]]; then printf ''; return; fi
-  node -e 'const m=require(process.argv[1]); const e=m.managed_entries&&m.managed_entries[process.argv[2]]; const f=e&&e.files&&e.files[process.argv[3]]; process.stdout.write((f&&f.target_path)||"")' \
-    "$m" "$name" "$fk" 2>/dev/null || printf ''
+  jq -r --arg n "$name" --arg fk "$fk" '(.managed_entries[$n].files[$fk].target_path // "")' "$m" 2>/dev/null || printf ''
 }
 
 # sync_manifest_is_valid_json MANIFEST — "yes"/"no" (parse + top-level keys).
 sync_manifest_is_valid_json() {
   local m="$1"
   if [[ ! -f "$m" ]]; then printf 'no'; return; fi
-  if node -e 'const m=require(process.argv[1]); if(typeof m!=="object"||m===null||m.version!==1||typeof m.managed_entries!=="object")process.exit(1)' \
-        "$m" 2>/dev/null; then
+  if jq -e 'type == "object" and .version == 1 and (.managed_entries | type) == "object"' "$m" >/dev/null 2>&1; then
     printf 'yes'
   else
     printf 'no'
