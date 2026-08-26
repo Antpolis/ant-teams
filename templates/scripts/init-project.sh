@@ -261,15 +261,17 @@ run_preflight() {
   # which functions require it so the operator knows why.
   if ! command -v node >/dev/null 2>&1; then
     echo "[error] node (≥18) is required but was not found on PATH." >&2
-    echo "[error] node is used by ensure_opencode_config and ensure_project_runtime_env" >&2
-    echo "[error] for config manipulation (OBS-3.2). Install node ≥18 and re-run." >&2
+    echo "[error] node is used by the repository inspection engine and AGENTS.md generation" >&2
+    echo "[error] (ensure_opencode_config and ensure_project_runtime_env use jq instead)." >&2
+    echo "[error] Install node ≥18 and re-run." >&2
     exit 1
   fi
   local node_major
   node_major="$(node -e 'process.stdout.write(String(Number(process.versions.node.split(".")[0])||0))' 2>/dev/null || echo 0)"
   if [[ ! "$node_major" =~ ^[0-9]+$ || "$node_major" -lt 18 ]]; then
     echo "[error] node ≥18 is required (detected node v${node_major}.x)." >&2
-    echo "[error] ensure_opencode_config and ensure_project_runtime_env require node ≥18 (OBS-3.2)." >&2
+    echo "[error] The repository inspection engine and AGENTS.md generation require node ≥18" >&2
+    echo "[error] (ensure_opencode_config and ensure_project_runtime_env use jq instead)." >&2
     exit 1
   fi
 
@@ -999,17 +1001,22 @@ ensure_project_runtime_env() {
     done
   fi
 
-  # Determine verdict.
-  local existing="" verdict=""
-  if [[ -f "$env_path" ]]; then
-    existing="$(cat "$env_path")"
-  fi
-  if [[ -z "$existing" ]]; then
+  # Determine verdict via byte-preserving comparison (cmp -s). Command
+  # substitution strips trailing newlines, so `existing="$(cat ...)"` would
+  # never match a content that ends with a newline.
+  local verdict=""
+  if [[ ! -f "$env_path" ]]; then
     verdict="CREATE"
-  elif [[ "$existing" == "$content" ]]; then
-    verdict="NO_CHANGE"
   else
-    verdict="UPDATE"
+    local tmp_cmp
+    tmp_cmp="$(mktemp)"
+    printf '%s' "$content" > "$tmp_cmp"
+    if cmp -s "$env_path" "$tmp_cmp"; then
+      verdict="NO_CHANGE"
+    else
+      verdict="UPDATE"
+    fi
+    rm -f "$tmp_cmp"
   fi
 
   case "$verdict" in
