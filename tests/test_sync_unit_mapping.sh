@@ -64,7 +64,7 @@ assert_eq "command-derived dir has exactly 1 file" "$CDIR_COUNT" "1"
 assert_eq "command-derived manifest type" \
   "$(sync_manifest_entry_type "$MANIFEST" do-tasks)" "command_derived"
 assert_eq "command-derived manifest source_path" \
-  "$(node -e 'const m=require(process.argv[1]);process.stdout.write(m.managed_entries["do-tasks"].source_path)' "$MANIFEST" 2>/dev/null)" \
+  "$(jq -r '.managed_entries["do-tasks"].source_path' "$MANIFEST" 2>/dev/null)" \
   ".opencode/commands/do-tasks.md"
 
 rm -f "$OUT"

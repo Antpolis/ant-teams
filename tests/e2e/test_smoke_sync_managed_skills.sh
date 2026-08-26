@@ -171,8 +171,7 @@ assert_eq "F2 unmanaged file untouched" \
   "$(cat "$HOME2/.agents/skills/documentation-standard")" "do-not-clobber"
 # documentation-standard must NOT be recorded as managed (collision skip).
 _manifest="$HOME2/.agents/skills/.manifest.json"
-if node -e 'const m=require(process.argv[1]); console.log(m.managed_entries["documentation-standard"]?"present":"absent")' \
-     "$_manifest" 2>/dev/null | grep -q present; then
+if jq -e '.managed_entries["documentation-standard"]' "$_manifest" >/dev/null 2>&1; then
   printf '  [FAIL] F2 documentation-standard should not be in manifest\n' >&2; FAIL=$((FAIL + 1))
 else
   printf '  [PASS] F2 documentation-standard not in manifest\n'; PASS=$((PASS + 1))
@@ -313,8 +312,7 @@ else
   printf '  [FAIL] F4 unrelated entry (documentation-standard) missing\n' >&2; FAIL=$((FAIL + 1))
 fi
 # Manifest must still be valid and record the partly-managed entry.
-if node -e 'const m=require(process.argv[1]); if(!m.managed_entries["do-task"]) process.exit(1)' \
-     "$HOME4/.agents/skills/.manifest.json" 2>/dev/null; then
+if jq -e '.managed_entries["do-task"]' "$HOME4/.agents/skills/.manifest.json" >/dev/null 2>&1; then
   printf '  [PASS] F4 manifest still records do-task\n'; PASS=$((PASS + 1))
 else
   printf '  [FAIL] F4 manifest lost do-task entry\n' >&2; FAIL=$((FAIL + 1))

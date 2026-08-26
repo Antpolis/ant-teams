@@ -55,52 +55,32 @@ merge_provider_config() {
 
   [[ -f "$source_config" && -f "$installed_config" ]] || return 0
 
-  node - "$source_config" "$installed_config" <<'NODE'
-const fs = require("fs");
+  # Deep-merge provider objects using jq. Arrays are preserved from installed;
+  # nested objects are merged recursively. null * obj is handled by // fallback.
+  local merged
+  merged=$(jq -n --slurpfile src "$source_config" --slurpfile inst "$installed_config" '
+    ($src[0].provider // {}) as $sp |
+    ($inst[0].provider // {}) as $ip |
+    if ($sp | length) == 0 and ($ip | length) == 0 then
+      $src[0]
+    elif ($sp | length) == 0 then
+      $src[0] + {provider: $ip}
+    elif ($ip | length) == 0 then
+      $src[0]
+    else
+      $src[0] + {provider: ($sp * $ip |
+        to_entries | map(
+          if (.value | type) == "array" then .value = $ip[.key] // .value
+          elif (.value | type) == "object" and ($ip[.key] | type) == "object" then
+            .value = (.value * $ip[.key])
+          else .
+          end
+        ) | from_entries
+      )}
+    end
+  ' 2>/dev/null) || return 0
 
-const [sourcePath, installedPath] = process.argv.slice(2);
-const source = JSON.parse(fs.readFileSync(sourcePath, "utf8"));
-const installed = JSON.parse(fs.readFileSync(installedPath, "utf8"));
-
-const sourceProvider = source.provider;
-const installedProvider = installed.provider;
-
-if (!sourceProvider && !installedProvider) {
-  process.exit(0);
-}
-
-if (!sourceProvider) {
-  source.provider = installedProvider;
-} else if (installedProvider) {
-  source.provider = mergeObjects(sourceProvider, installedProvider);
-}
-
-fs.writeFileSync(sourcePath, JSON.stringify(source, null, 2) + "\n");
-
-function mergeObjects(sourceValue, installedValue) {
-  if (Array.isArray(sourceValue) || Array.isArray(installedValue)) {
-    return installedValue;
-  }
-
-  if (!isPlainObject(sourceValue) || !isPlainObject(installedValue)) {
-    return installedValue;
-  }
-
-  const merged = { ...sourceValue };
-  for (const [key, installedChild] of Object.entries(installedValue)) {
-    if (!(key in sourceValue)) {
-      merged[key] = installedChild;
-      continue;
-    }
-    merged[key] = mergeObjects(sourceValue[key], installedChild);
-  }
-  return merged;
-}
-
-function isPlainObject(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-NODE
+  printf '%s\n' "$merged" > "$source_config"
 }
 
 sync_copilot_agents() {
@@ -109,36 +89,35 @@ sync_copilot_agents() {
 
   mkdir -p "$agents_dir"
 
-  SOURCE_CONFIG="$source_config" COPILOT_AGENTS_DIR="$agents_dir" node <<'NODE'
-const fs = require("fs");
-const path = require("path");
+  # Extract agent definitions from opencode.json and write .agent.md files.
+  jq -r '
+    .agent // {} | to_entries[] |
+    select(.value.prompt != null) |
+    @json
+  ' "$source_config" 2>/dev/null | while IFS= read -r agent_json; do
+    local id desc prompt tools
+    id=$(printf '%s' "$agent_json" | jq -r '.key')
+    desc=$(printf '%s' "$agent_json" | jq -r '.value.description // "Use when acting as the \(.key) role."')
+    prompt=$(printf '%s' "$agent_json" | jq -r '.value.prompt')
 
-const sourceConfig = JSON.parse(fs.readFileSync(process.env.SOURCE_CONFIG, "utf8"));
-const agents = sourceConfig.agent || {};
-const agentsDir = process.env.COPILOT_AGENTS_DIR;
+    if [[ "$id" == "reviewer" ]]; then
+      tools="read, search, execute, agent, web"
+    else
+      tools="read, search, edit, execute, agent, web, todo"
+    fi
 
-for (const [id, agent] of Object.entries(agents)) {
-  if (!agent || typeof agent !== "object" || typeof agent.prompt !== "string") continue;
-
-  const tools = id === "reviewer"
-    ? ["read", "search", "execute", "agent", "web"]
-    : ["read", "search", "edit", "execute", "agent", "web", "todo"];
-  const content = [
-    "---",
-    `name: ${JSON.stringify(id)}`,
-    `description: ${JSON.stringify(agent.description || `Use when acting as the ${id} role.`)}`,
-    `tools: [${tools.join(", ")}]`,
-    "---",
-    "",
-    agent.prompt.trim(),
-    "",
-  ].join("\n");
-  const target = path.join(agentsDir, `${id}.agent.md`);
-  const temporary = `${target}.tmp-${process.pid}`;
-  fs.writeFileSync(temporary, content, "utf8");
-  fs.renameSync(temporary, target);
-}
-NODE
+    local target="$agents_dir/${id}.agent.md"
+    local temporary="${target}.tmp-$$"
+    {
+      printf '%s\n' "---"
+      printf 'name: %s\n' "$id"
+      printf 'description: %s\n' "$desc"
+      printf 'tools: [%s]\n' "$tools"
+      printf '%s\n' "---"
+      printf '%s\n' "$prompt"
+    } > "$temporary"
+    mv "$temporary" "$target"
+  done
 
   echo "Synced OpenCode agents -> $agents_dir"
 }
