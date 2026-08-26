@@ -216,8 +216,8 @@ expand_path() {
 #   1. target project dir exists AND is a git repo (has .git/ or .git file)
 #   2. the sibling managed skills root contains every required skill
 #      (github-issues-projects-cli, do-task)
-#   3. node (≥18) is on PATH — required by ensure_opencode_config /
-#      ensure_project_runtime_env (OBS-3.2)
+#   3. node (≥18) is on PATH — required by the repository inspection engine
+#      (inspect_repo.js) and AGENTS.md generation (OBS-3.2)
 #   4. coreutils cp/mkdir/cat/rm/mktemp are on PATH
 #
 # The .git/ existence check (NOT `git rev-parse`) is deliberate: the init
@@ -257,19 +257,31 @@ run_preflight() {
     fi
   done
 
-  # ERR-1.1 item 3 / OBS-3.2: node ≥18 on PATH. State minimum version and
-  # which functions require it so the operator knows why.
+  # ERR-1.1 item 3 / OBS-3.2: node ≥18 on PATH. Required by the repository
+  # inspection engine (inspect_repo.js) and AGENTS.md generation.
   if ! command -v node >/dev/null 2>&1; then
     echo "[error] node (≥18) is required but was not found on PATH." >&2
-    echo "[error] node is used by ensure_opencode_config and ensure_project_runtime_env" >&2
-    echo "[error] for config manipulation (OBS-3.2). Install node ≥18 and re-run." >&2
+    echo "[error] node is used by the repository inspection engine and AGENTS.md generation" >&2
+    echo "[error] (ensure_opencode_config and ensure_project_runtime_env use jq instead)." >&2
+    echo "[error] Install node ≥18 and re-run." >&2
     exit 1
   fi
   local node_major
   node_major="$(node -e 'process.stdout.write(String(Number(process.versions.node.split(".")[0])||0))' 2>/dev/null || echo 0)"
   if [[ ! "$node_major" =~ ^[0-9]+$ || "$node_major" -lt 18 ]]; then
     echo "[error] node ≥18 is required (detected node v${node_major}.x)." >&2
-    echo "[error] ensure_opencode_config and ensure_project_runtime_env require node ≥18 (OBS-3.2)." >&2
+    echo "[error] The repository inspection engine and AGENTS.md generation require node ≥18" >&2
+    echo "[error] (ensure_opencode_config and ensure_project_runtime_env use jq instead)." >&2
+    exit 1
+  fi
+
+  # ERR-1.1 item 3b: jq on PATH — required by ensure_opencode_config (strict
+  # JSON gate) and ensure_project_runtime_env (env seed/update).
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "[error] jq is required but was not found on PATH." >&2
+    echo "[error] jq is used by ensure_opencode_config (strict JSON validation)" >&2
+    echo "[error] and ensure_project_runtime_env (env seed/update) (OBS-3.2)." >&2
+    echo "[error] Install jq and re-run." >&2
     exit 1
   fi
 
@@ -497,137 +509,63 @@ ensure_opencode_config() {
 
   local config_rel="${config_path#$project_dir/}"
 
-  # COMPUTE-ONLY node helper (no writes). It prints one of:
+  # STRICT JSON GATE: jq validates strict JSON only. Comments and trailing
+  # commas are rejected with a clear error (AC-03). No Node, no Go, no JSONC
+  # parser — jq is the sole JSON mechanism.
+  #
+  # COMPUTE-ONLY jq helper (no writes). It prints one of:
   #   NO_CHANGE\n            — external_directory entry already present
   #   WRITE\n<content>       — merge needed; bash does the atomic write below
-  #   MALFORMED\n<message>   — existing file is unparseable; bash exits 1
-  # Splitting compute (node) from write (bash) lets bash own the atomic
+  #   MALFORMED\n<message>   — file is not strict JSON; bash exits 1
+  # Splitting compute (jq) from write (bash) lets bash own the atomic
   # temp+rename AND register the temp with the EXIT trap (ERR-2.1 / ERR-2.3).
-  local decision
-  decision="$(CONFIG_REL="$config_rel" \
-    node - "$config_path" "$external_pattern" <<'NODE'
-const fs = require("fs");
+  local jq_rc
+  local jq_out
+  jq_out="$(jq --arg pat "$external_pattern" '
+    if (.permission | type) != "object" then true
+    elif (.permission.external_directory | type) != "object" then true
+    elif .permission.external_directory[$pat] == "allow" then false
+    else true
+    end
+  ' "$config_path" 2>/tmp/jq_err_$$)" && jq_rc=0 || jq_rc=$?
 
-const [configPath, externalPattern] = process.argv.slice(2);
-const configRel = process.env.CONFIG_REL || configPath;
-const raw = fs.readFileSync(configPath, "utf8");
-const stripped = stripJsonComments(raw);
+  if [[ "$jq_rc" -eq 5 ]]; then
+    # jq exit 5 = parse error (not strict JSON).
+    local jq_err
+    jq_err="$(cat /tmp/jq_err_$$ 2>/dev/null || true)"
+    rm -f /tmp/jq_err_$$
+    echo "[error] Malformed $config_rel: not strict JSON — $jq_err" >&2
+    echo "[error] Remove comments and trailing commas, then re-run; init will not overwrite a non-JSON file." >&2
+    exit 1
+  elif [[ "$jq_rc" -ne 0 ]]; then
+    rm -f /tmp/jq_err_$$
+    echo "[error] jq error validating $config_rel (exit $jq_rc)" >&2
+    exit 1
+  fi
+  rm -f /tmp/jq_err_$$
 
-let parsed;
-try {
-  parsed = JSON.parse(removeTrailingCommas(stripped));
-} catch (error) {
-  process.stdout.write("MALFORMED\n" + configRel + ": " + error.message + "\n");
-  process.exit(0);
-}
-
-if (!parsed.permission || typeof parsed.permission !== "object" || Array.isArray(parsed.permission)) {
-  parsed.permission = {};
-}
-if (!parsed.permission.external_directory || typeof parsed.permission.external_directory !== "object" || Array.isArray(parsed.permission.external_directory)) {
-  parsed.permission.external_directory = {};
-}
-
-if (parsed.permission.external_directory[externalPattern] === "allow") {
-  process.stdout.write("NO_CHANGE\n");
-  process.exit(0);
-}
-
-parsed.permission.external_directory[externalPattern] = "allow";
-process.stdout.write("WRITE\n" + JSON.stringify(parsed, null, 2) + "\n");
-
-function stripJsonComments(input) {
-  let output = "";
-  let inString = false;
-  let stringChar = "";
-  let escaping = false;
-
-  for (let i = 0; i < input.length; i += 1) {
-    const char = input[i];
-    const next = input[i + 1];
-
-    if (inString) {
-      output += char;
-      if (escaping) {
-        escaping = false;
-      } else if (char === "\\") {
-        escaping = true;
-      } else if (char === stringChar) {
-        inString = false;
-        stringChar = "";
-      }
-      continue;
-    }
-
-    if (char === '"' || char === "'") {
-      inString = true;
-      stringChar = char;
-      output += char;
-      continue;
-    }
-
-    if (char === "/" && next === "/") {
-      while (i < input.length && input[i] !== "\n") i += 1;
-      output += "\n";
-      continue;
-    }
-
-    if (char === "/" && next === "*") {
-      i += 2;
-      while (i < input.length && !(input[i] === "*" && input[i + 1] === "/")) i += 1;
-      i += 1;
-      continue;
-    }
-
-    output += char;
-  }
-
-  return output;
-}
-
-function removeTrailingCommas(input) {
-  return input.replace(/,\s*([}\]])/g, "$1");
-}
-NODE
-  )"
-  local node_status=$?
-  if [[ "$node_status" -ne 0 ]]; then
-    echo "[error] opencode config merge helper exited $node_status for $config_rel" >&2
-    return 1
+  if [[ "$jq_out" == "false" ]]; then
+    echo "[summary] $config_rel already allows $external_pattern; no changes needed"
+    return 0
   fi
 
-  local first_line
-  first_line="$(printf '%s' "$decision" | sed -n '1p')"
+  # Build the updated config via jq.
+  local content
+  content="$(jq --arg pat "$external_pattern" '
+    if (.permission | type) != "object" then .permission = {} else . end |
+    if (.permission.external_directory | type) != "object" then .permission.external_directory = {} else . end |
+    .permission.external_directory[$pat] = "allow"
+  ' "$config_path")"
 
-  case "$first_line" in
-    NO_CHANGE)
-      echo "[summary] $config_rel already allows $external_pattern; no changes needed"
-      return 0
-      ;;
-    MALFORMED)
-      local msg
-      msg="$(printf '%s' "$decision" | sed -n '2p')"
-      echo "[error] Malformed $config_rel: $msg" >&2
-      echo "[error] Fix the JSON manually and re-run; init will not overwrite a broken file." >&2
-      exit 1
-      ;;
-    WRITE)
-      if [[ "${opt_dry_run:-0}" == "1" ]]; then
-        echo "[would-write] $config_rel (external_directory entry for $external_pattern)"
-        stat_would_write=$((stat_would_write + 1))
-        return 0
-      fi
-      local content
-      content="$(printf '%s' "$decision" | sed -n '2,$p')"
-      write_file_atomic "$config_path" "$content"
-      emit_write "$config_rel (external_directory entry for $external_pattern)"
-      return 0
-      ;;
-    *)
-      echo "[error] Unexpected decision from opencode config helper: '$first_line'" >&2
-      exit 1
-      ;;
-  esac
+  if [[ "${opt_dry_run:-0}" == "1" ]]; then
+    echo "[would-write] $config_rel (external_directory entry for $external_pattern)"
+    stat_would_write=$((stat_would_write + 1))
+    return 0
+  fi
+
+  write_file_atomic "$config_path" "$content"
+  emit_write "$config_rel (external_directory entry for $external_pattern)"
+  return 0
 }
 
 # T6 (issue #7) / ERR-2.1 atomic write helper. Writes CONTENT to TARGET via a
@@ -835,9 +773,9 @@ copy_required_skills() {
 #   - ANT_TEAM_DOCS_PROJECT_NAME defaults to the detected git repository name
 #     (basename of the project root), never overriding a founder value.
 #
-# The seed/update is computed in one `node` pass (node is already a hard
-# preflight requirement — no jq). Output is deterministic (no timestamps); an
-# unchanged env is never rewritten (stable mtime, byte-for-byte idempotent).
+# The seed/update is computed with jq (compute) + bash (write). Output is
+# deterministic (no timestamps); an unchanged env is never rewritten (stable
+# mtime, byte-for-byte idempotent).
 #
 # Canonical Workflow State model: the nine option keys below (open, backlog,
 # need-attentions, ready, in-progress, in-review, ready-to-merge, blocked,
@@ -859,227 +797,251 @@ ensure_project_runtime_env() {
   local env_template="$6"
   local env_path="$project_dir/.github-project.env"
 
-  # COMPUTE-ONLY node helper (no writes). It prints:
-  #   line 1: DECISION <NO_CHANGE|CREATE|UPDATE>
-  #   line 2: ---
-  #   line 3+: desired env file content (always emitted; bash compares/writes)
-  # Bash owns the atomic write + dry-run decision + EXIT-trap temp register
-  # (ERR-2.1 / ERR-2.3 / OBS-2), mirroring ensure_opencode_config.
-  local decision
-  decision="$(node - \
-    "$env_path" \
-    "$worktree_root" \
-    "$repo_name" \
-    "$opt_github_owner" \
-    "$opt_github_project_number" \
-    "$env_template" <<'NODE'
-const fs = require("fs");
-const path = require("path");
+  # jq @sh equivalent: single-quote a value for a sourceable shell file.
+  shq() { printf "'%s'" "${1//\'/\'\\\'\'}"; }
+  nonempty() { [[ -n "$1" ]]; }
 
-const [
-  envPath,
-  worktreeRoot,
-  repoName,
-  optOwner,
-  optProjectNumber,
-  envTemplatePath,
-] = process.argv.slice(2);
-
-// jq @sh equivalent: single-quote a value for a sourceable shell file.
-const shq = (v) => "'" + String(v).replace(/'/g, "'\\''") + "'";
-const nonempty = (v) => v !== null && v !== undefined && String(v) !== "";
-
-// Option keys normalize to uppercase underscore variable-name fragments
-// (ASCII-only upcase; non-alphanumerics -> "_"), e.g. "in-progress" ->
-// IN_PROGRESS, "need-attentions" -> NEED_ATTENTIONS.
-const optKey = (k) =>
-  String(k).replace(/[a-z]/g, (c) => c.toUpperCase()).replace(/[^A-Z0-9]/g, "_");
-
-// --- parse the existing env (founder-owned values) ---------------------------
-// Recognized lines: export NAME='<single-quoted value>' (' escaped as '\'').
-// Unrecognized non-comment lines are preserved verbatim at the end so a
-// founder edit is never silently dropped on rewrite.
-const envOrder = [];
-const envMap = {};
-const foreignLines = [];
-if (fs.existsSync(envPath)) {
-  const raw = fs.readFileSync(envPath, "utf8");
-  for (const line of raw.split("\n")) {
-    const m = line.match(/^export ([A-Za-z0-9_]+)='(.*)'$/);
-    if (m) {
-      const name = m[1];
-      const value = m[2].replace(/'\\''/g, "'");
-      if (!(name in envMap)) {
-        envOrder.push(name);
-        envMap[name] = value;
-      }
-      continue;
-    }
-    const t = line.trim();
-    if (t !== "" && !t.startsWith("#")) foreignLines.push(line);
+  # Option keys normalize to uppercase underscore variable-name fragments
+  # (ASCII-only upcase; non-alphanumerics -> "_"), e.g. "in-progress" ->
+  # IN_PROGRESS, "need-attentions" -> NEED_ATTENTIONS.
+  opt_key() {
+    printf '%s' "$1" | tr '[:lower:]' '[:upper:]' | sed 's/[^A-Z0-9]/_/g'
   }
-}
 
-// first non-empty source wins: env (founder) -> operator flag ->
-// placeholder/default.
-const pick = (...sources) => {
-  for (const s of sources) if (nonempty(s)) return String(s);
-  return "";
-};
+  # --- parse the existing env (founder-owned values) ---------------------------
+  # Recognized lines: export NAME='<single-quoted value>' (' escaped as '\'').
+  # Unrecognized non-comment lines are preserved verbatim at the end so a
+  # founder edit is never silently dropped on rewrite.
+  local -a env_order=()
+  local -A env_map=()
+  local -a foreign_lines=()
 
-// Canonical option key sets (mirrored in skills/tests/docs constants).
-// The legacy "Status" field and its STATUS_* env keys are retired: the board
-// is driven only by the Workflow State field and its options.
-const WORKFLOW_STATE_OPTION_KEYS = [
-  "open",
-  "backlog",
-  "need-attentions",
-  "ready",
-  "in-progress",
-  "in-review",
-  "ready-to-merge",
-  "blocked",
-  "done",
-];
-
-const owner = pick(envMap.ANT_TEAM_GITHUB_OWNER, optOwner, "your-github-owner");
-const values = {};
-values.ANT_TEAM_GITHUB_OWNER = owner;
-values.ANT_TEAM_GITHUB_OWNER_TYPE = pick(envMap.ANT_TEAM_GITHUB_OWNER_TYPE, "org");
-values.ANT_TEAM_GITHUB_REPO = pick(envMap.ANT_TEAM_GITHUB_REPO, owner + "/" + repoName);
-values.ANT_TEAM_GITHUB_PROJECT_NUMBER = pick(envMap.ANT_TEAM_GITHUB_PROJECT_NUMBER, optProjectNumber, "1");
-values.ANT_TEAM_GITHUB_PROJECT_ID = pick(envMap.ANT_TEAM_GITHUB_PROJECT_ID, "PVT_kwDOEXAMPLE");
-values.ANT_TEAM_GITHUB_WORKFLOW_STATE_FIELD_ID = pick(envMap.ANT_TEAM_GITHUB_WORKFLOW_STATE_FIELD_ID, "workflow-state-field-id");
-
-// Option maps: canonical keys first (placeholders only when no founder value
-// exists anywhere), then any extra option entries the founder env carried, in
-// first-appearance order, deduplicated by variable name.
-const collectOptions = (envPrefix, canonicalKeys) => {
-  const out = [];
-  const emitted = new Set();
-  const varName = (key) => envPrefix + "_" + optKey(key) + "_ID";
-  for (const key of canonicalKeys) {
-    const name = varName(key);
-    const value = pick(envMap[name], key + "-option-id");
-    out.push([name, value]);
-    emitted.add(name);
-  }
-  // Founder-defined extra option entries in the existing env.
-  for (const name of envOrder) {
-    if (emitted.has(name)) continue;
-    if (name.startsWith(envPrefix + "_") && name.endsWith("_ID") && nonempty(envMap[name])) {
-      out.push([name, envMap[name]]);
-      emitted.add(name);
-    }
-  }
-  return out;
-};
-
-const workflowStateOptionLines = collectOptions("ANT_TEAM_GITHUB_WORKFLOW_STATE_OPTION", WORKFLOW_STATE_OPTION_KEYS);
-for (const [name, value] of workflowStateOptionLines) {
-  values[name] = value;
-}
-
-values.ANT_TEAM_WORKTREE_ROOT = pick(envMap.ANT_TEAM_WORKTREE_ROOT, worktreeRoot);
-// Documentation keys: projectName defaults to the detected git repo name;
-// vault/repository are founder-owned and omitted when unset. The concrete
-// project path preserves a founder-set value verbatim; otherwise it resolves
-// as VAULT_PATH/02-Architecture-Landscape/projects/PROJECT_NAME.
-const template = fs.readFileSync(envTemplatePath, "utf8");
-const templateValue = (name, fallback) => {
-  const m = template.match(new RegExp("^export " + name + "='([^']*)'$", "m"));
-  return m ? m[1] : fallback;
-};
-const docsVaultPath = templateValue("ANT_TEAM_DOCS_VAULT_PATH", "").replace("__HOME__", process.env.HOME || "");
-const docsRepository = templateValue("ANT_TEAM_DOCS_REPOSITORY", "");
-values.ANT_TEAM_DOCS_VAULT_PATH = pick(envMap.ANT_TEAM_DOCS_VAULT_PATH, docsVaultPath);
-values.ANT_TEAM_DOCS_PROJECT_NAME = pick(envMap.ANT_TEAM_DOCS_PROJECT_NAME, repoName);
-values.ANT_TEAM_DOCS_REPOSITORY = pick(envMap.ANT_TEAM_DOCS_REPOSITORY, docsRepository.replace("__GITHUB_OWNER__", owner));
-values.ANT_TEAM_DOCS_PROJECT_PATH = pick(
-  envMap.ANT_TEAM_DOCS_PROJECT_PATH,
-  nonempty(values.ANT_TEAM_DOCS_VAULT_PATH) && nonempty(values.ANT_TEAM_DOCS_PROJECT_NAME)
-    ? path.join(values.ANT_TEAM_DOCS_VAULT_PATH, "02-Architecture-Landscape", "projects", values.ANT_TEAM_DOCS_PROJECT_NAME)
-    : ""
-);
-
-// Canonical output order (stable, deterministic).
-const orderedNames = [
-  "ANT_TEAM_GITHUB_OWNER",
-  "ANT_TEAM_GITHUB_OWNER_TYPE",
-  "ANT_TEAM_GITHUB_REPO",
-  "ANT_TEAM_GITHUB_PROJECT_NUMBER",
-  "ANT_TEAM_GITHUB_PROJECT_ID",
-  "ANT_TEAM_GITHUB_WORKFLOW_STATE_FIELD_ID",
-  ...workflowStateOptionLines.map(([n]) => n),
-  "ANT_TEAM_WORKTREE_ROOT",
-  "ANT_TEAM_DOCS_VAULT_PATH",
-  "ANT_TEAM_DOCS_PROJECT_NAME",
-  "ANT_TEAM_DOCS_REPOSITORY",
-  "ANT_TEAM_DOCS_PROJECT_PATH",
-];
-
-const lines = [];
-for (const name of orderedNames) {
-  const value = values[name];
-  if (nonempty(value)) lines.push("export " + name + "=" + shq(value));
-}
-// Preserve founder-added keys that are not part of the canonical set.
-const canonicalSet = new Set(orderedNames);
-for (const name of envOrder) {
-  if (!canonicalSet.has(name) && nonempty(envMap[name])) {
-    lines.push("export " + name + "=" + shq(envMap[name]));
-  }
-}
-
-const header =
-  "# Project runtime configuration (ANT_TEAM_* exports) — the sole committed project config source.\n" +
-    "# Seeded and updated by init-project: existing values are preserved, missing keys are filled.\n" +
-    "# Edit values directly; re-running init-project never overwrites a value already set here.\n" +
-    "# Safe to commit: shared project metadata only, no secrets.\n";
-
-const content = header + "\n" + lines.join("\n") + "\n" + (foreignLines.length ? foreignLines.join("\n") + "\n" : "");
-
-const existing = fs.existsSync(envPath) ? fs.readFileSync(envPath, "utf8") : null;
-const verdict = existing === null ? "CREATE" : existing === content ? "NO_CHANGE" : "UPDATE";
-
-process.stdout.write("DECISION " + verdict + "\n---\n" + content);
-NODE
-  )"
-  local node_status=$?
-  if [[ "$node_status" -ne 0 ]]; then
-    echo "[error] .github-project.env seed helper exited $node_status" >&2
-    return 1
+  if [[ -f "$env_path" ]]; then
+    while IFS= read -r line; do
+      if [[ "$line" =~ ^export\ ([A-Za-z0-9_]+)=\'(.*)\'$ ]]; then
+        local name="${BASH_REMATCH[1]}"
+        local value="${BASH_REMATCH[2]//\'\\\'\'/\'}"
+        if [[ -z "${env_map[$name]+x}" ]]; then
+          env_order+=("$name")
+          env_map[$name]="$value"
+        fi
+      else
+        local trimmed="${line// /}"
+        if [[ -n "$trimmed" && "$line" != "#"* ]]; then
+          foreign_lines+=("$line")
+        fi
+      fi
+    done < "$env_path"
   fi
 
-  local decision_line content
-  decision_line="$(printf '%s' "$decision" | sed -n '1p')"
-  content="$(printf '%s' "$decision" | sed -n '3,$p')"
-  content="${content%$'\n'}"
-  content="$content"$'\n'
+  # first non-empty source wins: env (founder) -> operator flag ->
+  # placeholder/default.
+  pick() {
+    local v
+    for v in "$@"; do
+      if [[ -n "$v" ]]; then
+        printf '%s' "$v"
+        return
+      fi
+    done
+  }
 
-  local verdict="${decision_line#DECISION }"
+  # Canonical option key sets (mirrored in skills/tests/docs constants).
+  # The legacy "Status" field and its STATUS_* env keys are retired: the board
+  # is driven only by the Workflow State field and its options.
+  local -a WORKFLOW_STATE_OPTION_KEYS=(
+    "open"
+    "backlog"
+    "need-attentions"
+    "ready"
+    "in-progress"
+    "in-review"
+    "ready-to-merge"
+    "blocked"
+    "done"
+  )
+
+  local owner
+  owner="$(pick "${env_map[ANT_TEAM_GITHUB_OWNER]:-}" "$opt_github_owner" "your-github-owner")"
+
+  # Use jq to build the values JSON deterministically.
+  local values_json
+  values_json="$(jq -n \
+    --arg owner "$owner" \
+    --arg owner_type "$(pick "${env_map[ANT_TEAM_GITHUB_OWNER_TYPE]:-}" "org")" \
+    --arg repo "$(pick "${env_map[ANT_TEAM_GITHUB_REPO]:-}" "${owner}/${repo_name}")" \
+    --arg project_number "$(pick "${env_map[ANT_TEAM_GITHUB_PROJECT_NUMBER]:-}" "$opt_github_project_number" "1")" \
+    --arg project_id "$(pick "${env_map[ANT_TEAM_GITHUB_PROJECT_ID]:-}" "PVT_kwDOEXAMPLE")" \
+    --arg ws_field_id "$(pick "${env_map[ANT_TEAM_GITHUB_WORKFLOW_STATE_FIELD_ID]:-}" "workflow-state-field-id")" \
+    --arg worktree_root "$worktree_root" \
+    --arg docs_vault "$(pick "${env_map[ANT_TEAM_DOCS_VAULT_PATH]:-}" "")" \
+    --arg docs_project_name "$(pick "${env_map[ANT_TEAM_DOCS_PROJECT_NAME]:-}" "$repo_name")" \
+    --arg docs_repository "$(pick "${env_map[ANT_TEAM_DOCS_REPOSITORY]:-}" "")" \
+    --arg github_owner "$owner" \
+    '{
+      ANT_TEAM_GITHUB_OWNER: $owner,
+      ANT_TEAM_GITHUB_OWNER_TYPE: $owner_type,
+      ANT_TEAM_GITHUB_REPO: $repo,
+      ANT_TEAM_GITHUB_PROJECT_NUMBER: $project_number,
+      ANT_TEAM_GITHUB_PROJECT_ID: $project_id,
+      ANT_TEAM_GITHUB_WORKFLOW_STATE_FIELD_ID: $ws_field_id,
+      ANT_TEAM_WORKTREE_ROOT: $worktree_root,
+      ANT_TEAM_DOCS_PROJECT_NAME: $docs_project_name,
+    }')"
+
+  # Build workflow state option lines.
+  local -a ws_option_entries=()
+  local -A emitted_vars=()
+  for key in "${WORKFLOW_STATE_OPTION_KEYS[@]}"; do
+    local var_name="ANT_TEAM_GITHUB_WORKFLOW_STATE_OPTION_$(opt_key "$key")_ID"
+    local val
+    val="$(pick "${env_map[$var_name]:-}" "${key}-option-id")"
+    ws_option_entries+=("$var_name=$val")
+    emitted_vars[$var_name]=1
+  done
+
+  # Founder-defined extra option entries in the existing env.
+  for name in "${env_order[@]}"; do
+    if [[ -z "${emitted_vars[$name]+x}" ]]; then
+      if [[ "$name" == ANT_TEAM_GITHUB_WORKFLOW_STATE_OPTION_*_ID ]] && nonempty "${env_map[$name]:-}"; then
+        ws_option_entries+=("$name=${env_map[$name]}")
+        emitted_vars[$name]=1
+      fi
+    fi
+  done
+
+  # Add workflow state option values to the JSON via jq.
+  for entry in "${ws_option_entries[@]}"; do
+    local var_name="${entry%%=*}"
+    local val="${entry#*=}"
+    values_json="$(printf '%s' "$values_json" | jq --arg k "$var_name" --arg v "$val" '. + {($k): $v}')"
+  done
+
+  # Documentation path resolution.
+  local docs_vault_path="" docs_repository="" docs_project_path=""
+  if [[ -f "$env_template" ]]; then
+    docs_vault_path="$(sed -n "s/^export ANT_TEAM_DOCS_VAULT_PATH='\(.*\)'/\1/p" "$env_template" | sed "s|__HOME__|$HOME|g")"
+    docs_repository="$(sed -n "s/^export ANT_TEAM_DOCS_REPOSITORY='\(.*\)'/\1/p" "$env_template" | sed "s|__GITHUB_OWNER__|$owner|g")"
+  fi
+  docs_vault_path="$(pick "${env_map[ANT_TEAM_DOCS_VAULT_PATH]:-}" "$docs_vault_path")"
+  docs_repository="$(pick "${env_map[ANT_TEAM_DOCS_REPOSITORY]:-}" "$docs_repository")"
+
+  # docs_project_path: resolve as VAULT_PATH/02-Architecture-Landscape/projects/PROJECT_NAME when both are set.
+  if nonempty "$docs_vault_path" && nonempty "${env_map[ANT_TEAM_DOCS_PROJECT_NAME]:-$repo_name}"; then
+    docs_project_path="$(pick "${env_map[ANT_TEAM_DOCS_PROJECT_PATH]:-}" "${docs_vault_path}/02-Architecture-Landscape/projects/${env_map[ANT_TEAM_DOCS_PROJECT_NAME]:-$repo_name}")"
+  else
+    docs_project_path="$(pick "${env_map[ANT_TEAM_DOCS_PROJECT_PATH]:-}" "")"
+  fi
+
+  values_json="$(printf '%s' "$values_json" | jq \
+    --arg vault "$docs_vault_path" \
+    --arg repo "$docs_repository" \
+    --arg path "$docs_project_path" \
+    '. + {
+      ANT_TEAM_DOCS_VAULT_PATH: $vault,
+      ANT_TEAM_DOCS_REPOSITORY: $repo,
+      ANT_TEAM_DOCS_PROJECT_PATH: $path,
+    }')"
+
+  # Canonical output order (stable, deterministic).
+  local -a ordered_names=(
+    "ANT_TEAM_GITHUB_OWNER"
+    "ANT_TEAM_GITHUB_OWNER_TYPE"
+    "ANT_TEAM_GITHUB_REPO"
+    "ANT_TEAM_GITHUB_PROJECT_NUMBER"
+    "ANT_TEAM_GITHUB_PROJECT_ID"
+    "ANT_TEAM_GITHUB_WORKFLOW_STATE_FIELD_ID"
+  )
+  for entry in "${ws_option_entries[@]}"; do
+    ordered_names+=("${entry%%=*}")
+  done
+  ordered_names+=(
+    "ANT_TEAM_WORKTREE_ROOT"
+    "ANT_TEAM_DOCS_VAULT_PATH"
+    "ANT_TEAM_DOCS_PROJECT_NAME"
+    "ANT_TEAM_DOCS_REPOSITORY"
+    "ANT_TEAM_DOCS_PROJECT_PATH"
+  )
+
+  # Build the content line by line.
+  local header="# Project runtime configuration (ANT_TEAM_* exports) — the sole committed project config source.
+# Seeded and updated by init-project: existing values are preserved, missing keys are filled.
+# Edit values directly; re-running init-project never overwrites a value already set here.
+# Safe to commit: shared project metadata only, no secrets."
+
+  local -a lines=()
+  for name in "${ordered_names[@]}"; do
+    local val
+    val="$(printf '%s' "$values_json" | jq -r --arg k "$name" '.[$k] // ""')"
+    if nonempty "$val"; then
+      lines+=("export ${name}=$(shq "$val")")
+    fi
+  done
+
+  # Preserve founder-added keys that are not part of the canonical set.
+  local -A canonical_set=()
+  for name in "${ordered_names[@]}"; do
+    canonical_set[$name]=1
+  done
+  for name in "${env_order[@]}"; do
+    if [[ -z "${canonical_set[$name]+x}" ]] && nonempty "${env_map[$name]:-}"; then
+      lines+=("export ${name}=$(shq "${env_map[$name]}")")
+    fi
+  done
+
+  # Assemble content.
+  local content="${header}"$'\n\n'
+  local l
+  for l in "${lines[@]}"; do
+    content+="${l}"$'\n'
+  done
+  if [[ ${#foreign_lines[@]} -gt 0 ]]; then
+    for l in "${foreign_lines[@]}"; do
+      content+="${l}"$'\n'
+    done
+  fi
+
+  # Determine verdict via byte-preserving comparison (cmp -s). Command
+  # substitution strips trailing newlines, so `existing="$(cat ...)"` would
+  # never match a content that ends with a newline.
+  local verdict=""
+  if [[ ! -f "$env_path" ]]; then
+    verdict="CREATE"
+  else
+    local tmp_cmp
+    tmp_cmp="$(mktemp)"
+    printf '%s' "$content" > "$tmp_cmp"
+    if cmp -s "$env_path" "$tmp_cmp"; then
+      verdict="NO_CHANGE"
+    else
+      verdict="UPDATE"
+    fi
+    rm -f "$tmp_cmp"
+  fi
+
   case "$verdict" in
-    NO_CHANGE|CREATE|UPDATE) ;;
+    NO_CHANGE)
+      echo "[summary] .github-project.env already up to date"
+      stat_skipped=$((stat_skipped + 1))
+      ;;
+    CREATE|UPDATE)
+      if [[ "${opt_dry_run:-0}" == "1" ]]; then
+        echo "[would-write] .github-project.env (ANT_TEAM_* runtime config)"
+        stat_would_write=$((stat_would_write + 1))
+      else
+        write_file_atomic "$env_path" "$content"
+        if [[ "$verdict" == "CREATE" ]]; then
+          emit_write ".github-project.env (ANT_TEAM_* runtime config)"
+        else
+          emit_merge ".github-project.env (missing keys filled; founder values preserved)"
+        fi
+      fi
+      ;;
     *)
-      echo "[error] Unexpected decision from .github-project.env helper: '$decision_line'" >&2
+      echo "[error] Unexpected decision from .github-project.env helper: '$verdict'" >&2
       exit 1
       ;;
   esac
-
-  if [[ "$verdict" == "NO_CHANGE" ]]; then
-    echo "[summary] .github-project.env already up to date"
-    stat_skipped=$((stat_skipped + 1))
-  elif [[ "${opt_dry_run:-0}" == "1" ]]; then
-    echo "[would-write] .github-project.env (ANT_TEAM_* runtime config)"
-    stat_would_write=$((stat_would_write + 1))
-  else
-    write_file_atomic "$env_path" "$content"
-    if [[ "$verdict" == "CREATE" ]]; then
-      emit_write ".github-project.env (ANT_TEAM_* runtime config)"
-    else
-      emit_merge ".github-project.env (missing keys filled; founder values preserved)"
-    fi
-  fi
 }
 
 # ===========================================================================
