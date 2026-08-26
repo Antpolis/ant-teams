@@ -5,19 +5,17 @@
 # Tooling-path contract (founder-approved 2026-08): the engine lives in
 # templates/scripts/ and is installed by scripts/init-company.sh to
 # ~/.agents/scripts/init-project.sh, with its support assets in the sibling
-# init-project/ directory (inspect_repo.js, github-project.env.template).
+# init-project/ directory (github-project.env.template).
 # The project-initialization skill wrapper was removed; the repo entry is the
 # thin delegator scripts/init-project.sh → "$ANT_TEAM_SCRIPTS/init-project.sh".
 #
 # T2 (issue #3): CLI flag expansion, env-var resolution, TTY-based mode
 # detection, and validation per CLI-2 / FR-4 / ERR-4.
-# T3 (issue #4): AGENTS.md generation — interactive 6-prompt flow (FR-3),
-# noninteractive flag-driven generation (FR-4), AGENTS.md artifact contract
-# (FR-5 / DM-2 / ARCH-003 Artifact 2): timestamped header, DM-2.2 H2
-# sections, empty sections omitted (DM-2.3), "Local Configuration Files"
-# always present, every claim traceable to inspection or operator input
-# (FR-5.3), and pre-existing-file handling with overwrite/merge/skip +
-# .bak.<ts> backup on --force (FR-5.5 / ERR-3.2).
+# T3 (issue #4): AGENTS.md generation — default-only minimal baseline (FR-4),
+# AGENTS.md artifact contract (FR-5 / DM-2 / ARCH-003 Artifact 2): timestamped
+# header, DM-2.2 H2 sections, empty sections omitted (DM-2.3), "Local
+# Configuration Files" always present, and pre-existing-file handling with
+# overwrite/merge/skip + .bak.<ts> backup on --force (FR-5.5 / ERR-3.2).
 # Env-only configuration contract (founder-confirmed 2026-08): the initializer
 # seeds and updates `.github-project.env` (ANT_TEAM_* exports) directly — it is
 # the sole committed project config source. There is no JSON config and no
@@ -32,11 +30,10 @@
 set -euo pipefail
 
 # Bumped 0.1.0 → 0.2.0 for T2 (CLI expansion). Bumped 0.2.0 → 0.3.0 for T3
-# (AGENTS.md generation): the init now produces a tailored AGENTS.md whose
-# generation comment carries this stamp per ARCH-003 / DM-2.1. The env-only
-# configuration contract (2026-08) keeps the stamp at 0.3.0: the config
-# artifact changed shape (JSON → env), not the AGENTS.md contract.
-readonly INIT_PROJECT_VERSION="0.3.0"
+# (AGENTS.md generation). Bumped 0.3.0 → 0.4.0 for T3 follow-up: removed
+# Node inspection engine, shipped Bash default-only AGENTS.md generator,
+# and retired node runtime requirement.
+readonly INIT_PROJECT_VERSION="0.4.0"
 
 # --- T6 (issue #7): OBS-1.2 counters + ERR-2.3 trap-based temp cleanup -----
 # Counters are bumped by the emit_* helpers so the final [summary] line is
@@ -164,8 +161,6 @@ Behavior modifiers (CLI-2):
                               intact and creates no new .bak (TR-2.2).
   --merge                     Merge new content instead of overwriting.
                               Default: interactive=on, noninteractive=off.
-  --skip-inspection           Skip repository inspection; use only provided
-                              inputs. (FR-2 / CLI-2.3.)
   --dry-run                   Resolve and validate flags but suppress EVERY
                               write (OBS-2). Emits [would-write] lines and a
                               dry-run summary. No file is created or modified.
@@ -216,8 +211,8 @@ expand_path() {
 #   1. target project dir exists AND is a git repo (has .git/ or .git file)
 #   2. the sibling managed skills root contains every required skill
 #      (github-issues-projects-cli, do-task)
-#   3. node (≥18) is on PATH — required by the repository inspection engine
-#      (inspect_repo.js) and AGENTS.md generation (OBS-3.2)
+#   3. jq is on PATH — required by ensure_opencode_config (strict JSON gate)
+#      and ensure_project_runtime_env (env seed/update) (OBS-3.2)
 #   4. coreutils cp/mkdir/cat/rm/mktemp are on PATH
 #
 # The .git/ existence check (NOT `git rev-parse`) is deliberate: the init
@@ -257,25 +252,7 @@ run_preflight() {
     fi
   done
 
-  # ERR-1.1 item 3 / OBS-3.2: node ≥18 on PATH. Required by the repository
-  # inspection engine (inspect_repo.js) and AGENTS.md generation.
-  if ! command -v node >/dev/null 2>&1; then
-    echo "[error] node (≥18) is required but was not found on PATH." >&2
-    echo "[error] node is used by the repository inspection engine and AGENTS.md generation" >&2
-    echo "[error] (ensure_opencode_config and ensure_project_runtime_env use jq instead)." >&2
-    echo "[error] Install node ≥18 and re-run." >&2
-    exit 1
-  fi
-  local node_major
-  node_major="$(node -e 'process.stdout.write(String(Number(process.versions.node.split(".")[0])||0))' 2>/dev/null || echo 0)"
-  if [[ ! "$node_major" =~ ^[0-9]+$ || "$node_major" -lt 18 ]]; then
-    echo "[error] node ≥18 is required (detected node v${node_major}.x)." >&2
-    echo "[error] The repository inspection engine and AGENTS.md generation require node ≥18" >&2
-    echo "[error] (ensure_opencode_config and ensure_project_runtime_env use jq instead)." >&2
-    exit 1
-  fi
-
-  # ERR-1.1 item 3b: jq on PATH — required by ensure_opencode_config (strict
+  # ERR-1.1 item 3: jq on PATH — required by ensure_opencode_config (strict
   # JSON gate) and ensure_project_runtime_env (env seed/update).
   if ! command -v jq >/dev/null 2>&1; then
     echo "[error] jq is required but was not found on PATH." >&2
@@ -1045,544 +1022,106 @@ ensure_project_runtime_env() {
 }
 
 # ===========================================================================
-# SPEC-001 T3 (issue #4): AGENTS.md generation — interactive + noninteractive.
+# SPEC-001 T3 (issue #4): AGENTS.md generation — default-only minimal baseline.
 #
-# Implements FR-3 (interactive 6-prompt flow), FR-4 (noninteractive flag-driven
-# generation), FR-5 (AGENTS.md artifact contract), DM-2 (AGENTS.md structure),
-# ERR-3.2 (--force backup), and ARCH-003 Artifact 2 guarantees.
+# Implements FR-4 (noninteractive flag-driven generation), FR-5 (AGENTS.md
+# artifact contract), DM-2 (AGENTS.md structure), ERR-3.2 (--force backup),
+# and ARCH-003 Artifact 2 guarantees.
+#
+# The generator produces a minimal baseline with no inspection-derived content
+# and no interactive prompts. Operator prompt flags (--description/--conventions
+# /--commands/--related-repos/--repo-role) are accepted for CLI compatibility
+# but no longer drive AGENTS.md section content.
 #
 # Flow (invoked from main after skills/config/docs writes per ERR-2.1 step 4;
 # AGENTS.md is the final artifact so "Local Configuration Files" can enumerate
 # what was written):
-#   1. run_repo_inspection        → JSON evidence (issue #2 engine; skipped
-#                                   if --skip-inspection).
-#   2. compute_prompt_defaults    → JSON with default values for each
-#                                   section, derived from inspection +
-#                                   existing repo state.
-#   3. If interactive: prompt_for_agents_md collects operator responses
-#      (each prompt accepts blank = use default / omit per FR-3.3).
-#      Else: effective values come from opt_* (T2 resolution).
-#   4. generate_agents_md_content → markdown assembled by an inline node
-#      helper. Every section grounded in inspection or operator input
-#      (FR-5.3 / AC-T3-006). Empty sections omitted (DM-2.3).
-#   5. decide_existing_agents_md_action → interactive: ask overwrite/merge/
-#      skip; noninteractive: skip unless --force (FR-5.5).
-#   6. Interactive preview + Y/n confirmation (FR-3.4).
-#   7. backup_agents_md + write (overwrite) or merge (FR-5.5 / ERR-3.2).
+#   1. generate_agents_md_content → minimal baseline markdown via Bash.
+#   2. decide_existing_agents_md_action → skip unless --force (FR-5.5).
+#   3. backup_agents_md + write (overwrite) or merge (FR-5.5 / ERR-3.2).
 # ===========================================================================
 
-# FR-2 / T3: run inspect_repo.js (issue #2 engine) and capture the JSON
-# evidence record. Read-only (FR-2.1). On hard failure, emits [warning] to
-# stderr and returns empty JSON so AGENTS.md can still be built from
-# operator input alone (TR-3.1 / TR-3.2: bare / non-code repos must still
-# produce valid AGENTS.md).
-run_repo_inspection() {
-  local project_dir="$1"
-  local inspect_script="$engine_assets/inspect_repo.js"
-  if [[ ! -f "$inspect_script" ]]; then
-    emit_warning "inspect_repo.js not found at $inspect_script; AGENTS.md will rely on operator inputs only"
-    printf '{}'
-    return 0
+# Default-only AGENTS.md generator. Produces a minimal baseline the operator
+# customizes through conversation. No inspection, no prompts, no positional
+# parameters — reads from the caller's AGENTSMD_* env vars.
+generate_agents_md_content() {
+  local project_dir="${AGENTSMD_PROJECT_DIR:-.}"
+  local repo_name="${AGENTSMD_REPO_NAME:-}"
+  local version="${AGENTSMD_VERSION:-}"
+
+  # Read env values for documentation routing and GitHub config.
+  local vault_path="" project_path="" gh_owner="" gh_project=""
+  if [[ -f "$project_dir/.github-project.env" ]]; then
+    vault_path="$(sed -n "s/^export ANT_TEAM_DOCS_VAULT_PATH='\(.*\)'/\1/p" "$project_dir/.github-project.env" 2>/dev/null || true)"
+    project_path="$(sed -n "s/^export ANT_TEAM_DOCS_PROJECT_PATH='\(.*\)'/\1/p" "$project_dir/.github-project.env" 2>/dev/null || true)"
+    gh_owner="$(sed -n "s/^export ANT_TEAM_GITHUB_OWNER='\(.*\)'/\1/p" "$project_dir/.github-project.env" 2>/dev/null || true)"
+    gh_project="$(sed -n "s/^export ANT_TEAM_GITHUB_PROJECT_NUMBER='\(.*\)'/\1/p" "$project_dir/.github-project.env" 2>/dev/null || true)"
+    # Filter placeholder values.
+    [[ "$gh_owner" == "your-github-owner" ]] && gh_owner=""
+    [[ "$gh_project" == "1" ]] && gh_project=""
   fi
-  local json
-  if ! json="$(node "$inspect_script" --project-dir "$project_dir" 2>/dev/null)"; then
-    emit_warning "Repository inspection failed; AGENTS.md will rely on operator inputs only"
-    printf '{}'
-    return 0
-  fi
-  printf '%s' "$json"
-}
 
-# FR-3.1: present the operator with a concise summary of detected facts,
-# grounded in inspection evidence. Each [inspecting] line is traceable to a
-# detection signal (AC-T3-006). Output goes to stdout per OBS-1.
-display_inspection_summary() {
-  local inspection="$1"
-  AGENTSMD_INSPECTION="$inspection" node <<'NODE'
-    const data = JSON.parse(process.env.AGENTSMD_INSPECTION || "{}");
-    const list = (cat) => {
-      if (!cat) return [];
-      if (Array.isArray(cat.observed)) return cat.observed;
-      if (typeof cat.observed === "string" && cat.observed !== "not detected") return [cat.observed];
-      return [];
-    };
-    const parts = [];
-    const lang = list(data.language);
-    if (lang.length) parts.push("language: " + lang.join(", "));
-    const pm = list(data.package_manager);
-    if (pm.length) parts.push("package manager: " + pm.join(", "));
-    const docs = list(data.docs_root);
-    if (docs.length) parts.push("docs root: " + docs.join(", "));
-    const tests = list(data.test_infrastructure);
-    if (tests.length) parts.push("tests: " + tests.join(", "));
-    const cicd = list(data.cicd);
-    if (cicd.length) parts.push("ci/cd: " + cicd.join(", "));
-    const ag = list(data.agent_guidance);
-    if (ag.length) parts.push("existing agent guidance: " + ag.join(", "));
-    const gh = data.github_project_env && data.github_project_env.observed ? "yes" : "no";
-    parts.push("existing .github-project.env: " + gh);
-    const amb = Array.isArray(data.ambiguities) ? data.ambiguities : [];
-    if (amb.length) parts.push("ambiguities: " + amb.length);
-    if (!parts.length) parts.push("no inspection signals detected; AGENTS.md will be built from operator input");
-    for (const l of parts) console.log("[inspecting] " + l);
-NODE
-}
+  local ts
+  ts="$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
 
-# Compute default values for the 6 interactive prompts (FR-3.2). Output is a
-# JSON object on stdout. Defaults are derived ONLY from inspection evidence
-# and existing repo state (never fabricated — AC-T3-006).
-compute_prompt_defaults() {
-  local project_dir="$1"
-  local repo_name="$2"
-  local inspection="$3"
-  AGENTSMD_PROJECT_DIR="$project_dir" \
-  AGENTSMD_REPO_NAME="$repo_name" \
-  AGENTSMD_INSPECTION="$inspection" \
-  node <<'NODE'
-    const fs = require("fs");
-    const path = require("path");
-    const projectDir = process.env.AGENTSMD_PROJECT_DIR;
-    const repoName = process.env.AGENTSMD_REPO_NAME;
-    const inspection = JSON.parse(process.env.AGENTSMD_INSPECTION || "{}");
+  cat <<EOF
+<!-- Generated by init-project v${version} on ${ts} — edit freely -->
 
-    const list = (cat) => {
-      if (!cat) return [];
-      if (Array.isArray(cat.observed)) return cat.observed;
-      if (typeof cat.observed === "string" && cat.observed !== "not detected") return [cat.observed];
-      return [];
-    };
+## Repository Identity
 
-    // FR-3.2 row 1 default: "<repo-name>: a <language> project" or just
-    // "<repo-name>" when no language was detected.
-    const lang0 = list(inspection.language)[0] || "";
-    const purpose = lang0 ? `${repoName}: a ${lang0} project` : repoName;
+${repo_name}
 
-    // FR-3.2 row 3 default: detected npm scripts + Makefile targets.
-    const cmds = [];
-    const pkgPath = path.join(projectDir, "package.json");
-    if (fs.existsSync(pkgPath)) {
-      try {
-        const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
-        if (pkg && pkg.scripts && typeof pkg.scripts === "object") {
-          for (const [name, script] of Object.entries(pkg.scripts)) {
-            if (typeof script === "string") cmds.push(`npm run ${name}`);
-          }
-        }
-      } catch (_e) { /* malformed package.json — skip */ }
-    }
-    const makefilePath = path.join(projectDir, "Makefile");
-    if (fs.existsSync(makefilePath)) {
-      try {
-        const text = fs.readFileSync(makefilePath, "utf8");
-        const seen = new Set();
-        for (const line of text.split("\n")) {
-          const m = line.match(/^([a-zA-Z][a-zA-Z0-9_-]*)\s*:/);
-          if (m && !seen.has(m[1])) seen.add(m[1]);
-        }
-        for (const t of seen) cmds.push(`make ${t}`);
-      } catch (_e) { /* malformed Makefile — skip */ }
-    }
+## Documentation
 
-    // FR-3.2 row 6 default: from the existing .github-project.env (the sole
-    // project config source). Placeholder values from a fresh init
-    // (owner="your-github-owner", number=1) are treated as "no real default"
-    // so AGENTS.md omits the section unless the operator provides real input.
-    let ghOwner = "";
-    let ghProjectNumber = "";
-    const envPath = path.join(projectDir, ".github-project.env");
-    if (fs.existsSync(envPath)) {
-      try {
-        const envVars = {};
-        for (const line of fs.readFileSync(envPath, "utf8").split("\n")) {
-          const m = line.match(/^export ([A-Za-z0-9_]+)='(.*)'$/);
-          if (m) envVars[m[1]] = m[2].replace(/'\\''/g, "'");
-        }
-        if (envVars.ANT_TEAM_GITHUB_OWNER && envVars.ANT_TEAM_GITHUB_OWNER !== "your-github-owner") {
-          ghOwner = envVars.ANT_TEAM_GITHUB_OWNER;
-        }
-        if (envVars.ANT_TEAM_GITHUB_PROJECT_NUMBER && envVars.ANT_TEAM_GITHUB_PROJECT_NUMBER !== "1") {
-          ghProjectNumber = envVars.ANT_TEAM_GITHUB_PROJECT_NUMBER;
-        }
-      } catch (_e) { /* unreadable env — skip */ }
-    }
+Central Obsidian documentation vault: \`\$ANT_TEAM_DOCS_VAULT_PATH\`
+Product documentation is stored in the central Obsidian vault; this repository keeps only code-adjacent guidance.
 
-    const defaults = {
-      purpose,
-      commands: cmds.join("\n"),
-      commands_summary: cmds.length ? cmds.join(", ") : "none detected",
-      conventions: "",
-      related_repos: "",
-      scratch_dir: "./tmp/",
-      github_owner: ghOwner,
-      github_project_number: ghProjectNumber,
-    };
-    process.stdout.write(JSON.stringify(defaults));
-NODE
-}
+## Scratch and Log Directories
 
-# Extract a string field from a JSON object read on stdin. Avoids a jq
-# dependency (TR-1.1: bash + node + coreutils only).
-json_get() {
-  local field="$1"
-  node -e '
-    let d = "";
-    process.stdin.on("data", (c) => { d += c; });
-    process.stdin.on("end", () => {
-      try {
-        const o = JSON.parse(d);
-        const v = o[process.argv[1]];
-        process.stdout.write(v == null ? "" : String(v));
-      } catch (_e) { process.stdout.write(""); }
-    });
-  ' "$field"
-}
+Scratch directory for work-in-progress and logs: \`./tmp/\`
 
-# safe_read PROMPT OUT_VAR — read one line from stdin into OUT_VAR. Tolerates
-# EOF (returns "" instead of aborting under `set -e`). Used for interactive
-# prompts where stdin may close early (test piping, accidental Ctrl-D).
-safe_read() {
-  local prompt="$1"
-  local out_var="$2"
-  local input=""
-  printf '%s' "$prompt"
-  if ! IFS= read -r input; then
+## GitHub Project Helper
+
+When GitHub Issues, Projects, milestones, pull requests, or workflow-state operations require the repository helper, load the \`github-issues-projects-cli\` skill first. Use the helper commands documented by that skill; do not hard-code or hunt for the helper shell-script path in agent instructions. Source \`.github-project.env\` before using the skill.
+EOF
+
+  # Append optional sections only when real values exist.
+  if [[ -n "$gh_owner" || -n "$gh_project" ]]; then
+    printf '\n## GitHub Project Configuration\n\n'
+    [[ -n "$gh_owner" ]] && printf 'GitHub owner: `%s`\n' "$gh_owner"
+    [[ -n "$gh_project" ]] && printf 'GitHub project number: `%s`\n' "$gh_project"
     printf '\n'
   fi
-  printf -v "$out_var" '%s' "$input"
-}
 
-# FR-3.2 / FR-3.3: run the 6 interactive prompts. Each prompt accepts a
-# blank response (FR-3.3): blank falls back to opt_* flag, then the computed
-# default, then "omit section" for fields without a default. Effective
-# values are exported via the AGENTSMD_EFF_* env vars consumed by the
-# assembly node helper. Side-effect-only: prompt text to stdout (OBS-1),
-# responses from stdin.
-prompt_for_agents_md() {
-  local project_dir="$1"
-  local repo_name="$2"
-  local inspection="$3"
-
-  local defaults_json
-  defaults_json="$(compute_prompt_defaults "$project_dir" "$repo_name" "$inspection")"
-
-  local def_purpose def_commands_summary def_scratch def_gh_owner def_gh_num
-  def_purpose="$(printf '%s' "$defaults_json" | json_get purpose)"
-  def_commands_summary="$(printf '%s' "$defaults_json" | json_get commands_summary)"
-  def_scratch="$(printf '%s' "$defaults_json" | json_get scratch_dir)"
-  def_gh_owner="$(printf '%s' "$defaults_json" | json_get github_owner)"
-  def_gh_num="$(printf '%s' "$defaults_json" | json_get github_project_number)"
-
-  display_inspection_summary "$inspection"
-
-  local resp=""
-
-  # FR-3.2 prompt 1: primary purpose.
-  echo "[prompt] Q1/6: What is the primary purpose of this repository?"
-  safe_read "[prompt]   purpose [$def_purpose]: " resp
-  AGENTSMD_EFF_PURPOSE="${resp:-${opt_description:-$def_purpose}}"
-
-  # FR-3.2 prompt 2: working conventions (blank → omit section per FR-5.2).
-  echo "[prompt] Q2/6: What should agents know about the working conventions here?"
-  safe_read "[prompt]   conventions (blank → omit section): " resp
-  AGENTSMD_EFF_CONVENTIONS="${resp:-$opt_conventions}"
-
-  # FR-3.2 prompt 3: build/test/run commands (blank → detected or opt_commands).
-  echo "[prompt] Q3/6: Describe any build, test, or run commands agents should use."
-  safe_read "[prompt]   commands (blank → ${def_commands_summary}): " resp
-  if [[ -n "$resp" ]]; then
-    AGENTSMD_EFF_COMMANDS="$resp"
-  elif [[ -n "$opt_commands" ]]; then
-    AGENTSMD_EFF_COMMANDS="$opt_commands"
-  else
-    AGENTSMD_EFF_COMMANDS="$(printf '%s' "$defaults_json" | json_get commands)"
+  # Local Configuration Files (DM-2.4 — always present).
+  printf '%s\n' '## Local Configuration Files'
+  printf '\n'
+  printf '%s\n' '- `AGENTS.md` — This file — canonical agent guidance for this repository'
+  if [[ -f "$project_dir/.github-project.env" ]]; then
+    printf '%s\n' '- `.github-project.env` — ANT_TEAM_* runtime exports — the sole project config source; source it for GitHub, documentation, and worktree metadata'
   fi
-
-  # FR-3.2 prompt 4: repository relationships (blank → omit unless flag set).
-  echo "[prompt] Q4/6: How does this repository relate to other repos in the project?"
-  safe_read "[prompt]   related repos (blank → omit section): " resp
-  AGENTSMD_EFF_RELATED_REPOS="${resp:-$opt_related_repos}"
-
-  # FR-3.2 prompt 5: scratch dir (blank → ./tmp/ default).
-  echo "[prompt] Q5/6: Where should agents store durable work-in-progress and logs?"
-  safe_read "[prompt]   scratch dir [${opt_scratch_dir:-$def_scratch}]: " resp
-  AGENTSMD_EFF_SCRATCH_DIR="${resp:-${opt_scratch_dir:-$def_scratch}}"
-
-  # FR-3.2 prompt 6: GitHub project config (blank → detected or opt flags).
-  echo "[prompt] Q6/6: What is this repo's GitHub Project configuration?"
-  safe_read "[prompt]   github owner [$def_gh_owner]: " resp
-  AGENTSMD_EFF_GITHUB_OWNER="${resp:-${opt_github_owner:-$def_gh_owner}}"
-  safe_read "[prompt]   github project number [$def_gh_num]: " resp
-  AGENTSMD_EFF_GITHUB_PROJECT_NUMBER="${resp:-${opt_github_project_number:-$def_gh_num}}"
-
-  # Name + role flow through unchanged (resolved by T2 / T5).
-  AGENTSMD_EFF_REPO_NAME="${opt_name:-$repo_name}"
-  AGENTSMD_EFF_REPO_ROLE="${opt_repo_role:-}"
-}
-
-# FR-5 / DM-2 / ARCH-003 Artifact 2: assemble AGENTS.md content from
-# inspection evidence + effective operator values. Every section grounded in
-# a detection signal or operator input (FR-5.3 / AC-T3-006). Empty sections
-# omitted entirely (DM-2.3). Output: markdown to stdout.
-#
-# Inputs come from process.env (set by the caller) so multi-line operator
-# values survive without argv escaping.
-generate_agents_md_content() {
-  node <<'NODE'
-    const fs = require("fs");
-    const path = require("path");
-
-    const projectDir = process.env.AGENTSMD_PROJECT_DIR;
-    const repoName = process.env.AGENTSMD_REPO_NAME;
-    const docsRoot = process.env.AGENTSMD_DOCS_ROOT;
-    const version = process.env.AGENTSMD_VERSION;
-    const inspection = JSON.parse(process.env.AGENTSMD_INSPECTION || "{}");
-
-    const eff = {
-      purpose:        process.env.AGENTSMD_EFF_PURPOSE           || "",
-      conventions:    process.env.AGENTSMD_EFF_CONVENTIONS      || "",
-      commands:       process.env.AGENTSMD_EFF_COMMANDS         || "",
-      relatedReposRaw:process.env.AGENTSMD_EFF_RELATED_REPOS    || "",
-      scratchDir:     process.env.AGENTSMD_EFF_SCRATCH_DIR      || "./tmp/",
-      githubOwner:    process.env.AGENTSMD_EFF_GITHUB_OWNER     || "",
-      githubNumber:   process.env.AGENTSMD_EFF_GITHUB_PROJECT_NUMBER || "",
-      repoRole:       process.env.AGENTSMD_EFF_REPO_ROLE        || "",
-    };
-
-    const list = (cat) => {
-      if (!cat) return [];
-      if (Array.isArray(cat.observed)) return cat.observed;
-      if (typeof cat.observed === "string" && cat.observed !== "not detected") return [cat.observed];
-      return [];
-    };
-
-    const sections = [];
-
-    // ## Repository Identity — operator input or detected default.
-    {
-      const lines = [];
-      if (eff.purpose.trim()) lines.push(eff.purpose.trim());
-      if (eff.repoRole.trim()) lines.push(`Role: ${eff.repoRole.trim()}`);
-      if (lines.length) sections.push({ heading: "Repository Identity", body: lines.join("\n") });
-    }
-
-    // ## Project Structure — detected directory layout + boundaries.
-    {
-      const lines = [];
-      const docs = list(inspection.docs_root);
-      if (docs.length) lines.push(`Documentation root: \`${docs[0]}/\``);
-      const tests = list(inspection.test_infrastructure);
-      const dirs = tests.filter((t) => ["test", "tests", "spec", "__tests__"].includes(t));
-      if (dirs.length) lines.push(`Test directories: ${dirs.map((d) => `\`${d}/\``).join(", ")}`);
-      const fw = tests.filter((t) => !["test", "tests", "spec", "__tests__"].includes(t));
-      if (fw.length) lines.push(`Test frameworks: ${fw.join(", ")}`);
-      const bounds = Array.isArray(inspection.app_boundaries?.observed) ? inspection.app_boundaries.observed : [];
-      if (bounds.length) {
-        lines.push("App/service boundaries:");
-        for (const b of bounds) lines.push(`- \`${b.path}\` (manifest: \`${b.manifest}\`)`);
-      }
-      const cicd = list(inspection.cicd);
-      if (cicd.length) lines.push(`CI/CD artifacts: ${cicd.map((c) => `\`${c}\``).join(", ")}`);
-      if (lines.length) sections.push({ heading: "Project Structure", body: lines.join("\n") });
-    }
-
-    // ## Stack — detected language, package manager, framework.
-    {
-      const lines = [];
-      const lang = list(inspection.language);
-      if (lang.length) lines.push(`Language: ${lang.join(", ")}`);
-      const inferredLang = Array.isArray(inspection.language?.inferred) ? inspection.language.inferred : [];
-      if (inferredLang.length) lines.push(`Additional language signal: ${inferredLang.join(", ")} (inferred from config files)`);
-      const pm = list(inspection.package_manager);
-      if (pm.length) lines.push(`Package manager: ${pm.join(", ")}`);
-      const inferredPm = Array.isArray(inspection.package_manager?.inferred) ? inspection.package_manager.inferred : [];
-      if (inferredPm.length) lines.push(`Package manager signal: ${inferredPm.join(", ")} (inferred from manifest; no lockfile)`);
-      if (lines.length) sections.push({ heading: "Stack", body: lines.join("\n") });
-    }
-
-    // ## Build, Test, and Run Commands — operator input OR detected.
-    {
-      const lines = [];
-      if (eff.commands.trim()) {
-        for (const l of eff.commands.split(/\r?\n/)) {
-          const t = l.trim();
-          if (!t) continue;
-          lines.push(t.startsWith("- ") ? t : `- ${t}`);
-        }
-      } else {
-        const pkgPath = path.join(projectDir, "package.json");
-        if (fs.existsSync(pkgPath)) {
-          try {
-            const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
-            if (pkg && pkg.scripts && typeof pkg.scripts === "object") {
-              for (const [name, script] of Object.entries(pkg.scripts)) {
-                if (typeof script === "string") lines.push(`- \`npm run ${name}\` — ${script}`);
-              }
-            }
-          } catch (_e) { /* malformed — skip */ }
-        }
-        const makefilePath = path.join(projectDir, "Makefile");
-        if (fs.existsSync(makefilePath)) {
-          try {
-            const text = fs.readFileSync(makefilePath, "utf8");
-            const seen = new Set();
-            for (const line of text.split("\n")) {
-              const m = line.match(/^([a-zA-Z][a-zA-Z0-9_-]*)\s*:/);
-              if (m && !seen.has(m[1])) seen.add(m[1]);
-            }
-            for (const t of seen) lines.push(`- \`make ${t}\``);
-          } catch (_e) { /* malformed — skip */ }
-        }
-      }
-      if (lines.length) sections.push({ heading: "Build, Test, and Run Commands", body: lines.join("\n") });
-    }
-
-    // ## Working Conventions — operator input only. Omitted when blank.
-    if (eff.conventions.trim()) {
-      sections.push({ heading: "Working Conventions", body: eff.conventions.trim() });
-    }
-
-    // ## Repository Relationships — operator input or detected monorepo.
-    {
-      const lines = [];
-      if (eff.relatedReposRaw.trim()) {
-        // Try structured triples first; fall back to free text.
-        const triples = [];
-        for (const entry of eff.relatedReposRaw.split(",")) {
-          if (!entry.trim()) continue;
-          const firstColon = entry.indexOf(":");
-          const lastColon = entry.lastIndexOf(":");
-          if (firstColon > 0 && lastColon > firstColon) {
-            const n = entry.slice(0, firstColon);
-            const u = entry.slice(firstColon + 1, lastColon);
-            const r = entry.slice(lastColon + 1);
-            if (n && u && r) triples.push({ n, u, r });
-          }
-        }
-        if (triples.length) {
-          for (const t of triples) lines.push(`- \`${t.n}\` — ${t.u} (${t.r})`);
-        } else {
-          for (const l of eff.relatedReposRaw.split(/\r?\n/)) {
-            if (l.trim()) lines.push(`- ${l.trim()}`);
-          }
-        }
-      } else {
-        const bounds = Array.isArray(inspection.app_boundaries?.observed) ? inspection.app_boundaries.observed : [];
-        if (bounds.length) {
-          lines.push("Detected app/service boundaries within this repository:");
-          for (const b of bounds) lines.push(`- \`${b.path}\``);
-        }
-      }
-      if (lines.length) sections.push({ heading: "Repository Relationships", body: lines.join("\n") });
-    }
-
-    // ## Documentation — central Obsidian vault routing.
-    {
-      let vaultPath = "";
-      let projectPath = "";
-      try {
-        // Read the runtime env (the sole project config source) for the
-        // documentation routing values.
-        const envVars = {};
-        for (const line of fs.readFileSync(path.join(projectDir, ".github-project.env"), "utf8").split("\n")) {
-          const m = line.match(/^export ([A-Za-z0-9_]+)='(.*)'$/);
-          if (m) envVars[m[1]] = m[2].replace(/'\\''/g, "'");
-        }
-        vaultPath = envVars.ANT_TEAM_DOCS_VAULT_PATH || "";
-        projectPath = envVars.ANT_TEAM_DOCS_PROJECT_PATH || "";
-      } catch (_e) { /* env may not exist during generation */ }
-      const lines = [];
-      if (vaultPath) lines.push(`Central Obsidian documentation vault: \`${vaultPath}\``);
-      if (projectPath) lines.push(`Project documentation path: \`${projectPath}\``);
-      lines.push("Product documentation is stored in the central Obsidian vault; this repository keeps only code-adjacent guidance.");
-      sections.push({ heading: "Documentation", body: lines.join("\n") });
-    }
-    // ## Scratch and Log Directories — operator input or ./tmp/ default.
-    {
-      const sd = eff.scratchDir || "./tmp/";
-      sections.push({ heading: "Scratch and Log Directories", body: `Scratch directory for work-in-progress and logs: \`${sd}\`` });
-    }
-
-    // ## GitHub Project Configuration — operator input or existing config.
-    // Omitted when neither provides real (non-placeholder) values.
-    {
-      const lines = [];
-      if (eff.githubOwner) lines.push(`GitHub owner: \`${eff.githubOwner}\``);
-      if (eff.githubNumber) lines.push(`GitHub project number: \`${eff.githubNumber}\``);
-      if (lines.length) sections.push({ heading: "GitHub Project Configuration", body: lines.join("\n") });
-    }
-
-    // ## Local Configuration Files (DM-2.4 — always present).
-    {
-      // Detect actual opencode config path (mirrors ensure_opencode_config
-      // detection order: canonical .opencode/* first, then repo root).
-      let ocPath = ".opencode/opencode.json";
-      for (const c of [".opencode/opencode.json", ".opencode/opencode.jsonc", "opencode.jsonc", "opencode.json"]) {
-        if (fs.existsSync(path.join(projectDir, c))) { ocPath = c; break; }
-      }
-      const artifacts = [
-        { p: "AGENTS.md", d: "This file — canonical agent guidance for this repository" },
-      ];
-      // Listed only when it exists on disk: under --dry-run the env is not
-      // written yet, and every listed path must exist
-      // (validate-agents-md.sh AC-T8-006).
-      if (fs.existsSync(path.join(projectDir, ".github-project.env"))) {
-        artifacts.push({
-          p: ".github-project.env",
-          d: "ANT_TEAM_* runtime exports — the sole project config source; source it for GitHub, documentation, and worktree metadata",
-        });
-      }
-      artifacts.push(
-        { p: ocPath, d: "OpenCode runtime config (worktree permission, agents, providers)" },
-        { p: ".opencode/skills/github-issues-projects-cli/", d: "GitHub Projects CLI helper scripts" },
-        { p: ".opencode/skills/do-task/", d: "Task worktree management scripts" },
-      );
-      sections.push({ heading: "Local Configuration Files", body: artifacts.map((a) => `- \`${a.p}\` — ${a.d}`).join("\n") });
-    }
-
-    // FR-5.4 / DM-2.1: generation timestamp HTML comment on line 1.
-    const ts = new Date().toISOString();
-    const header = `<!-- Generated by init-project v${version} on ${ts} — edit freely -->`;
-
-    let out = header + "\n\n";
-    for (const s of sections) out += `## ${s.heading}\n\n${s.body}\n\n`;
-    process.stdout.write(out);
-NODE
+  # Detect opencode config path.
+  local oc_path=""
+  for c in .opencode/opencode.json .opencode/opencode.jsonc opencode.jsonc opencode.json; do
+    if [[ -f "$project_dir/$c" ]]; then oc_path="$c"; break; fi
+  done
+  if [[ -n "$oc_path" ]]; then
+    printf '%s\n' "- \`${oc_path}\` — OpenCode runtime config"
+  fi
+  printf '\n'
 }
 
 # FR-5.5: decide how to handle a pre-existing AGENTS.md. Sets the global
 # AGENTS_MD_ACTION to one of: "create", "skip", "overwrite", or "merge".
-# Interactive prompts go to stdout (OBS-1); the decision is returned via a
-# global variable (not stdout capture) so prompt text does not pollute the
-# return value.
+# Noninteractive: skip unless --force (FR-5.5).
 decide_existing_agents_md_action() {
   local target="$1"
-  local mode_arg="$2"
-  local force_arg="$3"
-  local merge_arg="$4"
+  local force_arg="$2"
+  local merge_arg="$3"
 
   if [[ ! -f "$target" ]]; then
     AGENTS_MD_ACTION="create"
     return 0
-  fi
-
-  if [[ "$mode_arg" == "interactive" ]]; then
-    cat >&2 <<'MSG'
-[prompt] An AGENTS.md already exists at the repository root.
-[prompt] Choose how to proceed:
-[prompt]   o = overwrite (back up existing, write fresh)
-[prompt]   m = merge     (back up existing, append new sections not already present)
-[prompt]   s = skip      (preserve existing file untouched)
-MSG
-    local resp=""
-    while true; do
-      safe_read "[prompt] Action [o/m/s] (default: s): " resp
-      case "${resp:-s}" in
-        o|O) AGENTS_MD_ACTION="overwrite"; return 0 ;;
-        m|M) AGENTS_MD_ACTION="merge"; return 0 ;;
-        s|S|'') AGENTS_MD_ACTION="skip"; return 0 ;;
-        *) echo "[prompt] Please answer o, m, or s." >&2 ;;
-      esac
-    done
   fi
 
   # Noninteractive: skip unless --force (FR-5.5).
@@ -1614,78 +1153,97 @@ backup_agents_md() {
 # are appended. The generation timestamp comment on line 1 is refreshed to
 # reflect this generation. Reads existing + fresh content from env vars
 # (multi-line safe) and writes the merged markdown to stdout.
+# Implemented with awk/sed — no Node dependency.
 merge_agents_md_content() {
   local existing_content="$1"
   local fresh_content="$2"
   # T6 / ERR-2.3: scratch files live under the trap-managed TEMP_DIR so any
-  # interrupt is cleaned up by the EXIT trap. (Pre-T6 used `mktemp` directly
-  # with a manual rm that could leak on interrupt before the rm ran.)
+  # interrupt is cleaned up by the EXIT trap.
   local tmp_existing="$TEMP_DIR/agents-merge-existing"
   local tmp_fresh="$TEMP_DIR/agents-merge-fresh"
-  printf '%s' "$existing_content" > "$tmp_existing"
-  printf '%s' "$fresh_content" > "$tmp_fresh"
+  # Use printf '%s\n' to ensure trailing newline (command substitution
+  # strips trailing newlines from cat).
+  printf '%s\n' "$existing_content" > "$tmp_existing"
+  printf '%s\n' "$fresh_content" > "$tmp_fresh"
+
+  # Collect existing H2 headings, strip old header from existing, split fresh
+  # into header + sections, and compose merged output — all in one awk pass.
   AGENTSMD_EXISTING_FILE="$tmp_existing" \
   AGENTSMD_FRESH_FILE="$tmp_fresh" \
-  node <<'NODE'
-    const fs = require("fs");
-    const existing = fs.readFileSync(process.env.AGENTSMD_EXISTING_FILE, "utf8");
-    const fresh = fs.readFileSync(process.env.AGENTSMD_FRESH_FILE, "utf8");
+  awk '
+    BEGIN { existing_file = ENVIRON["AGENTSMD_EXISTING_FILE"]; fresh_file = ENVIRON["AGENTSMD_FRESH_FILE"] }
 
-    // Collect existing H2 headings so we can skip duplicates.
-    const existingHeadings = new Set();
-    for (const line of existing.split("\n")) {
-      const m = line.match(/^## (.+)$/);
-      if (m) existingHeadings.add(m[1].trim());
+    # Pass 1: read existing file, collect H2 headings and body.
+    FNR == NR && FILENAME == existing_file {
+      existing_lines[FNR] = $0
+      existing_count = FNR
+      if ($0 ~ /^## /) {
+        heading = $0
+        sub(/^## /, "", heading)
+        gsub(/^[ \t]+|[ \t]+$/, "", heading)
+        existing_headings[heading] = 1
+      }
+      next
     }
 
-    // Split fresh into [header, body]. Header = generation comment + blank
-    // line(s) before the first "## " line.
-    const freshLines = fresh.split("\n");
-    let i = 0;
-    while (i < freshLines.length && !freshLines[i].startsWith("## ")) i++;
-    const freshHeader = freshLines.slice(0, i).join("\n").trim();
-
-    // Existing body: strip the prior generation comment (if present) so we
-    // don't keep stale headers, but preserve everything else verbatim.
-    const existingLines = existing.split("\n");
-    let existingBody;
-    if (existingLines.length && /<!-- Generated by init-project/.test(existingLines[0])) {
-      // Drop line 0 (comment) + any immediately-following blank line.
-      let start = 1;
-      while (start < existingLines.length && existingLines[start].trim() === "") start++;
-      existingBody = existingLines.slice(start).join("\n").trim();
-    } else {
-      existingBody = existing.trim();
+    # Pass 2: read fresh file.
+    {
+      fresh_lines[FNR] = $0
+      fresh_count = FNR
     }
 
-    // Split fresh body into sections by H2 heading so we can append only
-    // sections not already present (preserve existing content per FR-5.5).
-    const freshBody = freshLines.slice(i).join("\n");
-    const freshSections = [];
-    let cur = null;
-    for (const line of freshBody.split("\n")) {
-      if (line.startsWith("## ")) {
-        if (cur) freshSections.push(cur);
-        cur = { heading: line.replace(/^## /, "").trim(), text: [line] };
-      } else if (cur) {
-        cur.text.push(line);
+    END {
+      # Find fresh header (comment + blank lines before first ##).
+      fresh_header_end = 0
+      for (i = 1; i <= fresh_count; i++) {
+        if (fresh_lines[i] ~ /^## /) { fresh_header_end = i - 1; break }
+        if (i == fresh_count) fresh_header_end = fresh_count
+      }
+      # Print fresh header.
+      for (i = 1; i <= fresh_header_end; i++) {
+        if (fresh_lines[i] != "") print fresh_lines[i]
+      }
+      print ""
+
+      # Existing body: strip old generation comment if present.
+      start = 1
+      if (existing_count > 0 && existing_lines[1] ~ /<!-- Generated by init-project/) {
+        start = 2
+        while (start <= existing_count && existing_lines[start] ~ /^[ \t]*$/) start++
+      }
+      # Print existing body.
+      for (i = start; i <= existing_count; i++) print existing_lines[i]
+      print ""
+
+      # Parse fresh sections and append those not already present.
+      in_section = 0
+      cur_heading = ""
+      cur_text = ""
+      for (i = fresh_header_end + 1; i <= fresh_count; i++) {
+        line = fresh_lines[i]
+        if (line ~ /^## /) {
+          # Flush previous section if any.
+          if (in_section && !(cur_heading in existing_headings)) {
+            print cur_text
+            print ""
+          }
+          heading = line
+          sub(/^## /, "", heading)
+          gsub(/^[ \t]+|[ \t]+$/, "", heading)
+          cur_heading = heading
+          cur_text = line
+          in_section = 1
+        } else if (in_section) {
+          cur_text = cur_text "\n" line
+        }
+      }
+      # Flush last section.
+      if (in_section && !(cur_heading in existing_headings)) {
+        print cur_text
+        print ""
       }
     }
-    if (cur) freshSections.push(cur);
-
-    const appended = [];
-    for (const s of freshSections) {
-      if (!existingHeadings.has(s.heading)) {
-        appended.push(s.text.join("\n").trim());
-      }
-    }
-
-    // Compose: new generation comment + existing body + appended new sections.
-    let out = freshHeader + "\n\n";
-    out += existingBody + "\n\n";
-    for (const s of appended) out += s + "\n\n";
-    process.stdout.write(out);
-NODE
+  ' "$tmp_existing" "$tmp_fresh"
   # Scratch files are under TEMP_DIR → cleaned by the EXIT trap (ERR-2.3).
 }
 
@@ -1700,8 +1258,8 @@ write_agents_md_atomic() {
 # Engine install root: the directory this script lives in — either the
 # team-scripts install (~/.agents/scripts, populated by scripts/init-company.sh
 # from templates/scripts/) or a source checkout (templates/scripts). Support
-# assets (inspect_repo.js, github-project.env.template) ship in the sibling
-# init-project/ directory next to the engine and are copied with it.
+# assets (github-project.env.template) ship in the sibling init-project/
+# directory next to the engine.
 engine_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 engine_assets="$engine_root/init-project"
 
@@ -1745,7 +1303,6 @@ opt_scratch_dir="${INIT_PROJECT_SCRATCH_DIR:-}"
 
 # New T2 boolean flags (0/1; empty / "0" / absent = off). Normalize absent → 0.
 opt_force="${INIT_PROJECT_FORCE:-0}"
-opt_skip_inspection="${INIT_PROJECT_SKIP_INSPECTION:-0}"
 opt_dry_run="${INIT_PROJECT_DRY_RUN:-0}"
 
 # --merge has a mode-dependent default (interactive=on, noninteractive=off per
@@ -1807,9 +1364,6 @@ while [[ $# -gt 0 ]]; do
       ;;
     --merge)
       opt_merge=1; shift
-      ;;
-    --skip-inspection)
-      opt_skip_inspection=1; shift
       ;;
     --dry-run)
       opt_dry_run=1; shift
@@ -1979,79 +1533,25 @@ fi
 # --- SPEC-001 T3 (issue #4): AGENTS.md generation ---------------------------
 # Runs after skills/config/docs writes per ERR-2.1 step 4 (AGENTS.md is the
 # final artifact so "Local Configuration Files" can enumerate what was
-# written). Implements FR-3 (interactive), FR-4 (noninteractive), FR-5
-# (artifact contract), DM-2 (structure), ERR-3.2 (backup).
+# written). Implements FR-4 (default-only generation), FR-5 (artifact
+# contract), DM-2 (structure), ERR-3.2 (backup).
 agents_md_target="$project_dir/AGENTS.md"
 
-# 1. Run inspection (FR-2) unless --skip-inspection.
-if [[ "$opt_skip_inspection" != "1" ]]; then
-  INSPECTION_JSON="$(run_repo_inspection "$project_dir")"
-else
-  INSPECTION_JSON='{}'
-fi
+# 1. Generate default-only content.
+AGENTS_MD_CONTENT="$(
+  AGENTSMD_PROJECT_DIR="$project_dir" \
+  AGENTSMD_REPO_NAME="$repo_name" \
+  AGENTSMD_VERSION="$INIT_PROJECT_VERSION" \
+  generate_agents_md_content
+)"
 
-# 2. Resolve effective AGENTS.md inputs based on mode.
-if [[ "$mode" == "interactive" ]]; then
-  prompt_for_agents_md "$project_dir" "$repo_name" "$INSPECTION_JSON"
-else
-  # Noninteractive (FR-4): effective values come from opt_* (T2 resolution).
-  AGENTSMD_EFF_PURPOSE="$opt_description"
-  AGENTSMD_EFF_CONVENTIONS="$opt_conventions"
-  AGENTSMD_EFF_COMMANDS="$opt_commands"
-  AGENTSMD_EFF_RELATED_REPOS="$opt_related_repos"
-  AGENTSMD_EFF_SCRATCH_DIR="${opt_scratch_dir:-./tmp/}"
-  AGENTSMD_EFF_GITHUB_OWNER="$opt_github_owner"
-  AGENTSMD_EFF_GITHUB_PROJECT_NUMBER="$opt_github_project_number"
-  AGENTSMD_EFF_REPO_NAME="${opt_name:-$repo_name}"
-  AGENTSMD_EFF_REPO_ROLE="$opt_repo_role"
-fi
-
-# 3. Existing-file policy (FR-5.5). Sets AGENTS_MD_ACTION global.
-decide_existing_agents_md_action "$agents_md_target" "$mode" "$opt_force" "$opt_merge"
+# 2. Existing-file policy (FR-5.5). Sets AGENTS_MD_ACTION global.
+decide_existing_agents_md_action "$agents_md_target" "$opt_force" "$opt_merge"
 
 if [[ "$AGENTS_MD_ACTION" == "skip" ]]; then
   emit_skip "AGENTS.md exists; skipped (use --force to overwrite, --force --merge to append)"
 else
-  # 4. Generate content. Env vars consumed by the inline node helper.
-  AGENTS_MD_CONTENT="$(
-    AGENTSMD_PROJECT_DIR="$project_dir" \
-    AGENTSMD_REPO_NAME="$repo_name" \
-    AGENTSMD_DOCS_ROOT="$docs_root" \
-    AGENTSMD_VERSION="$INIT_PROJECT_VERSION" \
-    AGENTSMD_INSPECTION="$INSPECTION_JSON" \
-    AGENTSMD_EFF_PURPOSE="$AGENTSMD_EFF_PURPOSE" \
-    AGENTSMD_EFF_CONVENTIONS="$AGENTSMD_EFF_CONVENTIONS" \
-    AGENTSMD_EFF_COMMANDS="$AGENTSMD_EFF_COMMANDS" \
-    AGENTSMD_EFF_RELATED_REPOS="$AGENTSMD_EFF_RELATED_REPOS" \
-    AGENTSMD_EFF_SCRATCH_DIR="$AGENTSMD_EFF_SCRATCH_DIR" \
-    AGENTSMD_EFF_GITHUB_OWNER="$AGENTSMD_EFF_GITHUB_OWNER" \
-    AGENTSMD_EFF_GITHUB_PROJECT_NUMBER="$AGENTSMD_EFF_GITHUB_PROJECT_NUMBER" \
-    AGENTSMD_EFF_REPO_NAME="$AGENTSMD_EFF_REPO_NAME" \
-    AGENTSMD_EFF_REPO_ROLE="$AGENTSMD_EFF_REPO_ROLE" \
-    generate_agents_md_content
-  )"
-
-  # 5. Interactive preview + confirmation (FR-3.4).
-  if [[ "$mode" == "interactive" ]]; then
-    echo "--- AGENTS.md preview ---"
-    printf '%s\n' "$AGENTS_MD_CONTENT"
-    echo "--- end preview ---"
-    local_confirm=""
-    while true; do
-      safe_read "[prompt] Write AGENTS.md with the above content? [Y/n]: " local_confirm
-      case "${local_confirm:-y}" in
-        y|Y) break ;;
-        n|N)
-          emit_skip "Operator declined AGENTS.md write"
-          AGENTS_MD_ACTION="skip"
-          break
-          ;;
-        *) echo "[prompt] Please answer y or n." >&2 ;;
-      esac
-    done
-  fi
-
-  # 6. Write (with backup if --force + existing — ERR-3.2).
+  # 3. Write (with backup if --force + existing — ERR-3.2).
   # T6 / TR-2.2: for overwrite/merge on an existing file, compare the
   # structural body (header timestamp stripped) against the existing file.
   # If identical, downgrade to skip — no backup, no rewrite, no timestamp
