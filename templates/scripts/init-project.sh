@@ -216,8 +216,8 @@ expand_path() {
 #   1. target project dir exists AND is a git repo (has .git/ or .git file)
 #   2. the sibling managed skills root contains every required skill
 #      (github-issues-projects-cli, do-task)
-#   3. node (≥18) is on PATH — required by ensure_opencode_config /
-#      ensure_project_runtime_env (OBS-3.2)
+#   3. node (≥18) is on PATH — required by the repository inspection engine
+#      (inspect_repo.js) and AGENTS.md generation (OBS-3.2)
 #   4. coreutils cp/mkdir/cat/rm/mktemp are on PATH
 #
 # The .git/ existence check (NOT `git rev-parse`) is deliberate: the init
@@ -257,8 +257,8 @@ run_preflight() {
     fi
   done
 
-  # ERR-1.1 item 3 / OBS-3.2: node ≥18 on PATH. State minimum version and
-  # which functions require it so the operator knows why.
+  # ERR-1.1 item 3 / OBS-3.2: node ≥18 on PATH. Required by the repository
+  # inspection engine (inspect_repo.js) and AGENTS.md generation.
   if ! command -v node >/dev/null 2>&1; then
     echo "[error] node (≥18) is required but was not found on PATH." >&2
     echo "[error] node is used by the repository inspection engine and AGENTS.md generation" >&2
