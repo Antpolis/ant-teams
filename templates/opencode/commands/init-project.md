@@ -5,24 +5,24 @@ agent: orchestrator
 
 Initialize or re-initialize the current repository for agentic delivery work.
 
-Run the canonical initializer (a team tooling script, not a skill):
+**Before running**: discuss with the founder what this repository is for, its conventions, and GitHub project configuration. The initializer writes only safe defaults; all project-specific content comes from founder conversation.
 
 ```sh
 bash scripts/init-company.sh
 source ./.github-project.env
-"$ANT_TEAM_SCRIPTS/init-project.sh" --interactive
+"$ANT_TEAM_SCRIPTS/init-project.sh" --dry-run
 ```
 
-For a non-interactive founder-approved run, pass `--noninteractive`, `--name`, `--github-owner`, and `--github-project-number`.
+Run `--dry-run` first to preview. Then run without flags to apply.
 
 Required behavior:
-- inspect the existing repository before changing artifacts; preserve founder-set values
-- seed or update `.github-project.env` directly as the sole sourceable `ANT_TEAM_*` configuration
-- verify GitHub owner, repository, project number, project ID, workflow field ID, workflow option IDs, worktree root, and central Obsidian documentation paths
+- seed or update `.github-project.env` directly as the sole sourceable `ANT_TEAM_*` configuration; preserve founder-set values
 - never invent real-looking remote IDs; leave missing IDs as explicit placeholders until verified
-- record the central documentation project path in `AGENTS.md`; do not create a repository-local product documentation tree
-- create or update only the minimal runtime configuration and the required initialization skills copied by the initializer (`github-issues-projects-cli`, `do-task`)
-- after initialization, show the founder the resolved documentation path and explain where to add or confirm product, architecture, governance, and specification notes
-- use the canonical templates in the central Obsidian vault when helping the founder create documentation
+- create a minimal default `AGENTS.md`; skip if one already exists
+- do not create a repository-local product documentation tree
+- after initialization, show the founder the resolved documentation path (`$ANT_TEAM_DOCS_VAULT_PATH`) and discuss:
+  - **AGENTS.md project-specific content**: purpose, conventions, build/test/run commands, relationships
+  - **`.github-project.env` confirmation**: walk through owner, project number/ID, Workflow State field/option IDs, worktree root, vault paths; replace placeholders only with founder-verified values
+  - **Obsidian initial docs**: with founder direction, create initial spec/arch/gov/product notes from the canonical vault templates — nothing created without explicit founder consent
 
 Re-run is safe and idempotent. Existing `.github-project.env` values are preserved and only missing keys are filled.

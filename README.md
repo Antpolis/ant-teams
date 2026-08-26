@@ -68,7 +68,7 @@ opencode deliver "add user activity reporting"
 
 ## Install Model
 
-- `scripts/init-company.sh` copies `templates/opencode/` into `.opencode/` and `~/.config/opencode`, then runs `scripts/sync-managed-skills.sh`, a managed, non-destructive sync of repository-owned skills into `~/.agents/skills/`.
+- `scripts/init-company.sh` copies `templates/opencode/` into `.opencode/` and `~/.config/opencode`, then runs `scripts/sync-managed-skills.sh --force` (always): a company install is an operator-initiated refresh, so locally modified managed entries in `~/.agents/skills/` are replaced from source. `--reset` first moves `~/.config/opencode`, `~/.agents/skills`, and `~/.agents/scripts` aside to `.bak.<UTC timestamp>` directories and reinstalls from scratch; `--force` is accepted as a deprecated no-op.
 - `scripts/init-company.sh` also installs the canonical `templates/scripts/` tree to `~/.agents/scripts` (exported as `ANT_TEAM_SCRIPTS`). Run `ant-team-help.sh` (from `$ANT_TEAM_SCRIPTS`, or `templates/scripts/ant-team-help.sh` in this repo) to list every installed helper script with a one-line description.
 - `$ANT_TEAM_SCRIPTS/init-project.sh` initializes a project-local agent runtime, seeds or updates `.github-project.env`, and ensures `opencode.json` or `opencode.jsonc` allows access to the issue-worktree root through `permission.external_directory`.
 - Project initialization sets the default issue-worktree root to `~/Projects/worktree/<repo name>`.
@@ -77,7 +77,7 @@ opencode deliver "add user activity reporting"
 
 - The canonical target `~/.config/opencode` is repo-owned and fully replaced on each sync.
 - The managed target `~/.agents/skills/` is manifest-tracked: only entries recorded in `~/.agents/skills/.manifest.json` are managed. Unmanaged sibling content is never touched.
-- Locally modified managed entries are preserved with a warning by default; `--force` is the only path to overwriting them.
+- Standalone `scripts/sync-managed-skills.sh` (no flags) is the non-destructive path: locally modified managed entries are preserved with a warning; `--force` overwrites them. Through `init-company.sh` the sync always runs forced.
 - `scripts/sync-managed-skills.sh --dry-run` previews planned actions without writing. There is no top-level `init-company.sh --dry-run`.
 
 See the central Obsidian project folder for the managed-skill sync runbook, architecture, and specification.

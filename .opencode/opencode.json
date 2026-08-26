@@ -75,7 +75,7 @@
     "builder": {
       "description": "Implements approved work with focused code changes and verification.",
       "mode": "primary",
-      "model": "zai-coding-plan/glm-5.3",
+      "model": "opencode/qwen3.6-plus",
       "permission": {
         "edit": "allow",
         "apply_patch": "allow",
@@ -92,7 +92,7 @@
     "reviewer": {
       "description": "Reviews builder output for KISS violations, separation of concerns, wrong folder/package/namespace placement, architecture alignment, scope discipline, and lightweight smoke verification. Raises findings as blockers, not suggestions.",
       "mode": "primary",
-      "model": "opencode/qwen-3.6-plus",
+      "model": "openai/gpt-5.6-luna-fast",
       "permission": {
         "edit": "deny",
         "glob": "allow",
@@ -108,7 +108,7 @@
   },
   "permission": {
     "bash": {
-      "*": "ask",
+      "*": "allow",
       "pwd": "allow",
       "ls *": "allow",
       "git status *": "allow",
@@ -117,14 +117,17 @@
       "git branch *": "allow",
       "git show *": "allow",
       "git rev-parse *": "allow",
-      "git ls-files *": "allow",
+      "git  -files *": "allow",
       "rg *": "allow",
       "find *": "allow",
       "node --version": "allow",
       "npm test *": "allow",
       "npm run test *": "allow",
       "bash -n *": "allow",
-      "source ./.github-project.env": "allow"
+      "source ./.github-project.env": "allow",
+      "cat *": "allow",
+      "echo *": "allow",
+      "head *": "allow"
     },
     "read": "allow",
     "grep": "allow",

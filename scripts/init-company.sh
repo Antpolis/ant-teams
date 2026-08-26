@@ -4,10 +4,13 @@ set -euo pipefail
 usage() {
   cat <<'USAGE'
 Usage:
-  scripts/init-company.sh [--target-dir PATH] [--force]
+  scripts/init-company.sh [--target-dir PATH] [--reset] [--force]
 
 Copy the repository .opencode configuration into the target config directory,
-then sync repository-owned skills, scripts, and agent definitions.
+then sync repository-owned skills, scripts, and agent definitions. The managed
+skill sync always runs with --force: a company install is an operator-initiated
+refresh of repository-owned content, so locally modified managed entries are
+replaced from source.
 
 Defaults:
   target-dir: ~/.config/opencode
@@ -16,7 +19,13 @@ Defaults:
 
 Flags:
   --target-dir PATH   Override the canonical OpenCode install target.
-  --force             Overwrite locally modified managed entries in ~/.agents/skills.
+  --reset             Before reinstalling, move the installed trees
+                      (<target-dir>, ~/.agents/skills, ~/.agents/scripts)
+                      aside to <path>.bak.<UTC timestamp> directories and
+                      reinstall from scratch.
+  --force             Deprecated no-op: the managed sync always runs with
+                      --force now. (Standalone scripts/sync-managed-skills.sh
+                      keeps its non-destructive default.)
 USAGE
 }
 
@@ -45,9 +54,27 @@ sync_team_scripts() {
   echo "Synced team scripts -> $team_scripts_dir"
 }
 
-# SPEC-002 FR-12.2 / CLI-2.1: --force is passed through to sync-managed-skills.sh
-# only when supplied. It does not affect the canonical OpenCode install.
-FORCE=0
+# --reset support (2026-08-25 founder-direct tech-lead plan): move the three
+# installed runtime trees aside to timestamped .bak.<UTC> directories before a
+# from-scratch reinstall. Exactly the installed trees move — the canonical
+# OpenCode target, ~/.agents/skills, ~/.agents/scripts — never ~/.agents
+# itself, ~/.copilot, or anything else. One timestamp per run keeps the three
+# backups correlated; absent trees are skipped.
+reset_installed_trees() {
+  local ts dir dest
+  ts="$(date -u +%Y%m%dT%H%M%SZ)"
+  for dir in "$target_dir" "$agents_dir/skills" "$team_scripts_dir"; do
+    if [[ -e "$dir" ]]; then
+      dest="$dir.bak.$ts"
+      if [[ -e "$dest" ]]; then
+        echo "[ERROR] reset backup destination already exists: $dest" >&2
+        exit 1
+      fi
+      mv "$dir" "$dest"
+      echo "Reset: moved $dir -> $dest"
+    fi
+  done
+}
 
 merge_provider_config() {
   local source_config="$1"
@@ -134,6 +161,10 @@ sync_copilot_agents() {
   echo "Synced OpenCode agents -> $agents_dir"
 }
 
+# --reset moves the installed trees aside (see reset_installed_trees); the
+# managed sync below always runs with --force (2026-08-25 plan).
+RESET=0
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --target-dir)
@@ -141,7 +172,14 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     --force)
-      FORCE=1
+      # Deprecated no-op (2026-08-25 founder-direct tech-lead plan): the
+      # managed sync at the end of this script always passes --force now, so
+      # the flag no longer changes anything. Accepted for compatibility.
+      echo "[WARNING] --force is deprecated and has no effect: init-company.sh always syncs managed skills with --force. (Standalone scripts/sync-managed-skills.sh keeps its non-destructive default.)" >&2
+      shift
+      ;;
+    --reset)
+      RESET=1
       shift
       ;;
     -h|--help)
@@ -159,6 +197,13 @@ done
 if [[ ! -d "$source_dir" ]]; then
   echo "Missing source directory: $source_dir" >&2
   exit 1
+fi
+
+# --reset: back up the installed trees BEFORE any reinstall step touches them.
+# Afterwards the canonical install and the managed sync below behave exactly as
+# on a fresh machine (no provider-merge source, no prior managed manifest).
+if [[ "$RESET" == "1" ]]; then
+  reset_installed_trees
 fi
 
 existing_config="$target_dir/opencode.json"
@@ -179,12 +224,13 @@ echo "Synced $source_dir -> $target_dir"
 sync_team_scripts
 sync_copilot_agents "$source_dir/opencode.json"
 
-# SPEC-002 FR-12.2 / INT-3.2: managed sync runs only after the canonical install
-# completes. Under `set -e`, a canonical-install failure exits before reaching
-# here; a managed-sync failure exits init-company.sh with that code (CLI-2.4).
-# --force is forwarded only when supplied (no --dry-run passthrough; CLI-2.3).
-if [[ "$FORCE" == "1" ]]; then
-  "$script_dir/sync-managed-skills.sh" --force
-else
-  "$script_dir/sync-managed-skills.sh"
-fi
+# SPEC-002 FR-12.2 / INT-3.2 (amended by the 2026-08-25 founder-direct
+# tech-lead plan): managed sync runs only after the canonical install
+# completes, and ALWAYS with --force — a company install is an operator-
+# initiated refresh of repository-owned content, so locally modified managed
+# entries are replaced from source. Under `set -e`, a canonical-install
+# failure exits before reaching here; a managed-sync failure exits
+# init-company.sh with that code (CLI-2.4). Standalone
+# scripts/sync-managed-skills.sh keeps its non-destructive default; there is
+# still no --dry-run passthrough (CLI-2.3).
+"$script_dir/sync-managed-skills.sh" --force

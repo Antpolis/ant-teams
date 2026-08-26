@@ -23,7 +23,7 @@ Generated local OpenCode runtime: `.opencode/` (created by `scripts/init-company
 - Run managed-skill sync tests: bash tests/run_sync_tests.sh
 - Run the e2e + smoke suite: bash tests/run_e2e_tests.sh
 - Run the standalone managed-sync regression smoke: bash tests/e2e/test_smoke_sync_managed_skills.sh
-- Install the canonical OpenCode configuration and refresh managed skills and team scripts: bash scripts/init-company.sh
+- Install the canonical OpenCode configuration and refresh managed skills and team scripts: bash scripts/init-company.sh (the managed sync always runs with --force and replaces locally modified managed entries; --reset first moves ~/.config/opencode, ~/.agents/skills, and ~/.agents/scripts aside to .bak.<UTC> directories; --force is a deprecated no-op)
 - Validate AGENTS.md structure (DM-2 contract): bash templates/scripts/validate-agents-md.sh AGENTS.md
 - Syntax-check shell scripts: bash -n scripts/*.sh templates/scripts/*.sh
 
@@ -65,6 +65,10 @@ source ./.github-project.env
 ## Scratch and Log Directories
 
 Scratch directory for work-in-progress and logs: `./tmp/`
+
+## Project Initialization
+
+Project initialization is an explicit founder-facing command, not an automatically invoked skill. Use `/init-project` when bootstrapping or re-initializing a repository. The command is derived into the managed `init-project` skill with `disable-model-invocation: true`, so agents must not invoke it implicitly. It runs the canonical `$ANT_TEAM_SCRIPTS/init-project.sh` tooling script, which seeds or updates `.github-project.env`, configures worktree and central Obsidian documentation routing, and installs the minimal project runtime. Source `.github-project.env` before GitHub, documentation, or worktree operations.
 
 ## GitHub Project Helper
 
