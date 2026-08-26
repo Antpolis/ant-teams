@@ -90,15 +90,25 @@ sync_copilot_agents() {
   mkdir -p "$agents_dir"
 
   # Extract agent definitions from opencode.json and write .agent.md files.
+  # Behavioral parity with the prior Node implementation:
+  #   - Only agents whose prompt is a JSON string are emitted (objects, numbers,
+  #     booleans, arrays, and null are silently skipped).
+  #   - Prompts are trimmed of leading/trailing whitespace (matches .trim()).
+  #   - name and description are JSON-quoted (@json) so YAML-significant
+  #     characters (colons, quotes, newlines) cannot corrupt the frontmatter.
   jq -r '
     .agent // {} | to_entries[] |
-    select(.value.prompt != null) |
-    @json
+    select(.value.prompt | type == "string") |
+    {
+      key: .key,
+      description: (.value.description // "Use when acting as the \(.key) role."),
+      prompt: (.value.prompt | gsub("^\\s+|\\s+$"; ""))
+    } | @json
   ' "$source_config" 2>/dev/null | while IFS= read -r agent_json; do
     local id desc prompt tools
     id=$(printf '%s' "$agent_json" | jq -r '.key')
-    desc=$(printf '%s' "$agent_json" | jq -r '.value.description // "Use when acting as the \(.key) role."')
-    prompt=$(printf '%s' "$agent_json" | jq -r '.value.prompt')
+    desc=$(printf '%s' "$agent_json" | jq -r '.description | @json')
+    prompt=$(printf '%s' "$agent_json" | jq -r '.prompt')
 
     if [[ "$id" == "reviewer" ]]; then
       tools="read, search, execute, agent, web"
@@ -108,9 +118,11 @@ sync_copilot_agents() {
 
     local target="$agents_dir/${id}.agent.md"
     local temporary="${target}.tmp-$$"
+    local name_json
+    name_json=$(printf '%s' "$agent_json" | jq -r '.key | @json')
     {
       printf '%s\n' "---"
-      printf 'name: %s\n' "$id"
+      printf 'name: %s\n' "$name_json"
       printf 'description: %s\n' "$desc"
       printf 'tools: [%s]\n' "$tools"
       printf '%s\n' "---"
