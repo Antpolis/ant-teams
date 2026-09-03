@@ -10,9 +10,13 @@ CONFIG_ENV_FILE="$REPO_ROOT/.github-project.env"
 # no longer targeted by this helper.
 readonly CANONICAL_FIELD_NAME="Workflow State"
 
-# `gh project item-list --format json` flattens single-select field values to
-# top-level item keys named after the field (e.g. "workflow State").
-readonly CANONICAL_ITEM_KEY="workflow State"
+# Board item reads page through the shared GraphQL project-items engine
+# with bounded cursor pagination (gh project item-list is limit-bounded and
+# carries neither assignees nor option ids, so the engine never depends on
+# it). The page bound caps runaway boards; truncation is warned, never
+# silent.
+readonly PROJECT_ITEMS_PAGE_SIZE=100
+readonly PROJECT_ITEMS_MAX_PAGES=10
 
 # Default JSON field sets for issue and PR read commands:
 # collaboration-shaped, safe output. Callers take over the output shape by
@@ -43,6 +47,7 @@ usage() {
 Usage:
   gh_project_helper.sh gh-item-edit <item_id> <field_id> <single_select_option_id>
   gh_project_helper.sh item-id <issue_number>
+  gh_project_helper.sh item-state <issue_number>
   gh_project_helper.sh list-statuses
   gh_project_helper.sh list-items [state_name]
   gh_project_helper.sh list-unassigned
@@ -92,20 +97,46 @@ Usage:
 
 Notes:
   - all board operations target the canonical "Workflow State" project field
-  - board item queries (list-items, list-unassigned) run ONE shared GraphQL
-    project-items query: gh project item-list returns neither assignees nor
-    option ids, so the item query family needs the GraphQL join. Items are
-    read with first:100 and NO pagination loop (documented limitation).
-    list-items/list-unassigned print {item_id, issue_number, title, state,
-    assignees, url} per issue-linked item with REAL assignees; "state" is
-    the REMOTE Workflow State option name preserved/displayed as-is (never
-    translated to the canonical name). An optional state argument filters
-    by canonical state resolved to its option id via the same resolver as
-    set-status (name-agnostic: correct even when the remote display name is
-    a legacy rename); an unknown state fails non-zero with guidance before
-    any query results are printed. item-id keeps gh project item-list
-    (assignees/option ids are not needed there) and fails non-zero naming
-    the issue when it has no board item
+  - board item queries (list-items, list-unassigned, item-id, item-state)
+    and every set-status item lookup/verification run ONE shared GraphQL
+    project-items engine: gh project item-list is limit-bounded and returns
+    neither assignees nor option ids, so the engine never depends on it.
+    Reads are pagination-safe: items are paged with first:100 cursor pages
+    (bounded at 10 pages / 1000 items; truncation beyond the bound is
+    warned on stderr, never silent). list-items/list-unassigned print
+    {item_id, issue_number, title, state, assignees, url} per issue-linked
+    item with REAL assignees; "state" is the REMOTE Workflow State option
+    name preserved/displayed as-is (never translated to the canonical
+    name). An optional state argument filters by canonical state resolved
+    to its option id via the same resolver as set-status (name-agnostic:
+    correct even when the remote display name is a legacy rename); an
+    unknown state fails non-zero with guidance before any query results
+    are printed. item-id prints {item_id, issue_number, title, url, state};
+    item-id and item-state fail non-zero naming the issue when it has no
+    board item
+  - item-state <issue_number> is the read-only recovery command: it prints
+    {item_id, issue_number, title, state, url, canonical_state} where
+    canonical_state is reverse-mapped from the item's option id against
+    the env-pinned canonical option IDs (null when the option id is
+    unknown locally). Run it after any failed or interrupted status
+    mutation to see where the item actually sits; it never mutates
+  - verified + idempotent status mutations: set-status, set-status-id, and
+    next-status find the item by issue number through the shared engine,
+    skip the mutation when the item already carries the requested OPTION
+    id (no duplicate edit, stderr notes the skip), perform exactly one
+    item-edit attempt, then re-read the item and verify by option id —
+    independent of the remote display name. A post-edit mismatch exits
+    non-zero with the actual board state on stderr. next-status
+    ISSUE_NUMBER CURRENT NEXT additionally enforces a precondition: the
+    item must currently sit in CURRENT (matched by option id) or the
+    command fails non-zero without mutating
+  - bounded read-only retry: board read calls (the shared items engine,
+    Workflow State field/option id discovery, project id discovery, and
+    list-statuses) retry transient failures (rate limit, network) up to 3
+    attempts with a short pause, then exit 3 — safe to retry later.
+    Mutations are NEVER retried: a failed mutation fails immediately.
+    Exit 3 is the shared "retryable" exit (also used by the dual-record
+    offline deferral below); hard usage/config errors stay exit 1
   - project-list, project-view, and project-field-list are thin
     gh project list/view/field-list wrappers plus curated jq output; they
     never use the GraphQL items engine (field-list already returns
@@ -119,7 +150,9 @@ Notes:
     item-id print curated JSON objects that always carry issue_number, title,
     state, and url (list-items also reports assignees; item-id also reports
     item_id). set-status / set-status-id re-read the board item AFTER the
-    edit, so the printed state is the post-edit verification value
+    edit and verify by option id, so the printed state is the post-edit
+    verification value and an edit that silently failed cannot report a
+    stale state
   - curated mutator output contract: every mutator except issue-comment and
     pr-comment returns useful structured JSON, never raw gh output.
     issue-create and pr-create print {number, title, state, url}, reusing
@@ -237,6 +270,25 @@ require_value() {
   fi
 }
 
+# Board status/lookup commands: the issue number is a required numeric
+# positional and the optional owner_type accepts exactly org or user. Both
+# are checked BEFORE gh runs, so a positional owner can never reach a gh
+# call (the env-only contract shared with the query family).
+validate_board_status_args() {
+  local issue_number="$1"
+  local owner_type="${2:-}"
+  local cmd_name="$3"
+
+  if [[ ! "$issue_number" =~ ^[0-9]+$ ]]; then
+    echo "Invalid issue number '$issue_number' for $cmd_name: must be a positive integer (the owner is never a positional argument)" >&2
+    exit 1
+  fi
+  if [[ -n "$owner_type" && "$owner_type" != "org" && "$owner_type" != "user" ]]; then
+    echo "Invalid owner_type '$owner_type' for $cmd_name: must be org or user" >&2
+    exit 1
+  fi
+}
+
 # Config resolution: explicit argument -> ANT_TEAM_* export from
 # .github-project.env (the sole project config source) -> legacy unprefixed
 # env name. Remote discovery happens at the call sites when all three are
@@ -343,37 +395,88 @@ fi
 cmd="$1"
 shift
 
+# --- bounded read-only retry (rate limit / transient network) -------------------
+#
+# gh_read wraps READ-ONLY gh invocations with a bounded retry: transient
+# failures (rate limit, network) are retried a fixed number of times and
+# then reported with exit 3 — the "safe to retry later" exit shared with
+# the dual-record sync deferral. Non-transient failures propagate
+# immediately with gh's own exit code. Mutations are NEVER routed through
+# this wrapper: a failed mutation is never retried automatically.
+readonly GH_READ_ATTEMPTS=3
+readonly GH_READ_RETRY_SLEEP=2
+readonly GH_READ_TRANSIENT_EXIT=3
+# Case-insensitive transient signatures matched against gh's stderr.
+readonly GH_READ_TRANSIENT_RE='rate limit|error connecting|could not resolve host|timed out|HTTP 50[0-9]|bad gateway|service unavailable'
+
+gh_read() {
+  local attempt=1 err_file out rc err_text
+  err_file="$(mktemp)"
+  while :; do
+    set +e
+    out="$(gh "$@" 2>"$err_file")"
+    rc=$?
+    set -e
+    if [[ $rc -eq 0 ]]; then
+      rm -f "$err_file"
+      printf '%s\n' "$out"
+      return 0
+    fi
+    err_text="$(cat "$err_file")"
+    if ! grep -qiE "$GH_READ_TRANSIENT_RE" "$err_file"; then
+      rm -f "$err_file"
+      printf '%s\n' "$err_text" >&2
+      return "$rc"
+    fi
+    if [[ $attempt -ge $GH_READ_ATTEMPTS ]]; then
+      rm -f "$err_file"
+      printf '%s\n' "$err_text" >&2
+      echo "read-only gh call failed after $GH_READ_ATTEMPTS attempts (transient): gh $*" >&2
+      echo "safe to retry: no mutation was attempted" >&2
+      return "$GH_READ_TRANSIENT_EXIT"
+    fi
+    echo "read-only gh call attempt $attempt failed (transient); retrying in ${GH_READ_RETRY_SLEEP}s" >&2
+    sleep "$GH_READ_RETRY_SLEEP"
+    attempt=$((attempt + 1))
+  done
+}
+
 list_statuses() {
   local owner="$1"
   local project_number="$2"
 
-  gh project field-list "$project_number" --owner "$owner" --format json \
+  gh_read project field-list "$project_number" --owner "$owner" --format json \
     | jq -r --arg field "$CANONICAL_FIELD_NAME" '.fields[]
       | select(.name == $field)
       | .options[]
       | .name'
 }
 
-# --- shared GraphQL project-items query (board ITEM query family) --------------
+# --- shared GraphQL project-items engine (board ITEM query family) --------------
 #
-# ONE shared query backs list-items and list-unassigned. gh project
-# item-list (gh 2.45) returns neither assignees nor single-select option
-# ids (values are flattened to top-level display-name keys), so the item
-# query family needs this GraphQL join. item-id, resolve_item_id, and the
-# set-status verification read intentionally KEEP gh project item-list —
-# they need neither assignees nor option ids, and the thinner read is
-# cheaper; two data sources are justified by contract need.
+# ONE shared engine backs list-items, list-unassigned, item-id, item-state,
+# the set-status item lookup, and the set-status verification re-read. gh
+# project item-list (gh 2.45) is limit-bounded and returns neither
+# assignees nor single-select option ids (values are flattened to top-level
+# display-name keys), so every item read, lookup, and verification goes
+# through this GraphQL join. Reads are pagination-safe: items are paged
+# with first:100 cursor pages (bounded at PROJECT_ITEMS_MAX_PAGES; a board
+# larger than the bound is listed partially with a stderr truncation
+# warning).
 #
-# Documented limitation (issue #46 guardrail): items are read with
-# first:100 and NO pagination loop. Boards with more than 100 items are
-# only partially listed.
+# The page-1 query deliberately omits the cursor variable instead of
+# relying on null-variable coercion: gh's -f/-F flags cannot express a
+# JSON null portably, so follow-up pages use a query variant that declares
+# $cursor and passes it as a plain string.
 
-project_items_query() {
+# One canonical query body; __QUERY_VARS__ and __ITEMS_ARGS__ are filled
+# per page variant (bash ${var/pat/repl} replacements are literal).
+project_items_query_body() {
   cat <<'EOF'
-query($projectId: ID!) {
+query__QUERY_VARS__ {
   node(id: $projectId) {
     ... on ProjectV2 {
-      items(first: 100) {
+      items(first: 100__ITEMS_ARGS__) {
         nodes {
           id
           content {
@@ -408,6 +511,10 @@ query($projectId: ID!) {
             }
           }
         }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
       }
     }
   }
@@ -415,13 +522,31 @@ query($projectId: ID!) {
 EOF
 }
 
-# Fetch and curate the board's issue-linked items in ONE read. Prints a
-# compact JSON array of
+# Page-1 query (no cursor) when $1 is empty; follow-up query (after:
+# $cursor) when $1 is non-empty.
+project_items_query() {
+  local body vars items_args
+  body="$(project_items_query_body)"
+  if [[ -n "${1:-}" ]]; then
+    vars='($projectId: ID!, $cursor: String!)'
+    items_args=', after: $cursor'
+  else
+    vars='($projectId: ID!)'
+    items_args=''
+  fi
+  body="${body/__QUERY_VARS__/$vars}"
+  body="${body/__ITEMS_ARGS__/$items_args}"
+  printf '%s' "$body"
+}
+
+# Fetch and curate the board's issue-linked items across bounded cursor
+# pages. Prints a compact JSON array of
 #   {item_id, issue_number, title, url, assignees, state, state_option_id}
 # where "state" is the REMOTE option name preserved as-is (never translated
 # to the canonical name; founder-confirmed 2026-08-23) and state_option_id
-# is the internal, name-agnostic filter key. Draft items (content without a
-# number) are not issue-linked and are dropped.
+# is the internal, name-agnostic key used for filtering, verification, and
+# canonical reverse-mapping. Draft items (content without a number) are
+# not issue-linked and are dropped.
 fetch_project_items() {
   local owner="$1"
   local project_number="$2"
@@ -429,32 +554,84 @@ fetch_project_items() {
   local project_id field_id
   project_id="$(resolve_project_id_from_env)"
   if [[ -z "$project_id" ]]; then
-    project_id="$(resolve_project_id "$owner" "$project_number" "$(resolve_owner_type "")")"
+    project_id="$(resolve_project_id "$owner" "$project_number" "$(resolve_owner_type "")")" || exit $?
   fi
   if [[ -z "$project_id" || "$project_id" == "null" ]]; then
     echo "Could not resolve project ID" >&2
     exit 1
   fi
-  field_id="$(resolve_state_field_id "$owner" "$project_number")"
+  field_id="$(resolve_state_field_id "$owner" "$project_number")" || exit $?
   if [[ -z "$field_id" || "$field_id" == "null" ]]; then
     echo "Could not resolve Workflow State field ID" >&2
     exit 1
   fi
 
-  gh api graphql \
-    -f query="$(project_items_query)" \
-    -f projectId="$project_id" \
-    | jq -c --arg field "$field_id" '[.data.node.items.nodes[]
-      | select(.content.number != null)
-      | {
-          item_id: .id,
-          issue_number: .content.number,
-          title: (.content.title // ""),
-          url: (.content.url // ""),
-          assignees: [(.content.assignees.nodes // [])[] | .login],
-          state: ([.fieldValues.nodes[] | select(.field.id == $field) | .name][0] // ""),
-          state_option_id: ([.fieldValues.nodes[] | select(.field.id == $field) | .optionId][0] // "")
-        }]'
+  # NOTE: bash does not reliably inherit `set -e` through nested command
+  # substitution subshells, so every capture below handles its failure
+  # explicitly — a transient-exhausted read (exit 3) must abort the fetch,
+  # never continue with an empty payload.
+  local payload nodes items='[]' has_next cursor page=0
+  while :; do
+    page=$((page + 1))
+    if [[ "$page" -eq 1 ]]; then
+      payload="$(gh_read api graphql \
+        -f query="$(project_items_query "")" \
+        -f projectId="$project_id")" || exit $?
+    else
+      payload="$(gh_read api graphql \
+        -f query="$(project_items_query after)" \
+        -f projectId="$project_id" \
+        -f cursor="$cursor")" || exit $?
+    fi
+    nodes="$(jq -c '.data.node.items.nodes // []' <<<"$payload")" || exit $?
+    items="$(jq -cn --argjson acc "$items" --argjson page "$nodes" '$acc + $page')" || exit $?
+    has_next="$(jq -r '.data.node.items.pageInfo.hasNextPage // false' <<<"$payload")" || exit $?
+    cursor="$(jq -r '.data.node.items.pageInfo.endCursor // ""' <<<"$payload")" || exit $?
+    if [[ "$has_next" != "true" ]]; then
+      break
+    fi
+    if [[ -z "$cursor" ]]; then
+      echo "warning: board reported another page but no cursor; stopping after page $page" >&2
+      break
+    fi
+    if [[ "$page" -ge "$PROJECT_ITEMS_MAX_PAGES" ]]; then
+      echo "warning: board listing truncated at the pagination bound (${PROJECT_ITEMS_MAX_PAGES} pages x ${PROJECT_ITEMS_PAGE_SIZE} items)" >&2
+      break
+    fi
+  done
+
+  jq -c --arg field "$field_id" '[.[]
+    | select(.content.number != null)
+    | {
+        item_id: .id,
+        issue_number: .content.number,
+        title: (.content.title // ""),
+        url: (.content.url // ""),
+        assignees: [(.content.assignees.nodes // [])[] | .login],
+        state: ([.fieldValues.nodes[] | select(.field.id == $field) | .name][0] // ""),
+        state_option_id: ([.fieldValues.nodes[] | select(.field.id == $field) | .optionId][0] // "")
+      }]' <<<"$items"
+}
+
+# Find ONE issue-linked board item by issue number through the shared
+# paginated engine. Prints the internal record
+# {item_id, issue_number, title, url, state, state_option_id} as a single
+# line, or fails (exit 1, stderr naming the issue) when the issue has no
+# board item. state_option_id is the name-agnostic key; public outputs
+# reshape this record and never print option ids.
+find_board_item() {
+  local owner="$1"
+  local project_number="$2"
+  local issue_number="$3"
+
+  local out
+  out="$(fetch_project_items "$owner" "$project_number")" || exit $?
+  out="$(jq -c --argjson n "$issue_number" '.[] | select(.issue_number == $n)' <<<"$out")" || exit $?
+  if [[ -z "$out" ]]; then
+    echo "No project item found for issue #$issue_number on project $project_number (owner $owner)" >&2
+    exit 1
+  fi
+  printf '%s\n' "$out"
 }
 
 # Curated board item query contract (issue #46): list-items prints
@@ -558,19 +735,8 @@ resolve_project_id() {
   local query
   query="$(project_id_query "$owner_type")"
 
-  gh api graphql -f query="$query" -F owner="$owner" -F number="$project_number" \
+  gh_read api graphql -f query="$query" -F owner="$owner" -F number="$project_number" \
     | jq -r '.data.organization.projectV2.id // .data.user.projectV2.id'
-}
-
-resolve_item_id() {
-  local owner="$1"
-  local project_number="$2"
-  local issue_number="$3"
-
-  gh project item-list "$project_number" --owner "$owner" --format json \
-    | jq -r --argjson n "$issue_number" '.items[]
-      | select(.content.number == $n)
-      | .id'
 }
 
 # Shared set-status-style guidance for an unresolvable Workflow State name
@@ -591,24 +757,12 @@ print_item_id() {
   local project_number="$2"
   local issue_number="$3"
 
-  local out
-  out="$(gh project item-list "$project_number" --owner "$owner" --format json \
-    | jq -r --argjson n "$issue_number" --arg key "$CANONICAL_ITEM_KEY" '.items[]
-      | select(.content.number == $n)
-      | {
-          item_id: .id,
-          issue_number: .content.number,
-          title: (.content.title // ""),
-          url: (.content.url // ""),
-          state: (.[$key] // "")
-        }')"
-  # Not-found is a hard failure (issue #46): exit non-zero with stderr
-  # naming the issue instead of silently printing nothing.
-  if [[ -z "$out" ]]; then
-    echo "No project item found for issue #$issue_number on project $project_number (owner $owner)" >&2
-    exit 1
-  fi
-  printf '%s\n' "$out"
+  # Pagination-safe lookup through the shared GraphQL engine; not-found is
+  # a hard failure (issue #46): exit non-zero with stderr naming the issue
+  # instead of silently printing nothing.
+  local item
+  item="$(find_board_item "$owner" "$project_number" "$issue_number")"
+  jq -c '{item_id, issue_number, title, url, state}' <<<"$item"
 }
 
 resolve_state_field_id() {
@@ -621,7 +775,7 @@ resolve_state_field_id() {
   if [[ -n "$env_field_id" ]]; then
     printf '%s\n' "$env_field_id"
   else
-    gh project field-list "$project_number" --owner "$owner" --format json \
+    gh_read project field-list "$project_number" --owner "$owner" --format json \
       | jq -r --arg field "$CANONICAL_FIELD_NAME" '.fields[]
         | select(.name == $field)
         | .id'
@@ -639,13 +793,19 @@ resolve_state_option_id() {
   if [[ -n "$env_option_id" ]]; then
     printf '%s\n' "$env_option_id"
   else
-    gh project field-list "$project_number" --owner "$owner" --format json \
+    gh_read project field-list "$project_number" --owner "$owner" --format json \
       | jq -r --arg field "$CANONICAL_FIELD_NAME" --arg state "$state_name" '.fields[]
         | select(.name == $field)
         | .options[]
         | select(.name == $state)
         | .id'
   fi
+}
+
+# The four-field curated board mutation contract shared by set-status,
+# set-status-id, and next-status.
+emit_item_mutation_result() {
+  jq -c '{issue_number, title, state, url}' <<<"$1"
 }
 
 set_status_id() {
@@ -655,20 +815,15 @@ set_status_id() {
   local option_id="$4"
   local owner_type="${5:-org}"
 
-  local project_id item_id field_id
+  local project_id field_id item item_id
   project_id="$(resolve_project_id_from_env)"
   if [[ -z "$project_id" ]]; then
     project_id="$(resolve_project_id "$owner" "$project_number" "$owner_type")"
   fi
-  item_id="$(resolve_item_id "$owner" "$project_number" "$issue_number")"
   field_id="$(resolve_state_field_id "$owner" "$project_number")"
 
   if [[ -z "$project_id" || "$project_id" == "null" ]]; then
     echo "Could not resolve project ID" >&2
-    exit 1
-  fi
-  if [[ -z "$item_id" || "$item_id" == "null" ]]; then
-    echo "Could not resolve project item ID for issue #$issue_number" >&2
     exit 1
   fi
   if [[ -z "$field_id" || "$field_id" == "null" ]]; then
@@ -680,21 +835,35 @@ set_status_id() {
     exit 1
   fi
 
+  # Pagination-safe, name-agnostic item lookup through the shared engine.
+  item="$(find_board_item "$owner" "$project_number" "$issue_number")"
+  item_id="$(jq -r '.item_id' <<<"$item")"
+
+  # Idempotent by OPTION id: an item already in the requested state is
+  # verified as-is with no duplicate mutation.
+  if [[ "$(jq -r '.state_option_id' <<<"$item")" == "$option_id" ]]; then
+    echo "set-status: issue #$issue_number is already in the requested Workflow State (no mutation)" >&2
+    emit_item_mutation_result "$item"
+    return 0
+  fi
+
+  # Exactly one mutation attempt; mutations are never retried.
   gh project item-edit \
     --id "$item_id" \
     --project-id "$project_id" \
     --field-id "$field_id" \
     --single-select-option-id "$option_id" >/dev/null
 
-  gh project item-list "$project_number" --owner "$owner" --format json \
-    | jq --arg key "$CANONICAL_ITEM_KEY" --argjson n "$issue_number" '.items[]
-      | select(.content.number == $n)
-      | {
-          issue_number: (.content.number // null),
-          title: (.content.title // ""),
-          state: (.[$key] // ""),
-          url: (.content.url // "")
-        }'
+  # Verified by OPTION id, independent of the remote display name: a
+  # mismatch after the edit is a hard failure, never a stale echo of the
+  # request.
+  local verify
+  verify="$(find_board_item "$owner" "$project_number" "$issue_number")"
+  if [[ "$(jq -r '.state_option_id' <<<"$verify")" != "$option_id" ]]; then
+    echo "set-status verification failed for issue #$issue_number: the board did not report the requested Workflow State after the edit (found '$(jq -r '.state' <<<"$verify")')" >&2
+    exit 1
+  fi
+  emit_item_mutation_result "$verify"
 }
 
 set_status() {
@@ -711,6 +880,90 @@ set_status() {
   fi
 
   set_status_id "$owner" "$project_number" "$issue_number" "$option_id" "$owner_type"
+}
+
+# next-status enforces a precondition before the transition: the item must
+# currently sit in the claimed CURRENT state, matched by OPTION id (never
+# by the remote display name). A failed precondition exits non-zero with
+# the actual board state on stderr and performs no mutation.
+next_status() {
+  local owner="$1"
+  local project_number="$2"
+  local issue_number="$3"
+  local current_state="$4"
+  local next_state="$5"
+  local owner_type="${6:-org}"
+
+  local current_option_id next_option_id item
+  current_option_id="$(resolve_state_option_id "$owner" "$project_number" "$current_state")"
+  if [[ -z "$current_option_id" || "$current_option_id" == "null" ]]; then
+    unresolved_state_error "$current_state"
+  fi
+  next_option_id="$(resolve_state_option_id "$owner" "$project_number" "$next_state")"
+  if [[ -z "$next_option_id" || "$next_option_id" == "null" ]]; then
+    unresolved_state_error "$next_state"
+  fi
+
+  item="$(find_board_item "$owner" "$project_number" "$issue_number")"
+  if [[ "$(jq -r '.state_option_id' <<<"$item")" != "$current_option_id" ]]; then
+    echo "next-status precondition failed for issue #$issue_number: expected current state '$current_state', board reports '$(jq -r '.state' <<<"$item")'" >&2
+    echo "Re-read the item state (item-state $issue_number) and re-run with the correct current state; no mutation was made" >&2
+    exit 1
+  fi
+
+  set_status_id "$owner" "$project_number" "$issue_number" "$next_option_id" "$owner_type"
+}
+
+# Canonical Workflow State names, used ONLY to reverse-map a board option
+# id back to its canonical name for the read-only item-state recovery
+# output (the remote display name is never rewritten or translated
+# elsewhere).
+readonly CANONICAL_STATE_NAMES=(
+  "Open"
+  "Backlog"
+  "Need attentions"
+  "Ready"
+  "In Progress"
+  "In Review"
+  "Ready to Merge"
+  "Blocked"
+  "Done"
+)
+
+canonical_state_for_option_id() {
+  local option_id="$1"
+  local name pinned
+  for name in "${CANONICAL_STATE_NAMES[@]}"; do
+    pinned="$(resolve_state_option_id_from_env "$name")"
+    if [[ -n "$pinned" && "$pinned" == "$option_id" ]]; then
+      printf '%s\n' "$name"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Read-only board-state recovery: prints where an issue's board item
+# actually sits right now. "state" is the REMOTE option name as-is;
+# "canonical_state" is reverse-mapped from the item's option id against
+# the env-pinned canonical option IDs (null when the option id is unknown
+# locally). Never mutates anything — safe to run after any failed or
+# interrupted status mutation.
+item_state() {
+  local owner="$1"
+  local project_number="$2"
+  local issue_number="$3"
+
+  local item canonical=""
+  item="$(find_board_item "$owner" "$project_number" "$issue_number")"
+  if canonical="$(canonical_state_for_option_id "$(jq -r '.state_option_id' <<<"$item")")"; then
+    :
+  else
+    canonical=""
+  fi
+  jq -c --arg canonical "$canonical" \
+    '{item_id, issue_number, title, state, url,
+      canonical_state: (if $canonical == "" then null else $canonical end)}' <<<"$item"
 }
 
 # --- issue subcommands (env-resolved repo; curated mutation results) ----------
@@ -2299,6 +2552,7 @@ case "$cmd" in
     [[ $# -eq 1 ]] || { usage; exit 1; }
     owner="$(resolve_owner "")"; project_number="$(resolve_project_number "")"
     require_value "OWNER" "$owner"; require_value "PROJECT_NUMBER" "$project_number"
+    validate_board_status_args "$1" "" item-id
     print_item_id "$owner" "$project_number" "$1"
     ;;
   list-statuses)
@@ -2343,6 +2597,13 @@ case "$cmd" in
     require_project_query_owner "$owner" project-field-list
     project_field_list "$owner" "$PQ_POSITIONAL"
     ;;
+  item-state)
+    [[ $# -eq 1 ]] || { usage; exit 1; }
+    owner="$(resolve_owner "")"; project_number="$(resolve_project_number "")"
+    require_value "OWNER" "$owner"; require_value "PROJECT_NUMBER" "$project_number"
+    validate_board_status_args "$1" "" item-state
+    item_state "$owner" "$project_number" "$1"
+    ;;
   add-issue)
     [[ $# -eq 1 ]] || { usage; exit 1; }
     owner="$(resolve_owner "")"; project_number="$(resolve_project_number "")"
@@ -2354,6 +2615,7 @@ case "$cmd" in
     owner="$(resolve_owner "")"; project_number="$(resolve_project_number "")"
     owner_type="$(resolve_owner_type "${3:-}")"
     require_value "OWNER" "$owner"; require_value "PROJECT_NUMBER" "$project_number"
+    validate_board_status_args "$1" "${3:-}" set-status
     set_status "$owner" "$project_number" "$1" "$2" "$owner_type"
     ;;
   set-status-id)
@@ -2361,6 +2623,7 @@ case "$cmd" in
     owner="$(resolve_owner "")"; project_number="$(resolve_project_number "")"
     owner_type="$(resolve_owner_type "${3:-}")"
     require_value "OWNER" "$owner"; require_value "PROJECT_NUMBER" "$project_number"
+    validate_board_status_args "$1" "${3:-}" set-status-id
     set_status_id "$owner" "$project_number" "$1" "$2" "$owner_type"
     ;;
   next-status)
@@ -2368,7 +2631,8 @@ case "$cmd" in
     owner="$(resolve_owner "")"; project_number="$(resolve_project_number "")"
     owner_type="$(resolve_owner_type "${4:-}")"
     require_value "OWNER" "$owner"; require_value "PROJECT_NUMBER" "$project_number"
-    set_status "$owner" "$project_number" "$1" "$3" "$owner_type"
+    validate_board_status_args "$1" "${4:-}" next-status
+    next_status "$owner" "$project_number" "$1" "$2" "$3" "$owner_type"
     ;;
   issue-create)
     [[ $# -ge 1 ]] || { usage; exit 1; }

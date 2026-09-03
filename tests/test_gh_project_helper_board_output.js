@@ -20,7 +20,8 @@
  *   BOC-3  item-id prints {item_id, issue_number, title, url, state}; a
  *          not-found issue exits non-zero with stderr naming the issue
  *   BOC-4  set-status <n> <state> resolves IDs (env first), performs the
- *          item-edit mutation with them, then prints
+ *          item-edit mutation with them, then re-reads the item through
+ *          the shared GraphQL engine and prints
  *          {issue_number, title, state, url} where state is the POST-EDIT
  *          board value
  *   BOC-5  set-status-id <n> <option_id> has the same post-edit curated
@@ -28,14 +29,16 @@
  *   BOC-6  set-status fails cleanly (exit 1, no mutation) when the state
  *          option cannot be resolved
  *
- * The fake gh is stateful and serves BOTH data sources by contract: the
- * flattened gh project item-list payload (item-id, resolve_item_id, and
- * set-status verification keep it — no assignees/optionId needed there)
- * and the gh api graphql project-items payload (list-items). The first gh
- * project item-edit flips the fake board item's Workflow State, so the
+ * The fake gh is stateful and serves the GraphQL project-items payload
+ * (the ONE data source since the gh-helper-hardening pass: item lookups,
+ * verification reads, and listings all run the shared engine, and the
+ * post-edit verification matches by option id). The first gh project
+ * item-edit flips the fake board item's Workflow State option, so the
  * post-edit re-read in BOC-4/BOC-5 observably differs from the pre-edit
  * value — proving the printed state is a verification re-read, not an echo
- * of the request.
+ * of the request. Idempotence, mismatch, precondition, pagination, and
+ * retry behaviors are locked separately by
+ * tests/test_gh_project_helper_hardening.js.
  *
  * The helper under test is the canonical engine in templates/opencode/
  * (the repo-local .opencode/ skills mirror is not tracked since the
@@ -70,81 +73,67 @@ function check(name, fn) {
   }
 }
 
-// gh project item-list payload shaped like the real gh CLI output: the
-// single-select field value is flattened to a top-level item key named
-// after the field (literally "workflow State").
+// gh project item-list-shaped fixture constants kept for the item
+// identity (id, content) shared with the GraphQL payload below.
 const ITEM_37_READY = {
   id: 'PVTI_lADOAGcCyM4Bdw3L_issue37',
-  'workflow State': 'Ready',
-  content: {
-    number: 37,
-    title: 'SPEC-003-T7: Local-first dual-record sync',
-    url: 'https://github.com/env-owner/env-repo/issues/37',
-    assignees: [{ login: 'chrissim' }],
-  },
+  state: 'Ready',
+  optionId: 'PVTFS_optReady',
 };
 const ITEM_42_TODO = {
   id: 'PVTI_lADOAGcCyM4Bdw3L_issue42',
-  'workflow State': 'Todo',
-  content: {
-    number: 42,
-    title: 'Board output contract demo',
-    url: 'https://github.com/env-owner/env-repo/issues/42',
-    assignees: [],
-  },
+  state: 'Todo',
+  optionId: 'PVTFS_optTodo',
 };
 
-function boardPayload(stateFor42) {
-  const items = [ITEM_37_READY, { ...ITEM_42_TODO, 'workflow State': stateFor42 }];
-  return JSON.stringify({ items: [...items] }); // fresh copies per call
-}
-
-// gh api graphql project-items payload (issue #46 shared items query):
-// carries the assignees and the single-select optionId that the flattened
-// item-list payload cannot. Mirrors the same two items.
-function graphqlItemsPayload() {
+// gh api graphql project-items payload (the ONE data source): carries the
+// assignees and the single-select optionId that the flattened item-list
+// payload never could. pageInfo closes the cursor pagination loop after
+// one page.
+function graphqlItemsPayload(stateFor42, optionFor42) {
+  const item = (it, state, option) => ({
+    id: it.id,
+    content: {
+      number: it.number,
+      title: it.title,
+      url: it.url,
+      assignees: { nodes: it.assignees },
+    },
+    fieldValues: {
+      nodes: [
+        { name: state, optionId: option, field: { id: 'PVTFS_testFieldId' } },
+      ],
+    },
+  });
   return JSON.stringify({
     data: {
       node: {
         items: {
           nodes: [
-            {
-              id: ITEM_37_READY.id,
-              content: {
+            item(
+              {
+                id: ITEM_37_READY.id,
                 number: 37,
-                title: ITEM_37_READY.content.title,
-                url: ITEM_37_READY.content.url,
-                assignees: { nodes: [{ login: 'chrissim' }] },
+                title: 'SPEC-003-T7: Local-first dual-record sync',
+                url: 'https://github.com/env-owner/env-repo/issues/37',
+                assignees: [{ login: 'chrissim' }],
               },
-              fieldValues: {
-                nodes: [
-                  {
-                    name: 'Ready',
-                    optionId: 'PVTFS_optReady',
-                    field: { id: 'PVTFS_testFieldId' },
-                  },
-                ],
-              },
-            },
-            {
-              id: ITEM_42_TODO.id,
-              content: {
+              ITEM_37_READY.state,
+              ITEM_37_READY.optionId
+            ),
+            item(
+              {
+                id: ITEM_42_TODO.id,
                 number: 42,
-                title: ITEM_42_TODO.content.title,
-                url: ITEM_42_TODO.content.url,
-                assignees: { nodes: [] },
+                title: 'Board output contract demo',
+                url: 'https://github.com/env-owner/env-repo/issues/42',
+                assignees: [],
               },
-              fieldValues: {
-                nodes: [
-                  {
-                    name: 'Todo',
-                    optionId: 'PVTFS_optTodo',
-                    field: { id: 'PVTFS_testFieldId' },
-                  },
-                ],
-              },
-            },
+              stateFor42,
+              optionFor42
+            ),
           ],
+          pageInfo: { hasNextPage: false, endCursor: null },
         },
       },
     },
@@ -152,12 +141,14 @@ function graphqlItemsPayload() {
 }
 
 // Stateful fake gh: dispatches on argv.
-//   gh project item-list ...        -> prints the current board payload
-//   gh project item-edit ...        -> flips issue 42's state to In Review,
-//                                      prints {"itemId": ...}
+//   gh api graphql ...              -> prints the current GraphQL board
+//   gh project item-edit ...        -> flips issue 42's state to In Review
+//                                      (option id included), prints
+//                                      {"itemId": ...}
 //   gh project field-list ...       -> prints the Workflow State field
-//   gh api graphql ...              -> prints the project-items payload
-// Every invocation is logged as one CALL line of [arg] groups.
+// Every invocation is logged as one CALL line of [arg] groups. Serving the
+// GraphQL payload from a mutable file makes the item-edit flip observable
+// by the engine's post-edit verification re-read.
 function setup(prefix, { withOptionEnv } = { withOptionEnv: true }) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), `${prefix}-`));
   const docs = path.join(tmp, 'docs');
@@ -178,25 +169,22 @@ function setup(prefix, { withOptionEnv } = { withOptionEnv: true }) {
   const bin = path.join(tmp, 'bin');
   fs.mkdirSync(bin);
   const ghLog = path.join(bin, 'gh-calls.log');
-  const board = path.join(bin, 'board.json');
-  const boardTodo = path.join(bin, 'board-todo.json');
-  const boardReview = path.join(bin, 'board-inreview.json');
   const gql = path.join(bin, 'graphql-items.json');
-  fs.writeFileSync(boardTodo, boardPayload('Todo'));
-  fs.writeFileSync(boardReview, boardPayload('In Review'));
-  fs.writeFileSync(board, boardPayload('Todo')); // issue 42 starts in Todo
-  fs.writeFileSync(gql, graphqlItemsPayload());
+  const gqlTodo = path.join(bin, 'graphql-todo.json');
+  const gqlReview = path.join(bin, 'graphql-inreview.json');
+  fs.writeFileSync(gqlTodo, graphqlItemsPayload(ITEM_42_TODO.state, ITEM_42_TODO.optionId));
+  fs.writeFileSync(gqlReview, graphqlItemsPayload('In Review', 'PVTFS_testOptionInReview'));
+  fs.writeFileSync(gql, graphqlItemsPayload(ITEM_42_TODO.state, ITEM_42_TODO.optionId));
 
   fs.writeFileSync(
     path.join(bin, 'gh'),
     '#!/usr/bin/env bash\n' +
-      `printf 'CALL:' >> '${ghLog}'; for a in "$@"; do printf ' [%s]' "$a" >> '${ghLog}'; done; printf '\\n' >> '${ghLog}'\n` +
-      `if [[ "$1 $2" == "project item-list" ]]; then cat '${board}'; exit 0; fi\n` +
-      `if [[ "$1 $2" == "project item-edit" ]]; then cp '${boardReview}' '${board}'; ` +
+      `printf 'CALL:' >> '${ghLog}'; for a in "$@"; do printf ' [%s]' "$(printf '%s' "$a" | tr '\\n' ' ')" >> '${ghLog}'; done; printf '\\n' >> '${ghLog}'\n` +
+      `if [[ "$1 $2" == "api graphql" ]]; then cat '${gql}'; exit 0; fi\n` +
+      `if [[ "$1 $2" == "project item-edit" ]]; then cp '${gqlReview}' '${gql}'; ` +
       `echo '{"itemId":"PVTI_lADOAGcCyM4Bdw3L_issue42"}'; exit 0; fi\n` +
       `if [[ "$1 $2" == "project field-list" ]]; then ` +
       `echo '{"fields":[{"name":"Workflow State","id":"PVTFS_testFieldId","options":[{"name":"Ready","id":"PVTFS_optReady"},{"name":"In Review","id":"PVTFS_testOptionInReview"}]}]}'; exit 0; fi\n` +
-      `if [[ "$1 $2" == "api graphql" ]]; then cat '${gql}'; exit 0; fi\n` +
       `echo 'unexpected gh invocation: "$@"' >&2; exit 1\n`
   );
   fs.chmodSync(path.join(bin, 'gh'), 0o755);
@@ -259,7 +247,7 @@ check('BOC-1: list-items prints curated JSON with item_id/issue_number/title/sta
   assert.deepStrictEqual(byNumber[37].assignees, ['chrissim'],
     'assignees are REAL — served by the shared GraphQL items query');
   assert.deepStrictEqual(byNumber[42].assignees, []);
-  assert.strictEqual(byNumber[42].url, ITEM_42_TODO.content.url);
+  assert.strictEqual(byNumber[42].url, 'https://github.com/env-owner/env-repo/issues/42');
 });
 
 // --- BOC-2: list-items <state> filters by optionId + same shape ------------------
@@ -288,8 +276,8 @@ check('BOC-3: item-id prints {item_id, issue_number, title, url, state}; not-fou
   const out = JSON.parse(r.stdout);
   assert.strictEqual(out.item_id, ITEM_37_READY.id);
   assert.strictEqual(out.issue_number, 37);
-  assert.strictEqual(out.title, ITEM_37_READY.content.title);
-  assert.strictEqual(out.url, ITEM_37_READY.content.url);
+  assert.strictEqual(out.title, 'SPEC-003-T7: Local-first dual-record sync');
+  assert.strictEqual(out.url, 'https://github.com/env-owner/env-repo/issues/37');
   assert.strictEqual(out.state, 'Ready', 'item-id must report the Workflow State');
 
   // Not-found is a hard failure (issue #46): non-zero exit, stderr naming
@@ -308,13 +296,18 @@ check('BOC-4: set-status mutates via resolved IDs and prints the POST-EDIT state
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}\nstdout:\n${r.stdout}`);
 
   // Exactly the expected gh conversation: option id resolved from the env
-  // (no field-list), item id resolved, item-edit mutation, verification
-  // re-read. The env carries project/field IDs, so no extra resolutions.
+  // (no field-list), item found through the shared GraphQL engine, one
+  // item-edit mutation, then the post-edit verification re-read through
+  // the same engine (matched by option id). The env carries project/field
+  // IDs, so no extra resolutions.
   const all = calls(ctx);
-  const itemListCalls = all.filter((c) => c[0] === 'project' && c[1] === 'item-list');
+  const gqlCalls = all.filter((c) => c[0] === 'api' && c[1] === 'graphql');
   const editCalls = all.filter((c) => c[0] === 'project' && c[1] === 'item-edit');
   assert.strictEqual(editCalls.length, 1, 'exactly one item-edit mutation');
-  assert.ok(itemListCalls.length >= 2, 'item id resolution + post-edit verification re-read');
+  assert.strictEqual(gqlCalls.length, 2, 'item lookup + post-edit verification re-read (single-page board)');
+  for (const g of gqlCalls) {
+    assert.ok(g.includes(`projectId=PVT_testProjectId`), 'project id resolved from the env');
+  }
   const edit = editCalls[0];
   assert.ok(edit.includes('--id') && edit[edit.indexOf('--id') + 1] === ITEM_42_TODO.id,
     `item-edit must target the resolved item id: ${edit.join(' ')}`);
@@ -327,7 +320,8 @@ check('BOC-4: set-status mutates via resolved IDs and prints the POST-EDIT state
     `option id for "In Review" resolved from the env: ${edit.join(' ')}`);
 
   // The printed object is the four-field curated contract, and its state is
-  // the POST-EDIT board value (fake board flips to In Review on item-edit).
+  // the POST-EDIT board value (fake board flips the GraphQL payload's
+  // option id + display name on item-edit).
   const out = JSON.parse(r.stdout);
   assert.deepStrictEqual(
     Object.keys(out).sort(),
@@ -336,7 +330,7 @@ check('BOC-4: set-status mutates via resolved IDs and prints the POST-EDIT state
   );
   assert.strictEqual(out.issue_number, 42);
   assert.strictEqual(out.state, 'In Review', 'printed state must be the post-edit verification value');
-  assert.strictEqual(out.url, ITEM_42_TODO.content.url);
+  assert.strictEqual(out.url, 'https://github.com/env-owner/env-repo/issues/42');
 });
 
 // --- BOC-5: set-status-id same output contract ----------------------------------

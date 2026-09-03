@@ -9,11 +9,14 @@
  * the project metadata queries must return useful structured results via
  * helper subcommands, never raw gh + jq recipes. This suite locks:
  *
- *   BPQ-1  usage lists list-unassigned and the three project-* commands
- *   BPQ-2  list-items runs ONE shared GraphQL project-items query
- *          (first:100, no pagination loop) and prints
+ *   BPQ-1  usage lists list-unassigned, item-state, and the three
+ *          project-* commands
+ *   BPQ-2  list-items runs the ONE shared GraphQL project-items engine
+ *          (first:100 cursor pages) and prints
  *          {item_id, issue_number, title, state, assignees, url} per
  *          issue-linked item with REAL assignees; draft items are dropped
+ *          (multi-page pagination is locked by
+ *          tests/test_gh_project_helper_hardening.js)
  *   BPQ-3  list-items <canonical-state> filters by optionId (name-agnostic:
  *          a canonical Backlog filter matches the Backlog option id even
  *          when the remote display name is a legacy rename) and the output
@@ -127,6 +130,7 @@ function graphqlItemsPayload() {
               fieldValues: { nodes: [] },
             },
           ],
+          pageInfo: { hasNextPage: false, endCursor: null },
         },
       },
     },
@@ -277,26 +281,28 @@ function parseJqObjects(stdout) {
 
 // --- BPQ-1: usage lists the new subcommands --------------------------------------
 
-check('BPQ-1: usage lists list-unassigned and the project-* query subcommands', () => {
+check('BPQ-1: usage lists list-unassigned, item-state, and the project-* query subcommands', () => {
   const c = ctx('bpq1');
   const usage = runHelper(c, []);
   assert.notStrictEqual(usage.status, 0, 'no-args must exit non-zero');
-  for (const sub of ['list-unassigned', 'project-list', 'project-view', 'project-field-list']) {
+  for (const sub of ['list-unassigned', 'item-state', 'project-list', 'project-view', 'project-field-list']) {
     assert.ok(usage.stdout.includes(sub), `usage must list ${sub}`);
   }
 });
 
-// --- BPQ-2: list-items = ONE shared GraphQL items query ---------------------------
+// --- BPQ-2: list-items = the ONE shared GraphQL items engine ----------------------
 
-check('BPQ-2: list-items runs ONE shared GraphQL items query with real assignees, drafts dropped', () => {
+check('BPQ-2: list-items runs the ONE shared GraphQL items engine with real assignees, drafts dropped', () => {
   const c = ctx('bpq2');
   const r = runHelper(c, ['list-items']);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}\nstdout:\n${r.stdout}`);
   const gql = graphqlCalls(c);
-  assert.strictEqual(gql.length, 1, 'exactly one shared GraphQL items query');
+  assert.strictEqual(gql.length, 1, 'a single-page board needs exactly one items fetch');
   const query = gql[0].find((a) => a.startsWith('query=')) || '';
-  assert.ok(query.includes('items(first: 100)'), 'documented first:100 limit, no pagination loop');
-  assert.ok(!query.includes('pageInfo'), 'no pagination loop in the query');
+  assert.ok(query.includes('items(first: 100)'), 'first:100 page size');
+  assert.ok(query.includes('pageInfo'), 'cursor pagination requests pageInfo');
+  assert.ok(query.includes('hasNextPage') && query.includes('endCursor'),
+    'pageInfo carries hasNextPage + endCursor for the cursor loop');
   assert.ok(query.includes('assignees(first: 10)'), 'assignees come from the GraphQL join');
   assert.ok(query.includes('optionId'), 'single-select optionId requested for name-agnostic filtering');
   assert.ok(gql[0].includes(`projectId=${PROJECT_ID}`), 'project id resolved from the env');
@@ -523,6 +529,8 @@ check('BPQ-10: every board/project query command rejects a positional owner befo
     ['list-unassigned', 'Antpolis'],
     ['list-items', 'Antpolis', '9'],
     ['item-id', 'Antpolis', '9'],
+    ['item-state', 'Antpolis', '9'],
+    ['next-status', 'Antpolis', '9', 'Ready', 'In Progress'],
     ['project-list', 'Antpolis'],
     ['project-view', 'Antpolis'],
     ['project-view', '9', 'Antpolis'],
