@@ -573,6 +573,8 @@ check('HIC-17: project subcommands reject positional owner/project arguments', (
     // #46 extension: the new board/project query commands take no
     // positional owner either (project-* owner is a --owner flag only).
     ['list-unassigned', 'Antpolis', '9'],
+    ['item-state', 'Antpolis', '9'],
+    ['next-status', 'Antpolis', '9', 'Ready', 'In Progress'],
     ['project-list', 'Antpolis'],
     ['project-view', 'Antpolis', '9'],
     ['project-field-list', 'Antpolis', '9'],

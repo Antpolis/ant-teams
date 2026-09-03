@@ -201,7 +201,7 @@ List project fields and status options (`options` appears only on single-select 
 
 The Workflow State field and its option ids are simply the `Workflow State` entry of that output — use the option ids for option-id-based board filtering and status edits.
 
-List project items (issue-linked items with REAL assignees from one shared GraphQL items query; `first:100`, no pagination loop):
+List project items (issue-linked items with REAL assignees from the ONE shared GraphQL items engine; `first:100` cursor pages follow `pageInfo` until the board is exhausted, bounded at 10 pages / 1000 items with a stderr truncation warning):
 
 ```bash
 "$ANT_TEAM_SCRIPTS/gh_project_helper.sh" list-items
@@ -215,7 +215,14 @@ Resolve the project item ID for an issue (exits non-zero naming the issue when i
 # {"item_id":"PVTI_...","issue_number":37,"title":"...","url":"...","state":"Ready"}
 ```
 
-Curated board query output contract: `set-status`, `set-status-id`, `list-items`, `list-unassigned`, and `item-id` print curated JSON objects that always carry `issue_number`, `title`, `state`, and `url` (locked by `tests/test_gh_project_helper_board_output.js` and `tests/test_gh_project_helper_board_project_queries.js`). The two mutators re-read the board item AFTER the edit, so their printed `state` is the post-edit verification value — parse it directly instead of re-querying the board:
+Read-only board-state recovery after a failed or interrupted status mutation (`state` is the remote option name as-is; `canonical_state` is reverse-mapped from the option id against the env-pinned canonical option IDs, `null` when unknown):
+
+```bash
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" item-state ISSUE_NUMBER
+# {"item_id":"PVTI_...","issue_number":37,"title":"...","state":"Shaping","url":"...","canonical_state":"Backlog"}
+```
+
+Curated board query output contract: `set-status`, `set-status-id`, `list-items`, `list-unassigned`, and `item-id` print curated JSON objects that always carry `issue_number`, `title`, `state`, and `url` (locked by `tests/test_gh_project_helper_board_output.js`, `tests/test_gh_project_helper_board_project_queries.js`, and `tests/test_gh_project_helper_hardening.js`). The two mutators re-read the board item AFTER the edit and verify by option id, so their printed `state` is the post-edit verification value; they are idempotent (an item already in the requested state is re-verified with no duplicate mutation) and a post-edit mismatch exits non-zero — parse the output directly instead of re-querying the board:
 
 ```bash
 "$ANT_TEAM_SCRIPTS/gh_project_helper.sh" set-status 37 "Ready"
@@ -356,7 +363,15 @@ Transition an issue to the next status using discovered IDs:
 "$ANT_TEAM_SCRIPTS/gh_project_helper.sh" set-status ISSUE_NUMBER "In Review"
 ```
 
-The helper resolves the project item ID from the issue number before calling `gh project item-edit`.
+The helper resolves the project item through the shared GraphQL engine before calling `gh project item-edit`, skips the mutation when the item already carries the requested option id, and verifies the post-edit state by option id (a mismatch exits non-zero with the actual board state).
+
+For a guarded transition, `next-status` first enforces a precondition — the item must currently sit in CURRENT (matched by option id, so a legacy remote display name cannot fool it) or the command fails non-zero without mutating and points at `item-state` for recovery:
+
+```bash
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" next-status ISSUE_NUMBER "Ready" "In Progress"
+```
+
+Transient board read failures (rate limit, network) are retried a bounded number of times and then exit 3 — safe to retry later. Mutations are never retried automatically.
 
 Direct `gh project item-edit` wrapper using repo config:
 
