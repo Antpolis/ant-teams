@@ -75,7 +75,7 @@
     "builder": {
       "description": "Implements approved work with focused code changes and verification.",
       "mode": "primary",
-      "model": "opencode/qwen3.6-plus",
+      "model": "opencode-go/glm-5.3-flash", 
       "permission": {
         "edit": "allow",
         "apply_patch": "allow",
@@ -92,7 +92,7 @@
     "reviewer": {
       "description": "Reviews builder output for KISS violations, separation of concerns, wrong folder/package/namespace placement, architecture alignment, scope discipline, and lightweight smoke verification. Raises findings as blockers, not suggestions.",
       "mode": "primary",
-      "model": "openai/gpt-5.6-luna-fast",
+      "model": "opencode/qwen3.6-plus",
       "permission": {
         "edit": "deny",
         "glob": "allow",

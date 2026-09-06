@@ -311,7 +311,12 @@ check('ENV-9: gh_project_helper resolves owner/project number from the env alone
     cwd: tmp,
     env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
   });
-  assert.strictEqual(r.status, 0, `helper exit ${r.status}\nstderr:\n${r.stderr}`);
+  // No env option pins -> remote field-list fallback; the stub board
+  // returns no Workflow State options, which must now be a LOUD failure
+  // (founder-direct 2026-09-05) instead of a silent empty success.
+  assert.strictEqual(r.status, 1, `unresolvable statuses must exit 1 (got ${r.status})\nstderr:\n${r.stderr}`);
+  assert.ok(/Could not resolve any Workflow State option/.test(r.stderr),
+    `the unresolvable board is reported loudly: ${r.stderr}`);
   const calls = fs.readFileSync(ghLog, 'utf8');
   assert.ok(calls.includes('[env-owner]'), `owner must come from the env, got: ${calls}`);
   assert.ok(calls.includes('[7]'), `project number must come from the env, got: ${calls}`);

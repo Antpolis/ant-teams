@@ -41,10 +41,10 @@ That file stores every config value with the `ANT_TEAM_` prefix (`ANT_TEAM_GITHU
 - owner, repo, owner type
 - project number and project ID
 - field IDs (including the canonical `Workflow State` field)
-- Workflow State option IDs (one `ANT_TEAM_GITHUB_WORKFLOW_STATE_OPTION_<STATE>_ID` per canonical state)
+- Workflow State option IDs (one `ANT_TEAM_GITHUB_WORKFLOW_STATE_OPTION_<STATE>_ID` per canonical state; `<STATE>` is the canonical name uppercased with spaces and dashes mapped to underscores, e.g. `IN_PROGRESS`, `NEED_ATTENTIONS`)
 - the default `ANT_TEAM_WORKTREE_ROOT` and the `ANT_TEAM_DOCS_*` documentation routing exports
 
-Prefer sourcing it over any other config lookup. The env is seeded and updated by project initialization itself (`"$ANT_TEAM_SCRIPTS/init-project.sh"` after `scripts/init-company.sh`; there is no standalone generator and no JSON config): existing values are preserved and missing keys are filled. The bundled `gh_project_helper.sh` sources the env as its sole local runtime config; `"$ANT_TEAM_SCRIPTS/gh_project_helper.sh"` is the thin centralized wrapper that invokes it (with `bash`, so mirror execute bits are never required).
+Prefer sourcing it over any other config lookup. The env is seeded and updated by project initialization itself (`"$ANT_TEAM_SCRIPTS/init-project.sh"` after `scripts/init-company.sh`; there is no standalone generator and no JSON config): existing values are preserved and missing keys are filled. The helper sources this file read-only — it never writes or edits it. The bundled `gh_project_helper.sh` sources the env as its sole local runtime config; `"$ANT_TEAM_SCRIPTS/gh_project_helper.sh"` is the thin centralized wrapper that invokes it (with `bash`, so mirror execute bits are never required).
 
 The env file is intended to be committed to the repository because it stores shared GitHub collaboration metadata rather than secrets.
 
@@ -95,7 +95,7 @@ Do not guess field names, single-select option IDs, or project item IDs.
 
 Prefer commands in this order:
 
-1. the bundled helper for issue, milestone, PR/review, CI/testing, release, board/project query, and dual-record sync operations (`issue-create`, `issue-view`, `issue-list`, `issue-edit`, `issue-comment`, `issue-close`, `milestone-create`, `milestone-list`, `milestone-edit`, `milestone-close`, `pr-create`, `pr-view`, `pr-list`, `pr-comment`, `pr-close`, `pr-merge`, `pr-checks`, `pr-review-reply`, `run-list`, `run-view`, `workflow-list`, `workflow-run`, `release-create`, `release-list`, `release-view`, `release-edit`, `release-delete`, `issue-sync`, `milestone-sync`, plus the board/project query family: `item-id`, `item-state`, `list-statuses`, `list-items`, `list-unassigned`, `project-list`, `project-view`, `project-field-list`, `set-status`, `set-status-id`, `next-status`, `add-issue`, `gh-item-edit`) — thin wrappers around the matching `gh` subcommands and `gh api` that resolve the target repository and board from `.github-project.env` so no `--repo` or owner has to be repeated
+1. the bundled helper for issue, milestone, PR/review, CI/testing, release, board/project query, and dual-record sync operations (`issue-create`, `issue-view`, `issue-list`, `issue-edit`, `issue-comment`, `issue-close`, `milestone-create`, `milestone-list`, `milestone-edit`, `milestone-close`, `pr-create`, `pr-view`, `pr-list`, `pr-comment`, `pr-close`, `pr-merge`, `pr-checks`, `pr-review-reply`, `run-list`, `run-view`, `workflow-list`, `workflow-run`, `release-create`, `release-list`, `release-view`, `release-edit`, `release-delete`, `issue-sync`, `milestone-sync`, plus the board/project query family: `item-id`, `item-state`, `item-get`, `list-statuses`, `list-items`, `list-unassigned`, `project-list`, `project-view`, `project-field-list`, `set-status`, `set-status-id`, `next-status`, `add-issue`, `gh-item-edit`) — thin wrappers around the matching `gh` subcommands and `gh api` that resolve the target repository and board from `.github-project.env` so no `--repo` or owner has to be repeated
 2. `gh issue ...` directly when operating outside a repository with `.github-project.env`
 3. raw `gh project ...` only for board operations the helper does not cover (every board read the workflow uses — items, statuses, fields, project metadata — has a helper subcommand)
 4. `gh api graphql` when GitHub Projects v2 mutations or richer joins are needed
@@ -241,7 +241,13 @@ Use:
 "$ANT_TEAM_SCRIPTS/gh_project_helper.sh" item-id ISSUE_NUMBER
 ```
 
-Assume issue-to-project linking is usually automatic in this repository workflow. Do not manually link an issue unless the board automation failed or the user explicitly asks for a manual add.
+Assume issue-to-project linking is usually automatic in this repository workflow. Do not manually link an issue unless the board automation failed or the user explicitly asks for a manual add. The manual-add fallback command is:
+
+```bash
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" add-issue https://github.com/OWNER/REPO/issues/ISSUE_NUMBER
+```
+
+The helper never deletes board items, so it cannot undo an accidental duplicate add — remove the extra item in GitHub; until the board is clean, the ambiguity-safe item resolution above refuses to guess.
 
 Use the project item ID whenever you need to update project status or any project field for that issue. When the issue has no board item, `item-id` exits non-zero with stderr naming the issue number — treat that as a linking failure, not an empty result.
 
@@ -251,8 +257,10 @@ The curated board commands do not merely call the underlying CLI — they return
 
 - `set-status ISSUE_NUMBER "Ready"` and `set-status-id ISSUE_NUMBER OPTION_ID` print exactly `{"issue_number", "title", "state", "url"}` after the edit, where `state` is re-read from the board AFTER the mutation and verified by option id — the printed object is the verification, so an edit that silently failed cannot report a stale state. Both are idempotent: an item already in the requested state (matched by option id) is re-verified with no duplicate mutation, and a post-edit mismatch exits non-zero with the actual board state on stderr
 - `list-items [STATE]` prints one object per issue-linked item with exactly `{"item_id", "issue_number", "title", "state", "assignees", "url"}`; `assignees` are real (the helper runs one shared GraphQL project-items engine, because the flattened item-list payload carries no assignees). `list-unassigned` prints the same shape for items with zero assignees
-- `item-id ISSUE_NUMBER` prints `{"item_id", "issue_number", "title", "url", "state"}` so the ID lookup doubles as a state check; a not-found issue exits non-zero
+- `item-id ISSUE_NUMBER` prints `{"item_id", "issue_number", "title", "url", "state"}` so the ID lookup doubles as a state check; a not-found issue exits non-zero. Item resolution by issue number is ambiguity-safe: when an issue was added to the board more than once, the lookup fails non-zero naming every duplicate item id instead of acting on an arbitrary one
 - `item-state ISSUE_NUMBER` is the read-only recovery command and prints `{"item_id", "issue_number", "title", "state", "url", "canonical_state"}`; a not-found issue exits non-zero
+- `item-get PROJECT_ITEM_ID` is the single-node verification read: it fetches ONE board item directly by its project item id (one `node(id:)` GraphQL query, no board-wide paging) and prints the same `{"item_id", "issue_number", "title", "state", "url", "canonical_state"}` contract as `item-state` — use it when you already hold the item id (from `list-items` output or a `gh-item-edit` follow-up). An unknown/deleted id or a non-issue-linked (draft) item exits non-zero naming the item id
+- `list-statuses` resolves env-first: canonical Workflow State option IDs pinned in `.github-project.env` print by canonical name with no remote call (canonical states without a pin are noted on stderr); with no pins it falls back to remote `field-list` option names. A result that still resolves to zero statuses exits non-zero with guidance — never a silent empty success
 
 Workflow State semantics in board queries (founder-confirmed 2026-08-23):
 
@@ -330,7 +338,7 @@ All helper commands are env-only: owner, project number, and repository resolve 
 "$ANT_TEAM_SCRIPTS/gh_project_helper.sh" issue-list --label blocked --state open
 ```
 
-All board operations target the canonical `Workflow State` field. Canonical states: `Open`, `Backlog`, `Ready`, `In Progress`, `In Review`, `Ready to Merge`, `Done`, plus exceptions `Need attentions` (founder-only) and `Blocked`. If the remote board still carries a legacy option name (e.g. `Inbox` for `Open`, `Shaping` for `Backlog`), inspect options with `list-statuses` and never rename remote options without explicit founder-approved handling.
+All board operations target the canonical `Workflow State` field. Canonical states: `Open`, `Backlog`, `Ready`, `In Progress`, `In Review`, `Ready to Merge`, `Done`, plus exceptions `Need attentions` (founder-only) and `Blocked`. If the remote board still carries a legacy option name (e.g. `Inbox` for `Open`, `Shaping` for `Backlog`), inspect options with `list-statuses` (env-pinned canonical names first; remote `field-list` names when nothing is pinned) and never rename remote options without explicit founder-approved handling. A board whose status field itself still uses a legacy name (e.g. `Status` instead of `Workflow State`) cannot be resolved remotely at all: remote field/option discovery matches the exact field name, so the env-pinned field and option IDs are then the only working path (env-first commands keep working unchanged).
 
 ### Transition Issue To Next Status On Project Board
 
@@ -352,8 +360,9 @@ The helper resolves the Workflow State field and option IDs from `.github-projec
 
 Important:
 
-- board and project reads go through the helper's query subcommands (`list-items`, `list-unassigned`, `item-id`, `item-state`, `list-statuses`, `project-list`, `project-view`, `project-field-list`) — they already join assignees and Workflow State option ids, and every item read/lookup follows cursor pagination through the shared engine
+- board and project reads go through the helper's query subcommands (`list-items`, `list-unassigned`, `item-id`, `item-state`, `item-get`, `list-statuses`, `project-list`, `project-view`, `project-field-list`) — they already join assignees and Workflow State option ids, and every item read/lookup follows cursor pagination through the shared engine
 - the underlying item-edit mutation does not accept `--owner` and requires `--project-id`; the helper's `set-status`/`set-status-id` resolve both from `.github-project.env`
+- `set-status`, `set-status-id`, and `next-status` accept an optional trailing `[owner_type]` positional — `org` (default) or `user` for personal-projects boards; when omitted it resolves from `ANT_TEAM_GITHUB_OWNER_TYPE`
 - `next-status ISSUE_NUMBER CURRENT NEXT` is the guarded transition: it first verifies (by option id, so a legacy remote display name cannot fool it) that the item currently sits in CURRENT; if the precondition fails it exits non-zero with the actual board state and performs no mutation
 
 ```bash
@@ -386,6 +395,15 @@ Then decide:
 - the item already carries the intended state (idempotent outcome) — nothing to do
 - the item sits in a different state than expected — re-run `set-status` with the verified target, or `next-status` with the ACTUAL current state as CURRENT
 - the board is unreachable — transient read failures exit 3 and are safe to retry later
+
+### Exit Codes
+
+The helper's shared exit contract:
+
+- `0` — success, including a verified idempotent no-op (a status command finding the item already in the requested state, or a sync finding nothing pending)
+- `1` — hard failure: usage/config errors, unresolvable Workflow State name or option, no board item for the issue, ambiguous duplicate board items, a failed `next-status` precondition, a post-edit verification mismatch, a `list-statuses` result with zero statuses, release-tag/title validation failures
+- `3` — retryable or deferred: exhausted board-read retries (rate limit, network — safe to retry later) and the dual-record offline deferral (the local record write is kept and marked `pending_sync: true`)
+- any other non-zero code — gh's own failure propagating for a non-transient read failure; reads are never retried for these, and mutations are never retried at all
 
 ### Complete Issue
 
@@ -513,7 +531,7 @@ For Projects v2:
 - field names are not enough for mutation
 - single-select values usually need option IDs
 - item updates often require `gh api graphql`
-- board reads go through the helper's query subcommands (`list-items`, `list-unassigned`, `item-id`, `item-state`, `list-statuses`, `project-list`, `project-view`, `project-field-list`) — they already join assignees and Workflow State option ids where the flattened CLI payloads cannot
+- board reads go through the helper's query subcommands (`list-items`, `list-unassigned`, `item-id`, `item-state`, `item-get`, `list-statuses`, `project-list`, `project-view`, `project-field-list`) — they already join assignees and Workflow State option ids where the flattened CLI payloads cannot
 
 If the CLI subcommand does not support the exact mutation needed, use `gh api graphql` rather than inventing a brittle workaround.
 

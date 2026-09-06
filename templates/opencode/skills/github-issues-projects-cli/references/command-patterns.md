@@ -237,7 +237,7 @@ Curated board query output contract: `set-status`, `set-status-id`, `list-items`
 
 `list-items` additionally reports `item_id` and real `assignees`; `list-unassigned` prints the same shape for zero-assignee items.
 
-Workflow State semantics (founder-confirmed 2026-08-23): the printed `state` is the REMOTE option name preserved as-is (never translated to the canonical name), while `list-items STATE` accepts a canonical state name and filters by option id via the same env-first resolver as `set-status` — name-agnostic, so the filter stays correct under any remote display name (e.g. a legacy rename of the Backlog state). An unknown state exits non-zero with guidance.
+Workflow State semantics (founder-confirmed 2026-08-23): the printed `state` is the REMOTE option name preserved as-is (never translated to the canonical name), while `list-items STATE` accepts a canonical state name and filters by option id via the same env-first resolver as `set-status` — name-agnostic, so the filter stays correct under any remote display name (e.g. a legacy rename of the Backlog state). An unknown state exits non-zero with guidance. A board whose status field itself still uses a legacy name (e.g. `Status` instead of `Workflow State`) cannot be resolved remotely: remote field/option discovery matches the exact field name, so the env-pinned field and option IDs are then the only working path.
 
 Curated mutator output contract (locked by `tests/test_gh_project_helper_mutator_output.js`): every mutator except the two comment commands returns useful structured JSON, never raw `gh` output. `issue-create` and `pr-create` reuse the mutation's URL response and print `{"number", "title", "state", "url"}` with the deterministic `OPEN` state; `issue-edit`, `issue-close`, `pr-close`, and `pr-merge` re-read the object AFTER the mutation and print the same four-field shape, so the printed state is the post-mutation verification value; `release-create` and `release-edit` re-read and print the `release-view` shape; `release-delete` prints `{"tagName", "url", "deleted": true}`; `workflow-run` prints `{"workflow", "repo", "status": "dispatched"}`. Parse these outputs directly instead of re-querying after a mutation:
 
@@ -276,10 +276,23 @@ List project items in a canonical Workflow State (e.g. `Ready`):
 "$ANT_TEAM_SCRIPTS/gh_project_helper.sh" list-items "Ready"
 ```
 
-List all available Workflow State option names:
+List all available Workflow State option names (env-pinned canonical option IDs first — no remote call; remote `field-list` names only when nothing is pinned; an unresolvable result exits non-zero with guidance):
 
 ```bash
 "$ANT_TEAM_SCRIPTS/gh_project_helper.sh" list-statuses
+```
+
+Verify ONE board item by its project item id with a single `node(id:)` query (no board paging) — the follow-up check for `list-items` output or a `gh-item-edit` mutation; prints the same recovery shape as `item-state`:
+
+```bash
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" item-get PVTI_lADOAGcCyM4BYWFJ_...
+# {"item_id":"PVTI_...","issue_number":37,"title":"...","state":"Ready","url":"...","canonical_state":"Ready"}
+```
+
+Manual board-link fallback — only when auto-linking failed or the user explicitly asks (the helper never deletes board items, so remove any accidental duplicate add in GitHub):
+
+```bash
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" add-issue https://github.com/OWNER/REPO/issues/ISSUE_NUMBER
 ```
 
 List items for any one status:
@@ -373,6 +386,8 @@ For a guarded transition, `next-status` first enforces a precondition — the it
 
 Transient board read failures (rate limit, network) are retried a bounded number of times and then exit 3 — safe to retry later. Mutations are never retried automatically.
 
+Exit-code contract shared by every helper command: `0` success, including verified idempotent no-ops (an item already in the requested state); `1` hard failure (usage/config errors, unresolvable Workflow State name or option, missing or ambiguous board item, failed `next-status` precondition, post-edit verification mismatch, a `list-statuses` result with zero statuses, tag/title validation); `3` retryable or deferred (exhausted transient board-read retries; dual-record offline deferral keeps the local write and marks it `pending_sync: true`); any other non-zero code is gh's own failure propagating for a non-transient error.
+
 Direct `gh project item-edit` wrapper using repo config:
 
 ```bash
@@ -435,12 +450,14 @@ The helper posts the reply through a fixed, parameterized GraphQL mutation; user
 Use the bundled helper for CI/testing-loop inspection and dispatch; it resolves the repository from the env and never executes workflows' tests locally.
 
 ```bash
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" pr-checks PR_NUMBER
 "$ANT_TEAM_SCRIPTS/gh_project_helper.sh" run-list --limit 10
 "$ANT_TEAM_SCRIPTS/gh_project_helper.sh" run-view RUN_ID
 "$ANT_TEAM_SCRIPTS/gh_project_helper.sh" workflow-list
 "$ANT_TEAM_SCRIPTS/gh_project_helper.sh" workflow-run WORKFLOW_ID_OR_NAME --ref BRANCH_NAME
 ```
 
+- `pr-checks` curates the PR-checks tabular output into JSON (the underlying command has no `--json` flag) and propagates its exit status: any failing or pending check exits non-zero.
 - `run-list`, `run-view`, and `workflow-list` print curated JSON by default; pass `--json`, `--jq`, `--template`, or `--web` to control the output shape yourself.
 - `workflow-run` (dispatch) prints the curated dispatch summary `{"workflow", "repo", "status": "dispatched"}` — the dispatch response carries no run id, so no run read is invented; follow up with `run-list` / `run-view`. It is policy-controlled: caller flags pass through only and never bypass approval gates.
 

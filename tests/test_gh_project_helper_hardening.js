@@ -41,6 +41,23 @@
  *           failure is attempted exactly once and fails immediately
  *   HARD-11 non-transient read failures are not retried: a hard GraphQL
  *           error fails on the first attempt with gh's exit code
+ *   HARD-12 ambiguity-safe item resolution: an issue added to the board
+ *           more than once fails non-zero naming EVERY duplicate item id,
+ *           and set-status performs zero mutations on the ambiguous lookup
+ *   HARD-13 item-get single-node verification: fetching one board item by
+ *           its project item id runs exactly ONE GraphQL node(id:) query
+ *           (no board paging, no field-list when IDs are env-pinned) and
+ *           prints the item-state recovery contract with canonical_state
+ *           reverse-mapped from the option id
+ *   HARD-14 item-get failure modes: an unknown/deleted item id and a
+ *           non-issue-linked (draft) item both exit non-zero naming the
+ *           item id
+ *   HARD-15 list-statuses is env-first and loud: env-pinned canonical
+ *           option IDs print by canonical name with ZERO gh calls (unpinned
+ *           canonical states noted on stderr); with no pins it falls back
+ *           to remote field-list names; a result that still resolves to
+ *           zero statuses exits non-zero with guidance instead of a silent
+ *           empty success
  *
  * The helper under test is the canonical engine in templates/opencode/
  * (the repo-local .opencode/ skills mirror is not tracked since the
@@ -151,6 +168,20 @@ const ITEM_12 = {
   optionId: OPT_READY,
 };
 
+// Single-node ProjectV2Item payload for the item-get verification read
+// (same node shape the shared items engine serves, minus paging).
+function nodePayload(node) {
+  return JSON.stringify({ data: { node } });
+}
+const NODE_11 = gqlNode(ITEM_11);
+const NODE_NULL = null;
+const NODE_DRAFT = {
+  id: 'PVTI_draft11',
+  // Draft items carry content without a number — not issue-linked.
+  content: { title: 'Draft: no number' },
+  fieldValues: { nodes: [{ name: REMOTE_BACKLOG_NAME, optionId: OPT_BACKLOG, field: { id: FIELD_ID } }] },
+};
+
 // Canonical board fixtures: page 1 = issue 11 (legacy Backlog name), the
 // follow-up page (cursor c1) = issue 12. The flip target replaces issue
 // 11's option with In Progress (remote canonical name here).
@@ -166,6 +197,12 @@ function pageOneFlippedPayload() {
     { hasNextPage: true, endCursor: 'c1' }
   );
 }
+function pageOneDuplicatePayload() {
+  return itemsPayload(
+    [gqlNode(ITEM_11), gqlNode({ ...ITEM_11, id: 'PVTI_issue11dup' })],
+    { hasNextPage: true, endCursor: 'c1' }
+  );
+}
 
 // Configurable fake gh. Knobs:
 //   pages          { '': payload, c1: payload }  served by cursor argument
@@ -173,8 +210,10 @@ function pageOneFlippedPayload() {
 //   editMode       'flip' | 'noop' | 'fail-transient'
 //   graphqlFailFirst  N: first N graphql reads fail with a rate-limit stderr
 //   graphqlHardFail   true: graphql reads fail once with a non-transient error
+//   fieldsJson     field-list response file (list-statuses remote fallback)
 // Every invocation is logged as one CALL line of [arg] groups (multi-line
-// argv entries flattened to spaces).
+// argv entries flattened to spaces). GraphQL calls carrying an itemId=
+// variable (the item-get single-node read) are served from node.json.
 function setup(prefix, { editMode = 'flip', graphqlFailFirst = 0, graphqlHardFail = false } = {}) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), `${prefix}-`));
   const docs = path.join(tmp, 'docs');
@@ -188,10 +227,24 @@ function setup(prefix, { editMode = 'flip', graphqlFailFirst = 0, graphqlHardFai
   const boardPageOne = path.join(bin, 'page1.json');
   const flipped = path.join(bin, 'page1-flipped.json');
   const failLeft = path.join(bin, 'fail-left');
+  const nodeJson = path.join(bin, 'node.json');
+  const fieldsJson = path.join(bin, 'fields.json');
   fs.writeFileSync(pageTwo, pageTwoPayload());
   fs.writeFileSync(boardPageOne, pageOnePayload());
   fs.writeFileSync(flipped, pageOneFlippedPayload());
   fs.writeFileSync(failLeft, `${graphqlFailFirst}\n`);
+  fs.writeFileSync(nodeJson, nodePayload(NODE_11));
+  fs.writeFileSync(fieldsJson, JSON.stringify({
+    fields: [{
+      name: 'Workflow State',
+      id: FIELD_ID,
+      options: [
+        { name: REMOTE_BACKLOG_NAME, id: OPT_BACKLOG },
+        { name: REMOTE_READY_NAME, id: OPT_READY },
+        { name: REMOTE_IN_PROGRESS_NAME, id: OPT_IN_PROGRESS },
+      ],
+    }],
+  }));
 
   fs.writeFileSync(
     path.join(bin, 'gh'),
@@ -201,6 +254,7 @@ function setup(prefix, { editMode = 'flip', graphqlFailFirst = 0, graphqlHardFai
       `  left=0; [[ -f '${failLeft}' ]] && left=$(cat '${failLeft}')\n` +
       `  if [[ "$left" -gt 0 ]]; then echo "$((left - 1))" > '${failLeft}'; echo 'gh: GraphQL: API rate limit exceeded (retry after 60s)' >&2; exit 1; fi\n` +
       `  if [[ '${graphqlHardFail}' == 'true' ]]; then echo 'gh: Some project was not found' >&2; exit 1; fi\n` +
+      `  if printf '%s\\n' "$@" | grep -q 'itemId='; then cat '${nodeJson}'; exit 0; fi\n` +
       `  if printf '%s\\n' "$@" | grep -q 'cursor=c1'; then cat '${pageTwo}'; else cat '${boardPageOne}'; fi\n` +
       `  exit 0; fi\n` +
       `if [[ "$1 $2" == "project item-edit" ]]; then\n` +
@@ -209,7 +263,7 @@ function setup(prefix, { editMode = 'flip', graphqlFailFirst = 0, graphqlHardFai
       `  if [[ '${editMode}' == 'fail-transient' ]]; then echo 'gh: API rate limit exceeded (transient-looking)' >&2; exit 1; fi\n` +
       `  exit 1; fi\n` +
       `if [[ "$1 $2" == "project field-list" ]]; then ` +
-      `echo '{"fields":[{"name":"Workflow State","id":"${FIELD_ID}","options":[{"name":"${REMOTE_BACKLOG_NAME}","id":"${OPT_BACKLOG}"},{"name":"${REMOTE_READY_NAME}","id":"${OPT_READY}"},{"name":"${REMOTE_IN_PROGRESS_NAME}","id":"${OPT_IN_PROGRESS}"}]}]}'; exit 0; fi\n` +
+      `cat '${fieldsJson}'; exit 0; fi\n` +
       `echo 'unexpected gh invocation: "$@"' >&2; exit 1\n`
   );
   fs.chmodSync(path.join(bin, 'gh'), 0o755);
@@ -460,6 +514,118 @@ check('HARD-11: a non-transient read error fails immediately with gh\'s exit cod
   assert.notStrictEqual(r.status, 3, 'a non-transient error is NOT the retryable exit');
   assert.strictEqual(graphqlCalls(ctx).length, 1, 'no retry for non-transient failures');
   assert.ok(/Some project was not found/.test(r.stderr), `gh's error propagates: ${r.stderr}`);
+});
+
+// --- HARD-12: ambiguity-safe item resolution ---------------------------------------
+
+check('HARD-12: duplicate board items for one issue fail loudly with zero mutations', () => {
+  const ctx = setup('hard12');
+  fs.writeFileSync(path.join(ctx.bin, 'page1.json'), pageOneDuplicatePayload());
+  const r = runHelper(ctx, ['item-id', '11']);
+  assert.notStrictEqual(r.status, 0, 'an ambiguous item lookup must exit non-zero');
+  assert.ok(/Ambiguous board resolution for issue #11/.test(r.stderr),
+    `the ambiguity is reported: ${r.stderr}`);
+  assert.ok(r.stderr.includes(ITEM_11.id) && r.stderr.includes('PVTI_issue11dup'),
+    `EVERY duplicate item id is named: ${r.stderr}`);
+  assert.strictEqual(r.stdout.trim(), '', 'no partial lookup output');
+
+  // The mutation path resolves the item first: ambiguity must abort BEFORE
+  // any item-edit.
+  const rs = runHelper(ctx, ['set-status', '11', 'Backlog']);
+  assert.notStrictEqual(rs.status, 0, 'set-status must not act on an ambiguous lookup');
+  assert.strictEqual(editCalls(ctx).length, 0, 'no mutation may happen on ambiguity');
+});
+
+// --- HARD-13: item-get single-node verification ------------------------------------
+
+check('HARD-13: item-get fetches one item by id with a single node query', () => {
+  const ctx = setup('hard13');
+  const r = runHelper(ctx, ['item-get', ITEM_11.id]);
+  assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}\nstdout:\n${r.stdout}`);
+  const gql = graphqlCalls(ctx);
+  assert.strictEqual(gql.length, 1, 'exactly ONE GraphQL call — no board paging');
+  const query = (gql[0].find((a) => a.startsWith('query=')) || '');
+  assert.ok(query.includes('node(id: $itemId)') && query.includes('ProjectV2Item'),
+    `the single-node query targets the item by id: ${query.slice(0, 80)}`);
+  assert.ok(gql[0].includes(`itemId=${ITEM_11.id}`), 'the requested item id is the query variable');
+  assert.strictEqual(calls(ctx).filter((c) => c[1] === 'field-list').length, 0,
+    'the env-pinned field id must not trigger a remote field-list');
+  const out = JSON.parse(r.stdout);
+  assert.deepStrictEqual(
+    Object.keys(out).sort(),
+    ['canonical_state', 'issue_number', 'item_id', 'state', 'title', 'url'],
+    'item-get prints exactly the item-state recovery contract'
+  );
+  assert.strictEqual(out.item_id, ITEM_11.id);
+  assert.strictEqual(out.state, REMOTE_BACKLOG_NAME, 'remote display name reported as-is');
+  assert.strictEqual(out.canonical_state, 'Backlog', 'canonical_state reverse-maps the option id');
+  assert.ok(!r.stdout.includes(OPT_BACKLOG), 'option ids are internal and never printed');
+  assert.strictEqual(editCalls(ctx).length, 0, 'item-get is read-only');
+});
+
+// --- HARD-14: item-get failure modes ------------------------------------------------
+
+check('HARD-14: item-get fails loudly for unknown and non-issue-linked item ids', () => {
+  // Unknown/deleted/inaccessible id: GraphQL returns node: null.
+  const ctxNull = setup('hard14a');
+  fs.writeFileSync(path.join(ctxNull.bin, 'node.json'), nodePayload(NODE_NULL));
+  const rn = runHelper(ctxNull, ['item-get', 'PVTI_missing']);
+  assert.notStrictEqual(rn.status, 0, 'an unknown item id must exit non-zero');
+  assert.ok(/PVTI_missing/.test(rn.stderr), `stderr must name the item id: ${rn.stderr}`);
+  assert.ok(/No project item found/.test(rn.stderr), `the failure is explicit: ${rn.stderr}`);
+  assert.strictEqual(rn.stdout.trim(), '', 'no partial output');
+
+  // Draft item: content carries no number — not issue-linked.
+  const ctxDraft = setup('hard14b');
+  fs.writeFileSync(path.join(ctxDraft.bin, 'node.json'), nodePayload(NODE_DRAFT));
+  const rd = runHelper(ctxDraft, ['item-get', NODE_DRAFT.id]);
+  assert.notStrictEqual(rd.status, 0, 'a non-issue-linked item must exit non-zero');
+  assert.ok(/not issue-linked/.test(rd.stderr), `the failure names the cause: ${rd.stderr}`);
+  assert.strictEqual(rd.stdout.trim(), '', 'no partial output');
+});
+
+// --- HARD-15: list-statuses is env-first and loud ----------------------------------
+
+check('HARD-15: list-statuses prefers env pins, falls back to remote, and fails loudly when unresolvable', () => {
+  // Env-first: the fixture pins Backlog/Ready/In Progress — printed by
+  // canonical name with ZERO gh calls; unpinned canonical states are noted.
+  const ctx = setup('hard15');
+  const r = runHelper(ctx, ['list-statuses']);
+  assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
+  assert.strictEqual(r.stdout, 'Backlog\nReady\nIn Progress\n',
+    `exactly the env-pinned canonical names, in canonical order: ${JSON.stringify(r.stdout)}`);
+  assert.ok(/no env option ID pinned for: Open Need attentions/.test(r.stderr),
+    `unpinned canonical states are noted on stderr: ${r.stderr}`);
+  assert.strictEqual(calls(ctx).length, 0, 'env pins must not trigger ANY gh call');
+
+  // Remote fallback: no option pins -> field-list discovery by field name.
+  const ctxFb = setup('hard15fb');
+  fs.writeFileSync(
+    path.join(ctxFb.tmp, '.github-project.env'),
+    ENV_LINES.filter((l) => !l.includes('WORKFLOW_STATE_OPTION')).join('\n') + '\n'
+  );
+  const rf = runHelper(ctxFb, ['list-statuses']);
+  assert.strictEqual(rf.status, 0, `fallback exit ${rf.status}\nstderr:\n${rf.stderr}`);
+  assert.strictEqual(rf.stdout, `${REMOTE_BACKLOG_NAME}\n${REMOTE_READY_NAME}\n${REMOTE_IN_PROGRESS_NAME}\n`,
+    `fallback prints the remote option names as-is: ${JSON.stringify(rf.stdout)}`);
+  assert.strictEqual(calls(ctxFb).filter((c) => c[1] === 'field-list').length, 1,
+    'the fallback runs exactly one field-list discovery');
+
+  // Loud failure: no pins and the remote board returns no Workflow State
+  // options — never a silent empty success.
+  const ctxEmpty = setup('hard15empty');
+  fs.writeFileSync(
+    path.join(ctxEmpty.tmp, '.github-project.env'),
+    ENV_LINES.filter((l) => !l.includes('WORKFLOW_STATE_OPTION')).join('\n') + '\n'
+  );
+  fs.writeFileSync(path.join(ctxEmpty.bin, 'fields.json'), '{"fields":[]}');
+  const re = runHelper(ctxEmpty, ['list-statuses']);
+  assert.strictEqual(re.status, 1, `an unresolvable status list must exit 1 (got ${re.status})`);
+  assert.ok(/Could not resolve any Workflow State option/.test(re.stderr),
+    `the failure is loud and explicit: ${re.stderr}`);
+  assert.ok(/ANT_TEAM_GITHUB_WORKFLOW_STATE_OPTION_/.test(re.stderr),
+    `guidance names the env pin keys: ${re.stderr}`);
+  assert.strictEqual(re.stdout.trim(), '', 'no partial output');
 });
 
 // --- summary ----------------------------------------------------------------------

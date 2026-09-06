@@ -48,6 +48,7 @@ Usage:
   gh_project_helper.sh gh-item-edit <item_id> <field_id> <single_select_option_id>
   gh_project_helper.sh item-id <issue_number>
   gh_project_helper.sh item-state <issue_number>
+  gh_project_helper.sh item-get <project_item_id>
   gh_project_helper.sh list-statuses
   gh_project_helper.sh list-items [state_name]
   gh_project_helper.sh list-unassigned
@@ -97,11 +98,11 @@ Usage:
 
 Notes:
   - all board operations target the canonical "Workflow State" project field
-  - board item queries (list-items, list-unassigned, item-id, item-state)
-    and every set-status item lookup/verification run ONE shared GraphQL
-    project-items engine: gh project item-list is limit-bounded and returns
-    neither assignees nor option ids, so the engine never depends on it.
-    Reads are pagination-safe: items are paged with first:100 cursor pages
+  - board item queries (list-items, list-unassigned, item-id, item-state,
+    item-get) and every set-status item lookup/verification run ONE shared
+    GraphQL project-items engine: gh project item-list is limit-bounded and
+    returns neither assignees nor option ids, so the engine never depends on
+    it. Reads are pagination-safe: items are paged with first:100 cursor pages
     (bounded at 10 pages / 1000 items; truncation beyond the bound is
     warned on stderr, never silent). list-items/list-unassigned print
     {item_id, issue_number, title, state, assignees, url} per issue-linked
@@ -113,13 +114,32 @@ Notes:
     unknown state fails non-zero with guidance before any query results
     are printed. item-id prints {item_id, issue_number, title, url, state};
     item-id and item-state fail non-zero naming the issue when it has no
-    board item
+    board item, and item resolution by issue number is ambiguity-safe:
+    multiple board items for one issue (duplicate board adds) fail
+    non-zero naming every duplicate item id instead of acting on an
+    arbitrary one
+  - item-get <project_item_id> is the single-node verification read: it
+    fetches ONE board item directly by its project item id (node(id:)
+    GraphQL query, no board-wide paging) and prints the same recovery
+    contract as item-state
+    {item_id, issue_number, title, state, url, canonical_state}. Use it
+    when you already hold the item id (list-items output, gh-item-edit
+    follow-up). It fails non-zero naming the item id when the node does
+    not exist or is not an issue-linked board item
   - item-state <issue_number> is the read-only recovery command: it prints
     {item_id, issue_number, title, state, url, canonical_state} where
     canonical_state is reverse-mapped from the item's option id against
     the env-pinned canonical option IDs (null when the option id is
     unknown locally). Run it after any failed or interrupted status
     mutation to see where the item actually sits; it never mutates
+  - list-statuses resolves env-first: canonical Workflow State option IDs
+    pinned in .github-project.env are printed by canonical name with NO
+    remote call (canonical states without an env pin are noted on
+    stderr); only when nothing is pinned does it fall back to remote
+    field-list discovery by exact field name. A result that still
+    resolves to zero statuses (no env pins and no remote Workflow State
+    field/options) is a LOUD non-zero failure with guidance — never a
+    silent empty success
   - verified + idempotent status mutations: set-status, set-status-id, and
     next-status find the item by issue number through the shared engine,
     skip the mutation when the item already carries the requested OPTION
@@ -441,15 +461,45 @@ gh_read() {
   done
 }
 
+# Workflow State option names, resolved env-first: canonical option IDs
+# pinned in .github-project.env are the actionable statuses and print by
+# canonical name with no remote call; remote field-list discovery by exact
+# field name is the fallback when nothing is pinned. A result that still
+# resolves to zero statuses is a LOUD failure — never a silent empty
+# success (exit contract: 1 unresolvable, 3 transient-exhausted via gh_read).
 list_statuses() {
   local owner="$1"
   local project_number="$2"
 
-  gh_read project field-list "$project_number" --owner "$owner" --format json \
+  local name have_pinned="" unpinned=()
+  for name in "${CANONICAL_STATE_NAMES[@]}"; do
+    if [[ -n "$(resolve_state_option_id_from_env "$name")" ]]; then
+      printf '%s\n' "$name"
+      have_pinned=1
+    else
+      unpinned+=("$name")
+    fi
+  done
+
+  if [[ -n "$have_pinned" ]]; then
+    if [[ "${#unpinned[@]}" -gt 0 ]]; then
+      echo "note: no env option ID pinned for: ${unpinned[*]} — set ANT_TEAM_GITHUB_WORKFLOW_STATE_OPTION_<STATE>_ID in $CONFIG_ENV_FILE or inspect remote options with project-field-list" >&2
+    fi
+    return 0
+  fi
+
+  local names
+  names="$(gh_read project field-list "$project_number" --owner "$owner" --format json \
     | jq -r --arg field "$CANONICAL_FIELD_NAME" '.fields[]
       | select(.name == $field)
       | .options[]
-      | .name'
+      | .name')" || exit $?
+  if [[ -z "$names" ]]; then
+    echo "Could not resolve any Workflow State option: no env option IDs are pinned and remote field-list returned no '$CANONICAL_FIELD_NAME' options." >&2
+    echo "Pin the verified field/option IDs in $CONFIG_ENV_FILE (ANT_TEAM_GITHUB_WORKFLOW_STATE_FIELD_ID, ANT_TEAM_GITHUB_WORKFLOW_STATE_OPTION_<STATE>_ID) or inspect the board with project-field-list." >&2
+    exit 1
+  fi
+  printf '%s\n' "$names"
 }
 
 # --- shared GraphQL project-items engine (board ITEM query family) --------------
@@ -616,22 +666,31 @@ fetch_project_items() {
 # Find ONE issue-linked board item by issue number through the shared
 # paginated engine. Prints the internal record
 # {item_id, issue_number, title, url, state, state_option_id} as a single
-# line, or fails (exit 1, stderr naming the issue) when the issue has no
-# board item. state_option_id is the name-agnostic key; public outputs
-# reshape this record and never print option ids.
+# line. Resolution is ambiguity-safe: zero matches fails (exit 1, stderr
+# naming the issue), and MORE than one match (the issue was added to the
+# board more than once) also fails (exit 1, stderr naming every duplicate
+# item id) — a mutation must never target an arbitrarily chosen duplicate.
+# state_option_id is the name-agnostic key; public outputs reshape this
+# record and never print option ids.
 find_board_item() {
   local owner="$1"
   local project_number="$2"
   local issue_number="$3"
 
-  local out
+  local out count
   out="$(fetch_project_items "$owner" "$project_number")" || exit $?
-  out="$(jq -c --argjson n "$issue_number" '.[] | select(.issue_number == $n)' <<<"$out")" || exit $?
-  if [[ -z "$out" ]]; then
+  out="$(jq -c --argjson n "$issue_number" '[.[] | select(.issue_number == $n)]' <<<"$out")" || exit $?
+  count="$(jq -r 'length' <<<"$out")" || exit $?
+  if [[ "$count" -eq 0 ]]; then
     echo "No project item found for issue #$issue_number on project $project_number (owner $owner)" >&2
     exit 1
   fi
-  printf '%s\n' "$out"
+  if [[ "$count" -gt 1 ]]; then
+    echo "Ambiguous board resolution for issue #$issue_number: $count project items reference this issue ($(jq -r 'map(.item_id) | join(", ")' <<<"$out"))." >&2
+    echo "Remove the duplicate item(s) from the board in GitHub (this helper never deletes board items), then re-run; no mutation was made." >&2
+    exit 1
+  fi
+  jq -c '.[0]' <<<"$out"
 }
 
 # Curated board item query contract (issue #46): list-items prints
@@ -943,19 +1002,14 @@ canonical_state_for_option_id() {
   return 1
 }
 
-# Read-only board-state recovery: prints where an issue's board item
-# actually sits right now. "state" is the REMOTE option name as-is;
-# "canonical_state" is reverse-mapped from the item's option id against
-# the env-pinned canonical option IDs (null when the option id is unknown
-# locally). Never mutates anything — safe to run after any failed or
-# interrupted status mutation.
-item_state() {
-  local owner="$1"
-  local project_number="$2"
-  local issue_number="$3"
-
-  local item canonical=""
-  item="$(find_board_item "$owner" "$project_number" "$issue_number")"
+# Shared recovery-record printer for the read-only board verification
+# commands (item-state, item-get): "state" is the REMOTE option name as-is;
+# "canonical_state" is reverse-mapped from the item's option id against the
+# env-pinned canonical option IDs (null when the option id is unknown
+# locally). Option ids never leak into the printed record.
+emit_recovery_record() {
+  local item="$1"
+  local canonical=""
   if canonical="$(canonical_state_for_option_id "$(jq -r '.state_option_id' <<<"$item")")"; then
     :
   else
@@ -964,6 +1018,115 @@ item_state() {
   jq -c --arg canonical "$canonical" \
     '{item_id, issue_number, title, state, url,
       canonical_state: (if $canonical == "" then null else $canonical end)}' <<<"$item"
+}
+
+# Read-only board-state recovery: prints where an issue's board item
+# actually sits right now. Never mutates anything — safe to run after any
+# failed or interrupted status mutation.
+item_state() {
+  local owner="$1"
+  local project_number="$2"
+  local issue_number="$3"
+
+  local item
+  item="$(find_board_item "$owner" "$project_number" "$issue_number")"
+  emit_recovery_record "$item"
+}
+
+# Single-node board item verification read (founder-direct 2026-09-05):
+# fetches ONE ProjectV2Item by its project item id with a direct node(id:)
+# GraphQL query — no board-wide paging — so a caller that already holds the
+# item id (list-items output, gh-item-edit follow-up) verifies it with one
+# bounded read. Prints the same recovery contract as item-state. Read-only;
+# fails non-zero naming the item id when the node does not exist or is not
+# an issue-linked board item.
+project_item_node_query() {
+  cat <<'EOF'
+query($itemId: ID!) {
+  node(id: $itemId) {
+    ... on ProjectV2Item {
+      id
+      content {
+        ... on Issue {
+          number
+          title
+          url
+          assignees(first: 10) {
+            nodes { login }
+          }
+        }
+        ... on PullRequest {
+          number
+          title
+          url
+          assignees(first: 10) {
+            nodes { login }
+          }
+        }
+      }
+      fieldValues(first: 20) {
+        nodes {
+          ... on ProjectV2ItemFieldSingleSelectValue {
+            name
+            optionId
+            field {
+              ... on ProjectV2FieldCommon {
+                id
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+EOF
+}
+
+item_get() {
+  local owner="$1"
+  local project_number="$2"
+  local item_id="$3"
+
+  # The Workflow State value is curated by the env-pinned field id (remote
+  # discovery only when unpinned) — the same discrimination the shared
+  # items engine uses.
+  local field_id payload item
+  field_id="$(resolve_state_field_id "$owner" "$project_number")" || exit $?
+  if [[ -z "$field_id" || "$field_id" == "null" ]]; then
+    echo "Could not resolve Workflow State field ID" >&2
+    exit 1
+  fi
+
+  payload="$(gh_read api graphql \
+    -f query="$(project_item_node_query)" \
+    -f itemId="$item_id")" || exit $?
+
+  # null node (deleted/unknown/inaccessible id) or a non-ProjectV2Item id
+  # yields no record and fails loudly; non-issue-linked content (draft
+  # items carry no number) fails the same way.
+  item="$(jq -c --arg field "$field_id" '
+    .data.node as $n
+    | if ($n == null) or ($n | has("fieldValues") | not) then empty
+      else $n
+      | {
+          item_id: .id,
+          issue_number: (.content.number // null),
+          title: (.content.title // ""),
+          url: (.content.url // ""),
+          state: ([.fieldValues.nodes[] | select(.field.id == $field) | .name][0] // ""),
+          state_option_id: ([.fieldValues.nodes[] | select(.field.id == $field) | .optionId][0] // "")
+        }
+      end' <<<"$payload")" || exit $?
+  if [[ -z "$item" ]]; then
+    echo "No project item found for item id $item_id on project $project_number (owner $owner): the id is unknown, deleted, inaccessible, or not a board item" >&2
+    exit 1
+  fi
+  if [[ "$(jq -r '.issue_number' <<<"$item")" == "null" ]]; then
+    echo "Project item $item_id is not issue-linked (no issue/PR number); item-get serves issue-linked items" >&2
+    exit 1
+  fi
+  emit_recovery_record "$item"
 }
 
 # --- issue subcommands (env-resolved repo; curated mutation results) ----------
@@ -2603,6 +2766,16 @@ case "$cmd" in
     require_value "OWNER" "$owner"; require_value "PROJECT_NUMBER" "$project_number"
     validate_board_status_args "$1" "" item-state
     item_state "$owner" "$project_number" "$1"
+    ;;
+  item-get)
+    [[ $# -eq 1 ]] || { usage; exit 1; }
+    owner="$(resolve_owner "")"; project_number="$(resolve_project_number "")"
+    require_value "OWNER" "$owner"; require_value "PROJECT_NUMBER" "$project_number"
+    if [[ -z "$1" ]]; then
+      echo "Missing required value: project item id for item-get (e.g. PVTI_... from list-items or item-id)" >&2
+      exit 1
+    fi
+    item_get "$owner" "$project_number" "$1"
     ;;
   add-issue)
     [[ $# -eq 1 ]] || { usage; exit 1; }
