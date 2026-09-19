@@ -1,6 +1,6 @@
 ---
 name: pr-review-flow
-description: Use when creating pull requests, starting code review, responding to review comments, running review loops, or syncing builder and reviewer conversation. Enforces PR-created review start, Obsidian event files as the working review conversation record, and PR comments for code-specific findings and final code-review results.
+description: Use when creating pull requests, starting code review, responding to review comments, running review loops, or syncing builder and reviewer conversation. Enforces PR-created review start and PR comments or review threads as the canonical code-review conversation record.
 ---
 
 # PR Review Flow
@@ -14,21 +14,27 @@ If `agentic-flow-terms` is available, use it as the canonical glossary for devel
 - **loop-breaker** — an escalation that exits the review loop because progress is blocked (hard blocker, unresolvable disagreement, loop cap hit)
 - **defer task** — work explicitly deferred out of scope and tracked for a future issue
 - **task branch** — the git branch carrying the work for a single task or issue
-- **collaboration record** — the Obsidian communication event files for the issue plus the GitHub issue and linked PR; the Obsidian events carry the working conversation, GitHub carries final decisions, status, closure, and code-review results
+- **collaboration record** — the GitHub issue plus its linked PR; issue comments carry task-level delegation, clarification, blockers, and founder requests, while PR comments and review threads carry code-review conversation
 
 ## Record Authority
 
-The Obsidian communication event files are the detailed working review conversation between builder and reviewer. PR comments carry code-specific findings, review threads, and the final code-review result. The GitHub issue is the task-level summary.
+The PR is the canonical code-review surface: PR comments and review threads carry review findings, builder responses, rework reasoning, verification results, approvals, and merge reasoning. The GitHub issue carries task-level delegation, blockers, founder requests, and concise state summaries.
 
-These three together are the authoritative record. Chat history is not. Any decision, finding, or escalation that matters must appear in at least one of them before the loop closes.
+The issue and PR together are the authoritative record. Chat history is not. Any decision, finding, or escalation that matters must appear in one or both before the loop closes. Obsidian may be linked only for durable specs, architecture, ADRs, GOV, runbooks, or exceptional decisions.
+
+## Reviewer context discovery
+
+Before reviewing code, read the GitHub issue and PR. From the issue's `Durable Context`, open the canonical SPEC and every applicable ARCH, ADR, GOV, and runbook URL. The linked SPEC is authoritative for durable product intent; the issue defines the scoped implementation slice; the PR supplies implementation and review evidence.
+
+Do not search the vault broadly or reconstruct requirements from chat. If a required durable-context URL is missing, ambiguous, stale, or conflicts with the issue or PR, do not approve the PR: record the gap in the GitHub issue and route it to tech-lead.
 
 ## Core Rule
 
 The review loop starts when the builder creates a pull request from the task branch.
 
-Builder and reviewer working conversation during review must be recorded as individual Obsidian communication event files. Code-specific findings, approvals, and merge confirmations stay in PR comments.
+Builder and reviewer conversation during review must be recorded in PR comments or review threads, including code-specific findings, responses, approvals, and merge confirmations.
 
-The GitHub issue, the PR, and the Obsidian communication events together must make the review loop understandable without chat context. Do not rely only on chat history.
+The GitHub issue and PR together must make the review loop understandable without chat context. Do not rely only on chat history.
 
 Builder owns moving work into review. Reviewer owns sending it back with findings or approving it forward. Other roles may inspect or coordinate, but they should not impersonate builder or reviewer by posting their role-specific review-loop decisions in place of them during normal flow.
 
@@ -68,7 +74,8 @@ Builder fills this in before requesting review.
 ```md
 ## Task
 
-- Spec: <SPEC-ID, path, or none>
+- Canonical SPEC: <URL, or Not applicable — reason>
+- Durable Context: <issue link; canonical documentation remains in the issue rather than duplicated here>
 - Task: <TASK-ID>
 - PM Ticket: <ticket or none>
 - GitHub Issue: <link>
@@ -94,6 +101,12 @@ Builder fills this in before requesting review.
 ## Acceptance Tests
 
 - [ ] <acceptance test> - <pass/fail/not run with reason>
+
+## Review Delegation — builder → reviewer
+
+- Why reviewer is needed: <review the scoped implementation and listed risks>
+- Expected action: <review the PR against issue scope, Durable Context, and verification evidence>
+- Expected record: <PR review approval or actionable PR findings; issue summary when state changes>
 
 ## Builder Notes
 
@@ -140,7 +153,7 @@ When raising a concern about separation, name the two concerns that are mixed an
 
 Flag as a finding if new code is placed in the wrong layer, namespace, or package.
 
-Before judging placement, read the central Obsidian project architecture documents under `ANT_TEAM_DOCS_PROJECT_PATH` (source `./.github-project.env` — the sole committed project config source). The project-defined structure takes precedence over generic language conventions. Do not apply Java, .NET, or TypeScript defaults if the project has its own documented layer definitions.
+Before judging placement, read the central Obsidian project architecture documents under `ANT_TEAM_DOCS_PROJECT_PATH`; source `./.github-project.env` once only if a direct command needs that variable. The project-defined structure takes precedence over generic language conventions. Do not apply Java, .NET, or TypeScript defaults if the project has its own documented layer definitions.
 
 If no project-specific architecture document covers the placement question, fall back to language conventions as a secondary guide:
 
@@ -173,18 +186,16 @@ After or beside the mandatory correctness, architecture, security, scope, and KI
 
 ## PR Comment Rules
 
-Use PR comments for the code-review result only:
+Use PR comments and review threads for the full code-review conversation:
 
-- Reviewer posts code-specific findings as PR review comments or PR discussion comments.
-- Reviewer posts the explicit approval comment stating no blockers remain before moving the issue to `Ready to Merge`.
+- Reviewer submits blocking findings with `$ANT_TEAM_SCRIPTS/gh_project_helper.sh pr-review <PR> --request-changes --body-file <file>` when appropriate, or uses PR review threads/comments for individual code-specific findings.
+- Reviewer submits a GitHub-native approval with `$ANT_TEAM_SCRIPTS/gh_project_helper.sh pr-review <PR> --approve --body-file <file>`, then moves the issue to `Ready to Merge`. The review body must state that no blockers remain.
 - Hard blockers and loop-breaker outcomes are summarized in PR comments and cross-linked from the GitHub issue.
 
-Working review conversation lives in the Obsidian communication event files for the issue:
-
-- builder records the implementation handover and each fix summary as Obsidian events with commit references
-- reviewer records each pass, verification re-run results, and disagreement rationale as Obsidian events
+- builder records the implementation handover and each fix summary in the PR, with commit references
+- reviewer records each pass, verification re-run results, and disagreement rationale in PR comments or review threads
 - unresolved findings stay visible in the PR conversation until explicitly cleared
-- the loop count per review pass is tracked in the Obsidian events
+- the loop count per review pass is tracked in the PR conversation and summarized in the issue when the review state changes
 
 ## Review Loop Rules
 
@@ -197,7 +208,7 @@ Working review conversation lives in the Obsidian communication event files for 
   1. Post an explicit approval comment on the PR stating the issue is clear with no blockers and the PR is ready to merge.
   2. Move the GitHub issue to `Ready to Merge`.
 - Do not merge until the issue is in `Ready to Merge` and the approval comment is on the PR.
-- If the PR or issue needs founder input before it can proceed or merge, confirm strategist and tech-lead review were both attempted, record the reasoning in an Obsidian event file, then move the issue to `Need attentions` with a founder-addressed GitHub comment instead of posting an approval.
+- If the PR or issue needs founder input before it can proceed or merge, confirm strategist and tech-lead review were both attempted, record the reasoning in the PR and a founder-addressed GitHub issue comment, then move the issue to `Need attentions` instead of posting an approval.
 
 ## Development Loop Rules
 
@@ -223,11 +234,11 @@ After every PR review pass, update the GitHub issue with:
 - Approval state
 - Blocker, stopper, loop-breaker, or defer-task state
 
-The detailed working discussion lives in Obsidian communication events. PR comments carry the code-review result, and the issue receives a concise summary whenever the review state materially changes so queue-level roles can continue from the issue alone.
+The detailed review discussion lives in PR comments and review threads. The issue receives a concise summary whenever the review state materially changes so queue-level roles can continue from the issue alone.
 
 ## Role Memory Sync
 
-After each review loop, create the required Obsidian communication event file and update project-specific role memory. Role memory is a persistent record per role (builder, architect, reviewer) in the central Obsidian project folder. Do not write it to repository-local memory files.
+After each review loop, update project-specific role memory when there is a durable lesson. Role memory is a persistent record per role (builder, architect, reviewer) in the central Obsidian project folder. Do not use it as a routine review-event log or write it to repository-local memory files.
 
 - Builder memory captures implementation lessons and recurring review fixes.
 - Architect memory captures architecture constraints, accepted tradeoffs, defer tasks, and loop-breaker rationale.

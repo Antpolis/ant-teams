@@ -49,7 +49,7 @@ assert_not_exists "canonical skills dir is not installed" "$HOME_DIR/.config/ope
 assert_exists "canonical commands dir installed" "$HOME_DIR/.config/opencode/commands"
 assert_exists "team scripts installed" "$HOME_DIR/.agents/scripts/validate-agents-md.sh"
 assert_exists "helper CLI installed" "$HOME_DIR/.agents/scripts/ant-team-help.sh"
-assert_exists "communication recorder installed" "$HOME_DIR/.agents/scripts/record-communication.sh"
+assert_not_exists "retired communication recorder is not installed" "$HOME_DIR/.agents/scripts/record-communication.sh"
 assert_file_contains_str "bash config exports team scripts" \
   "$HOME_DIR/.bashrc" 'export ANT_TEAM_SCRIPTS="$HOME/.agents/scripts"'
 assert_file_contains_str "zsh config exports team scripts" \

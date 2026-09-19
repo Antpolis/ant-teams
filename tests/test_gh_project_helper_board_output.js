@@ -114,7 +114,7 @@ function graphqlItemsPayload(stateFor42, optionFor42) {
               {
                 id: ITEM_37_READY.id,
                 number: 37,
-                title: 'SPEC-003-T7: Local-first dual-record sync',
+                title: 'SPEC-003-T7: GitHub helper update',
                 url: 'https://github.com/env-owner/env-repo/issues/37',
                 assignees: [{ login: 'chrissim' }],
               },
@@ -276,7 +276,7 @@ check('BOC-3: item-id prints {item_id, issue_number, title, url, state}; not-fou
   const out = JSON.parse(r.stdout);
   assert.strictEqual(out.item_id, ITEM_37_READY.id);
   assert.strictEqual(out.issue_number, 37);
-  assert.strictEqual(out.title, 'SPEC-003-T7: Local-first dual-record sync');
+  assert.strictEqual(out.title, 'SPEC-003-T7: GitHub helper update');
   assert.strictEqual(out.url, 'https://github.com/env-owner/env-repo/issues/37');
   assert.strictEqual(out.state, 'Ready', 'item-id must report the Workflow State');
 

@@ -6,8 +6,8 @@ Tech-lead is the sole owner of this milestone and all issues attached to it.
 ```md
 ## Spec
 
-- Spec document: <path to spec file in repo>
-- Spec ID: <SPEC-ID>
+- Canonical SPEC: <normal URL to the Obsidian SPEC>
+- SPEC ID: <SPEC-###>
 - Milestone created by: tech-lead
 
 ## Delivery Intent
@@ -74,8 +74,8 @@ Close this milestone only when all required issues are Done or explicitly deferr
 
 - One milestone represents one spec or deliverable.
 - Tech-lead creates the milestone before creating any issue.
-- The canonical implementation detail lives in the repository spec, not only in the milestone.
-- Link the spec document in the milestone body.
+- The canonical implementation detail lives in the linked Obsidian SPEC, not only in the milestone.
+- Include both the exact normal SPEC URL and its stable `SPEC-###` ID in the milestone body. This makes `spec-view` resolution deterministic.
 - Attach every execution issue for that deliverable to the milestone.
 - Complete the Required Task Types Coverage checklist before moving any issue to `Ready`.
 - If work is intentionally deferred, capture the rationale before closing the milestone.

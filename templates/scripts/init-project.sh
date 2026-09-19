@@ -165,6 +165,7 @@ Behavior modifiers (CLI-2):
                               write (OBS-2). Emits [would-write] lines and a
                               dry-run summary. No file is created or modified.
 
+
 Pre-existing flags (preserved verbatim per CLI-1):
   --project-dir PATH          Target project directory (default: $PWD).
   --docs-root PATH            Docs root inside the project (default: docs).
@@ -1070,6 +1071,31 @@ generate_agents_md_content() {
     scratch_dir="./tmp/"
   fi
 
+  # Read-only repository evidence. Every generated claim below comes from one
+  # of these files/directories or from Git metadata when a real repository is
+  # available; missing evidence is omitted rather than guessed.
+  local -a stack=() source_dirs=() commands=()
+  local d default_branch="" remote_url="" recent_commit=""
+  if [[ -f "$project_dir/package.json" ]]; then
+    stack+=("Node.js")
+    if [[ -f "$project_dir/pnpm-lock.yaml" ]]; then stack+=("pnpm");
+    elif [[ -f "$project_dir/yarn.lock" ]]; then stack+=("Yarn");
+    elif [[ -f "$project_dir/package-lock.json" || -f "$project_dir/npm-shrinkwrap.json" ]]; then stack+=("npm"); fi
+    while IFS= read -r script; do commands+=("npm run $script"); done < <(jq -r '.scripts // {} | keys[]' "$project_dir/package.json" 2>/dev/null)
+  fi
+  [[ -f "$project_dir/pyproject.toml" ]] && stack+=("Python")
+  [[ -f "$project_dir/go.mod" ]] && stack+=("Go")
+  [[ -f "$project_dir/Cargo.toml" ]] && stack+=("Rust")
+  [[ -f "$project_dir/pom.xml" || -f "$project_dir/build.gradle" || -f "$project_dir/build.gradle.kts" ]] && stack+=("JVM")
+  [[ -f "$project_dir/Dockerfile" ]] && stack+=("Docker")
+  for d in src app packages services lib tests test; do [[ -d "$project_dir/$d" ]] && source_dirs+=("$d/"); done
+  if git -C "$project_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    default_branch="$(git -C "$project_dir" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||' || true)"
+    [[ -z "$default_branch" ]] && default_branch="$(git -C "$project_dir" branch --show-current 2>/dev/null || true)"
+    remote_url="$(git -C "$project_dir" remote get-url origin 2>/dev/null || true)"
+    recent_commit="$(git -C "$project_dir" log -1 --pretty='%h %s' 2>/dev/null || true)"
+  fi
+
   local ts
   ts="$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
 
@@ -1079,6 +1105,33 @@ generate_agents_md_content() {
 ## Repository Identity
 
 ${repo_name}
+
+## Project Understanding
+
+${AGENTSMD_DESCRIPTION:-No product description was supplied during initialization. Treat repository evidence as the current implementation baseline and record product-intent gaps in the first SPEC.}
+
+## Project Structure
+
+$(if [[ ${#source_dirs[@]} -gt 0 ]]; then printf '%s\n' "${source_dirs[@]}" | sed 's/^/- `/' | sed 's|/$|/`|'; else printf '%s\n' 'No conventional source roots were detected; inspect the repository tree before making placement decisions.'; fi)
+
+## Current Architecture And Stack
+
+$(if [[ ${#stack[@]} -gt 0 ]]; then printf '%s\n' "${stack[@]}" | sed 's/^/- Detected: /'; else printf '%s\n' 'No supported stack manifest was detected; inspect the repository before making stack claims.'; fi)
+
+$(if [[ -f "$project_dir/Dockerfile" || -d "$project_dir/.github/workflows" ]]; then printf '%s\n' '- Delivery evidence: Dockerfile and/or GitHub Actions workflow detected.'; fi)
+
+$(if [[ -n "$default_branch$remote_url$recent_commit" ]]; then printf '\n## Git Context\n\n'; [[ -n "$default_branch" ]] && printf '%s\n' "- Current/default branch: \`$default_branch\`"; [[ -n "$remote_url" ]] && printf '%s\n' "- Origin: \`$remote_url\`"; [[ -n "$recent_commit" ]] && printf '%s\n' "- Latest observed commit: \`$recent_commit\`"; fi)
+
+## Commands
+
+$(if [[ ${#commands[@]} -gt 0 ]]; then printf '%s\n' "${commands[@]}" | sed 's/^/- `/' | sed 's/$/`/'; else printf '%s\n' 'No package-manager commands were detected. Add verified build, test, and run commands after inspection.'; fi)
+
+## Agent Starting Point
+
+1. Start with the assigned GitHub issue and its `Durable Context` links.
+2. Treat linked Obsidian SPEC, ARCH, ADR, GOV, and runbook notes as durable authority; do not reconstruct requirements from chat.
+3. Use `$ANT_TEAM_SCRIPTS/gh_project_helper.sh` directly for GitHub operations; it loads `.github-project.env` itself.
+4. When no issue exists, read this file, the repository structure above, and the central documentation index before proposing work.
 
 ## Documentation
 
@@ -1099,7 +1152,7 @@ Scratch directory for work-in-progress and logs: \`${scratch_dir}\`
 
 ## GitHub Project Helper
 
-When GitHub Issues, Projects, milestones, pull requests, or workflow-state operations require the repository helper, load the \`github-issues-projects-cli\` skill first. Use the helper commands documented by that skill; do not hard-code or hunt for the helper shell-script path in agent instructions. Source \`.github-project.env\` before using the skill.
+When GitHub Issues, Projects, milestones, pull requests, or workflow-state operations require the repository helper, load the `github-issues-projects-cli` skill first. Use `$ANT_TEAM_SCRIPTS/gh_project_helper.sh` directly; it loads `.github-project.env` itself. Source the env once only when a direct shell command must expand an `ANT_TEAM_*` value.
 EOF
 
   # Append optional sections only when real values exist.
@@ -1277,6 +1330,7 @@ write_agents_md_atomic() {
 # from templates/scripts/) or a source checkout (templates/scripts). Support
 # assets (github-project.env.template) ship in the sibling init-project/
 # directory next to the engine.
+
 engine_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 engine_assets="$engine_root/init-project"
 
@@ -1321,6 +1375,7 @@ opt_scratch_dir="${INIT_PROJECT_SCRATCH_DIR:-}"
 # New T2 boolean flags (0/1; empty / "0" / absent = off). Normalize absent → 0.
 opt_force="${INIT_PROJECT_FORCE:-0}"
 opt_dry_run="${INIT_PROJECT_DRY_RUN:-0}"
+
 
 # --merge has a mode-dependent default (interactive=on, noninteractive=off per
 # CLI-2). Defer defaulting until after mode is resolved; only env vars set it
@@ -1385,6 +1440,7 @@ while [[ $# -gt 0 ]]; do
     --dry-run)
       opt_dry_run=1; shift
       ;;
+
     # Pre-existing flags preserved verbatim (CLI-1)
     --project-dir)
       project_dir="${2:-}"; shift 2
@@ -1516,6 +1572,7 @@ ensure_project_runtime_env \
 ensure_opencode_config "$project_dir" "$worktree_root"
 copy_required_skills "$project_dir" "$managed_skills_root"
 
+
 # --- Local docs root (CLI-1 --docs-root contract) ----------------------------
 # Regression fix (2026-08-22 review finding, AC-T2-005a): the central-Obsidian
 # routing change removed local docs creation entirely, breaking the CLI-1
@@ -1560,6 +1617,7 @@ AGENTS_MD_CONTENT="$(
   AGENTSMD_REPO_NAME="$repo_name" \
   AGENTSMD_VERSION="$INIT_PROJECT_VERSION" \
   AGENTSMD_SCRATCH_DIR="$opt_scratch_dir" \
+  AGENTSMD_DESCRIPTION="$opt_description" \
   generate_agents_md_content
 )"
 

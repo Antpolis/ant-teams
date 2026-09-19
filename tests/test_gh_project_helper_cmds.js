@@ -11,14 +11,14 @@
  * pr-checks, pr-review-reply, run-list, run-view, workflow-list,
  * workflow-run, milestone-create, milestone-list, milestone-edit,
  * milestone-close, release-create, release-list, release-view, release-edit,
- * release-delete) into executable checks:
+ * release-delete, pr-review) into executable checks:
  *
  *   HIC-1  usage lists every new subcommand; required positionals enforced
  *   HIC-2  issue-create passes title + extras; env repo resolves and wins;
  *          curated {number,title,state,url} output reuses the URL response
  *   HIC-3  a pass-through --repo can never override the env repo
  *   HIC-4  issue-view prints curated JSON by default
- *   HIC-5  issue-view --comments skips the curated default
+ *   HIC-5  issue comment mode defaults to five newest comments; supports limits/all
  *   HIC-6  issue-list prints curated JSON by default; filters pass through
  *   HIC-7  issue-list custom --json skips the curated default
  *   HIC-8  issue-comment stays a thin pass-through (URL permalink out);
@@ -35,15 +35,19 @@
  *   HIC-17 project subcommands remain env-only (no positional owner/project;
  *          extended by #46 with list-unassigned and the project-* family —
  *          their owner is a --owner flag only)
+ *   HIC-18 spec-view resolves case-insensitive SPEC IDs plus SPEC and milestone URLs
+ *   HIC-19 spec-next allocates the next numeric-only canonical SPEC ID without gh
+ *   HIC-20 current-directory .github-project.env overrides the repository-root config
  *   PRC-1  usage lists every pr-* subcommand; required positionals enforced
  *   PRC-2  pr-create passes title + extras; env repo resolves and wins;
  *          curated {number,title,state,url} output reuses the URL response
  *   PRC-3  a pass-through --repo can never override the env repo (pr-list)
  *   PRC-4  pr-view prints curated JSON by default
- *   PRC-5  pr-view --comments skips the curated default
+ *   PRC-5  PR comment mode defaults to five newest comments; supports limits/all
  *   PRC-6  pr-list prints curated JSON by default; filters pass through
  *   PRC-7  pr-comment is a thin pass-through (URL permalink out)
- *   PRC-8  pr-close / pr-merge mutate then re-read and print curated
+ *   PRC-8  pr-review submits a GitHub-native review event as a thin pass-through
+ *   PRC-9  pr-close / pr-merge mutate then re-read and print curated
  *          post-mutation JSON; no --admin injected (issue #45 replacement)
  *   PRC-9  pr-checks curates the tabular output into JSON by default
  *   PRC-10 pr-review-reply uses the fixed parameterized GraphQL mutation
@@ -133,8 +137,7 @@ function setup(prefix, envContent) {
   return { tmp, docs, bin, ghLog, ghOut };
 }
 
-// Mutating issue/milestone commands are local-first (SPEC-003-T7): the env
-// must carry an isolated docs base so the local record write succeeds.
+// Tests use an isolated docs path to verify helper mutations do not write there.
 const DEFAULT_ENV = `export ANT_TEAM_GITHUB_REPO='${ENV_REPO}'\nexport ANT_TEAM_DOCS_PROJECT_PATH='DOCS_PATH'\n`;
 
 function setupWithDocs(prefix) {
@@ -188,10 +191,10 @@ const MILESTONE_PAYLOAD = JSON.stringify({
   node_id: 'MDEzShouldNeverLeak',
 });
 
-function runHelper(ctx, args) {
+function runHelper(ctx, args, cwd = ctx.tmp) {
   return spawnSync('bash', [HELPER, ...args], {
     encoding: 'utf8',
-    cwd: ctx.tmp,
+    cwd,
     env: {
       PATH: `${ctx.bin}:${process.env.PATH}`,
       GH_LOG: ctx.ghLog,
@@ -230,8 +233,7 @@ check('HIC-1: usage lists every new subcommand and enforces required positionals
   for (const sub of [
     'issue-create', 'issue-view', 'issue-list', 'issue-edit',
     'issue-comment', 'issue-close',
-    'milestone-create', 'milestone-list', 'milestone-edit', 'milestone-close',
-    'issue-sync', 'milestone-sync',
+    'milestone-create', 'milestone-list', 'milestone-edit', 'milestone-close', 'spec-view', 'spec-next',
   ]) {
     assert.ok(usage.stdout.includes(sub), `usage must list ${sub}`);
   }
@@ -244,10 +246,11 @@ check('HIC-1: usage lists every new subcommand and enforces required positionals
     ['milestone-create'],
     ['milestone-edit'],
     ['milestone-close'],
+    ['spec-view'],
+    ['spec-view', 'SPEC-001', 'extra'],
+    ['spec-next', 'extra'],
     ['milestone-create', 'a', 'b', 'c'],
     ['milestone-list', 'open', 'closed'],
-    ['issue-sync'],
-    ['milestone-sync'],
   ]) {
     const r = runHelper(ctx, args);
     assert.notStrictEqual(r.status, 0, `${args.join(' ')} must fail without its required positional`);
@@ -316,15 +319,24 @@ check('HIC-4: issue-view prints curated JSON by default', () => {
   assert.ok(c.includes(ENV_REPO), 'env repo must be sent');
 });
 
-// --- HIC-5: issue-view --comments skips the default ---------------------------
+// --- HIC-5: issue comment mode -------------------------------------------------
 
-check('HIC-5: issue-view --comments skips the curated default', () => {
+check('HIC-5: issue comments default to five newest; supports limit and all', () => {
   const ctx = setupWithDocs('hic5');
-  const r = runHelper(ctx, ['issue-view', '42', '--comments']);
+  let r = runHelper(ctx, ['issue-view', '42', '--comments']);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
-  const c = calls(ctx)[0];
-  assert.ok(!c.includes('--json'), `caller shape must win: ${c.join(' ')}`);
-  assert.ok(c.includes('--comments') && c.includes(ENV_REPO));
+  let c = calls(ctx)[0];
+  assert.deepStrictEqual(c.slice(0, 2), ['api', 'repos/env-owner/env-repo/issues/42/comments?sort=created&direction=desc&per_page=5']);
+
+  r = runHelper(ctx, ['issue-view', '42', '--comments', '--limit', '12']);
+  assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
+  c = calls(ctx)[1];
+  assert.ok(c.some((arg) => arg.includes('per_page=12')), `custom limit must be sent: ${c.join(' ')}`);
+
+  r = runHelper(ctx, ['issue-view', '42', '--comments', '--all-comments']);
+  assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
+  c = calls(ctx)[2];
+  assert.ok(c.includes('--paginate') && c.some((arg) => arg.includes('per_page=100')), `all comments must paginate: ${c.join(' ')}`);
 });
 
 // --- HIC-6: issue-list curated default + filters ------------------------------
@@ -529,7 +541,7 @@ check('HIC-15: missing ANT_TEAM_GITHUB_REPO fails fast without calling gh', () =
 
 // --- HIC-16: the helper writes no files ----------------------------------------
 
-check('HIC-16: helper writes only local records under the docs base; env stays byte-identical', () => {
+check('HIC-16: helper creates no local records; env stays byte-identical', () => {
   const ctx = setupWithDocs('hic16');
   const envPath = path.join(ctx.tmp, '.github-project.env');
   const before = fs.readFileSync(envPath, 'utf8');
@@ -548,18 +560,12 @@ check('HIC-16: helper writes only local records under the docs base; env stays b
   assert.strictEqual(fs.readFileSync(envPath, 'utf8'), before, 'env must stay byte-identical');
   assert.strictEqual(fs.statSync(envPath).mtimeMs, mtimeBefore, 'env must not be rewritten');
   assert.ok(!fs.existsSync(path.join(ctx.tmp, '.github-project.json')), 'no JSON config may appear');
-  // Dual-record (T7): the only new files are local records under the docs
-  // base; the repo working directory itself stays untouched.
   assert.deepStrictEqual(
     fs.readdirSync(ctx.tmp).sort(),
     cwdBefore,
     'helper must not write into the repo working directory'
   );
-  const recordDirs = fs.readdirSync(ctx.docs).sort();
-  assert.ok(
-    recordDirs.every((d) => d === 'issue' || d === 'spec'),
-    `all local writes confined to {issue,spec}/ (got: ${recordDirs})`
-  );
+  assert.deepStrictEqual(fs.readdirSync(ctx.docs), [], 'helper must not create local issue or milestone records');
 });
 
 // --- HIC-17: project subcommands stay env-only ---------------------------------
@@ -585,6 +591,59 @@ check('HIC-17: project subcommands reject positional owner/project arguments', (
   }
 });
 
+// --- HIC-18: spec-view ----------------------------------------------------------
+
+check('HIC-18: spec-view resolves IDs and URLs case-insensitively without gh', () => {
+  const ctx = setupWithDocs('hic18');
+  const specPath = path.join(ctx.docs, 'SPEC-003-helper.md');
+  const milestoneUrl = 'https://github.com/Antpolis/ant-teams/milestone/3';
+  fs.writeFileSync(specPath, `---\nspec_id: SPEC-003\ngithub_milestone_url: ${milestoneUrl}\n---\n# Helper spec\n`);
+
+  for (const reference of [
+    'spec 003',
+    'sPeC_003',
+    'https://github.com/Antpolis/documentation/blob/main/SPEC-003-helper.md',
+    milestoneUrl,
+  ]) {
+    const r = runHelper(ctx, ['spec-view', reference]);
+    assert.strictEqual(r.status, 0, `exit ${r.status} for ${reference}: ${r.stderr}`);
+    assert.ok(r.stdout.includes('# Helper spec'), `must print the canonical note for ${reference}`);
+  }
+  assert.deepStrictEqual(calls(ctx), [], 'spec lookup must not call gh');
+});
+
+// --- HIC-19: spec-next ----------------------------------------------------------
+
+check('HIC-19: spec-next allocates only numeric canonical SPEC IDs without gh', () => {
+  const ctx = setupWithDocs('hic19');
+  fs.writeFileSync(path.join(ctx.docs, 'SPEC-003.md'), '---\nspec_id: SPEC-003\n---\n');
+  fs.writeFileSync(path.join(ctx.docs, 'SPEC-010.md'), '---\nspec_id: SPEC-010\n---\n');
+  fs.writeFileSync(path.join(ctx.docs, 'invalid.md'), '---\nspec_id: SPEC-AUTH-999\n---\n');
+
+  const r = runHelper(ctx, ['spec-next']);
+  assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
+  assert.strictEqual(r.stdout, 'SPEC-011\n');
+  assert.deepStrictEqual(calls(ctx), [], 'SPEC allocation must not call gh');
+});
+
+// --- HIC-20: current-directory config -------------------------------------------
+
+check('HIC-20: current-directory config overrides repository-root config', () => {
+  const ctx = setupWithDocs('hic19');
+  const init = spawnSync('git', ['init', '-q'], { cwd: ctx.tmp, encoding: 'utf8' });
+  assert.strictEqual(init.status, 0, `git init failed: ${init.stderr}`);
+  const worktree = path.join(ctx.tmp, 'worktree');
+  fs.mkdirSync(worktree);
+  fs.writeFileSync(
+    path.join(worktree, '.github-project.env'),
+    `export ANT_TEAM_GITHUB_REPO='current-dir/current-repo'\nexport ANT_TEAM_DOCS_PROJECT_PATH='${ctx.docs}'\n`
+  );
+  const r = runHelper(ctx, ['issue-list'], worktree);
+  assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
+  const c = calls(ctx)[0];
+  assert.strictEqual(c[c.lastIndexOf('--repo') + 1], 'current-dir/current-repo');
+});
+
 // --- PRC-1: usage lists pr-* subcommands; positionals enforced ------------------
 
 check('PRC-1: usage lists every pr-* subcommand and enforces required positionals', () => {
@@ -592,7 +651,7 @@ check('PRC-1: usage lists every pr-* subcommand and enforces required positional
   const usage = runHelper(ctx, []);
   assert.notStrictEqual(usage.status, 0, 'no-args must exit non-zero');
   for (const sub of [
-    'pr-create', 'pr-view', 'pr-list', 'pr-comment',
+    'pr-create', 'pr-view', 'pr-list', 'pr-comment', 'pr-review',
     'pr-close', 'pr-merge', 'pr-checks', 'pr-review-reply',
   ]) {
     assert.ok(usage.stdout.includes(sub), `usage must list ${sub}`);
@@ -601,6 +660,7 @@ check('PRC-1: usage lists every pr-* subcommand and enforces required positional
     ['pr-create'],
     ['pr-view'],
     ['pr-comment'],
+    ['pr-review'],
     ['pr-close'],
     ['pr-merge'],
     ['pr-checks'],
@@ -674,15 +734,24 @@ check('PRC-4: pr-view prints curated JSON by default', () => {
   assert.ok(c[c.lastIndexOf('--repo') + 1] === ENV_REPO, 'env repo must be sent');
 });
 
-// --- PRC-5: pr-view --comments skips the default --------------------------------
+// --- PRC-5: PR comment mode ----------------------------------------------------
 
-check('PRC-5: pr-view --comments skips the curated default', () => {
+check('PRC-5: PR comments default to five newest; supports limit and all', () => {
   const ctx = setupWithDocs('prc5');
-  const r = runHelper(ctx, ['pr-view', '45', '--comments']);
+  let r = runHelper(ctx, ['pr-view', '45', '--comments']);
   assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
-  const c = calls(ctx)[0];
-  assert.ok(!c.includes('--json'), `caller shape must win: ${c.join(' ')}`);
-  assert.ok(c.includes('--comments') && c.includes(ENV_REPO));
+  let c = calls(ctx)[0];
+  assert.deepStrictEqual(c.slice(0, 2), ['api', 'repos/env-owner/env-repo/issues/45/comments?sort=created&direction=desc&per_page=5']);
+
+  r = runHelper(ctx, ['pr-view', '45', '--comments', '--limit', '20']);
+  assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
+  c = calls(ctx)[1];
+  assert.ok(c.some((arg) => arg.includes('per_page=20')), `custom limit must be sent: ${c.join(' ')}`);
+
+  r = runHelper(ctx, ['pr-view', '45', '--comments', '--all-comments']);
+  assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
+  c = calls(ctx)[2];
+  assert.ok(c.includes('--paginate') && c.some((arg) => arg.includes('per_page=100')), `all comments must paginate: ${c.join(' ')}`);
 });
 
 // --- PRC-6: pr-list curated default + filters ------------------------------------
@@ -716,9 +785,22 @@ check('PRC-7: pr-comment is a thin pass-through', () => {
   assert.ok(c[c.lastIndexOf('--repo') + 1] === ENV_REPO, 'env repo last on every call');
 });
 
-// --- PRC-8: pr-close / pr-merge mutate, re-read, curate -------------------------
+// --- PRC-8: pr-review thin pass-through ------------------------------------------
 
-check('PRC-8: pr-close / pr-merge mutate then re-read; no --admin injected', () => {
+check('PRC-8: pr-review submits a native review event as a thin pass-through', () => {
+  const ctx = setupWithDocs('prc8-review');
+  const r = runHelper(ctx, ['pr-review', '45', '--approve', '--body-file', '/tmp/review.md']);
+  assert.strictEqual(r.status, 0, `exit ${r.status}\nstderr:\n${r.stderr}`);
+  const c = calls(ctx)[0];
+  assert.deepStrictEqual(c.slice(0, 3), ['pr', 'review', '45']);
+  assert.ok(c.includes('--approve'), 'approval flag passes through');
+  assert.ok(c.includes('--body-file') && c[c.indexOf('--body-file') + 1] === '/tmp/review.md');
+  assert.ok(c[c.lastIndexOf('--repo') + 1] === ENV_REPO, 'env repo must be sent');
+});
+
+// --- PRC-9: pr-close / pr-merge mutate, re-read, curate -------------------------
+
+check('PRC-9: pr-close / pr-merge mutate then re-read; no --admin injected', () => {
   const ctx = setupWithDocs('prc8');
   fs.writeFileSync(ctx.ghOut, PR_VIEW_PAYLOAD('CLOSED'));
   let r = runHelper(ctx, ['pr-close', '45', '--comment', 'Superseded by #46.']);

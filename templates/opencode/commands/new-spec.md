@@ -14,11 +14,11 @@ Role ownership — non-negotiable:
 
 Flow:
 1. Orchestrator drives the full shaping loop from start to stop. Do not treat the founder's first prompt as a complete spec.
-2. Strategist leads: extract the founder goal, urgency, business value, success metrics, constraints, assumptions, and open questions. Do not proceed to step 3 until strategist can articulate the business problem, business value, and success metrics clearly.
-3. Source `.github-project.env` (`source ./.github-project.env`) for the GitHub owner/project metadata and the resolved central Obsidian project documentation path (`ANT_TEAM_DOCS_PROJECT_PATH`) — it is the sole committed project config source — then research the relevant vault notes, code context, existing GitHub milestones, issues, and project history needed to ground the conversation in real repo context. Search by topic, feature name, domain terms, paths, module names, and synonyms. Do not rely on document numbering.
-4. Strategist pressure-tests the idea with the founder: challenge assumptions, suggest better variants, cut scope to the smallest viable slice, and surface product tradeoffs, risks, and missing decisions.
-5. Tech-lead pressure-tests before the spec is finalized: feasibility, architecture fit, integration points, sequencing, operational burden, technical tradeoffs, and risk. Tech-lead must identify gaps, not rubber-stamp the draft.
-6. Any discussion between strategist and tech-lead that changes scope, assumptions, tradeoffs, sequencing, constraints, or the recommended path must be recorded in the central Obsidian communication record (see the agent-communication-log skill) before the flow moves on, with the resolved final decision posted as a concise GitHub comment once the milestone or issue exists. Do not leave shaping decisions only in transient chat.
+2. Start with understanding, not solution creation. Strategist reads the existing project folder and relevant repository/GitHub context, then summarizes the current state, founder problem, desired outcome, assumptions, and open questions. Do not propose an MVP, spec, milestone, or issue set yet.
+3. Run centralized GitHub and worktree helpers directly; they load `.github-project.env` themselves. Source it once only when a direct command needs an `ANT_TEAM_*` value, such as resolving the project-folder documentation path. Read the project README, SPEC, ARCHITECTURE, and MEMORY files when present, then inspect relevant code, issues, PRs, and project state. Search by topic, feature name, domain terms, paths, module names, and synonyms. Do not rely on document numbering or event-file links.
+4. Strategist discusses the understanding with the founder. Ask focused clarification questions. Challenge assumptions only after the current problem and desired outcome are clear. Do not create an MVP proposal prematurely.
+5. After the founder confirms the problem framing, tech-lead pressure-tests the proposed direction before the spec is finalized: feasibility, architecture fit, integration points, sequencing, operational burden, technical tradeoffs, and risk. Tech-lead must identify gaps, not rubber-stamp the draft.
+6. Keep routine shaping discussion in the active GitHub issue or founder conversation. Consolidate only durable changes into the project-folder SPEC or ARCHITECTURE. Use the communication log only for exceptional decisions, blockers, or loop-breakers.
 7. Synthesize back to the founder with:
    - problem statement and business value
    - recommended MVP scope and explicit non-goals
@@ -26,8 +26,8 @@ Flow:
    - notable product and technical tradeoffs
    - key gaps or unanswered questions
    - the suggested implementation direction
-8. Get explicit founder confirmation or correction before writing the spec. If material ambiguity remains, keep collaborating. Do not draft prematurely.
-9. Strategist writes the business sections of the spec. Tech-lead writes the technical sections. Use `documentation-standard` SPEC type.
+8. Get explicit founder confirmation or correction before proposing or writing the spec. If material ambiguity remains, keep collaborating. Do not draft prematurely.
+9. Before creating the canonical SPEC, allocate its numeric-only identifier with `"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" spec-next`. Use exactly the returned `SPEC-###` identifier in the Obsidian `spec_id`, note title, and subsequent GitHub milestone. Strategist writes the business sections of the spec. Tech-lead writes the technical sections. Use `documentation-standard` SPEC type.
 
    GATE — the spec is not implementation-ready and the flow must not advance to step 10 unless every section below is present and complete:
 
@@ -53,14 +53,19 @@ Flow:
    - Architecture notes: relevant decisions or guardrails from the central Obsidian project folder; any new ADR or ARCH doc needed
    - Acceptance criteria: conditions that prove the spec is fully delivered; each criterion must later be traceable to at least one issue
    - Rollout and rollback plan: phasing, feature flags, migration steps, rollback procedure, and who is responsible
+   - Open decisions: each decision's owner, whether it blocks planning, and why any non-blocking decision may wait
+
+   Record the strategist-to-tech-lead planning handoff in GitHub with the canonical Obsidian SPEC URL, decision status, evidence, and exact next action. Do not continue while a planning-blocking decision remains open.
 
 10. Tech-lead creates the GitHub milestone and all execution issues using the `how-to-create-task` skill.
 
     GATE — no issue may be moved to `Ready` until all of the following are confirmed:
     - Milestone exists with description using the `how-to-create-task` milestone template
-    - Every issue follows the `how-to-create-task` issue template including Why, Tech-Lead Guardrails, Definition of Done, and Sequence Position
+    - Every issue follows the `how-to-create-task` issue template including Why, `Durable Context`, Tech-Lead Guardrails, Definition of Done, and Sequence Position
+    - Every issue's Durable Context has exact normal URLs to the canonical SPEC and each applicable ARCH, ADR, GOV, and runbook; non-applicable references have a reason
+    - No unresolved decision blocks an issue's scope, acceptance criteria, architecture, dependency, security, or verification
     - Tech-lead has worked through the Required Task Types checklist — every type either has an issue or an explicit exclusion recorded in the milestone
-    - Documentation tasks point to the central Obsidian project folder, and testing/QA execution tasks exist unless explicitly excluded with written justification
+    - Documentation tasks point to the existing project folder, and testing/QA execution tasks exist unless explicitly excluded with written justification
     - Tech-lead has sequenced all issues and recorded the full sequence in the milestone
     - Every spec acceptance criterion is covered by at least one issue
     - Every functional, technical, data model, API, security, observability, and error handling requirement from the spec is addressed by at least one issue
@@ -68,7 +73,7 @@ Flow:
 
     If any check fails, create the missing issues or record the gap in the milestone before marking anything Ready.
 
-11. Move confirmed executable issues to `Ready`. Leave non-executable work in `Backlog` or `Blocked` with the exact reason recorded in the Obsidian communication record and reflected in the GitHub issue or milestone.
+11. Move confirmed executable issues to `Ready`. Leave non-executable work in `Backlog` or `Blocked` with the exact reason reflected in the GitHub issue or milestone.
 12. Confirm at least one builder-ready issue exists. If not, record why in GitHub and tell the founder exactly what is missing before stopping.
 13. Recommend `do-tasks` only after GitHub is updated and at least one builder-ready issue exists.
 
@@ -79,6 +84,7 @@ Expected behavior:
 - the spec quality gate in step 9 and the issue gate in step 10 are hard stops, not suggestions; the flow does not advance past either gate until both are fully satisfied
 - founder collaboration is part of the normal flow, not an escalation
 - do not write the final spec until gaps, tradeoffs, and a recommended direction have been surfaced back to the founder
+- never treat “create an MVP” as sufficient understanding of an existing project
 - use `documentation-standard` SPEC type for the spec document
 - use `how-to-create-task` for all milestone and issue creation
 

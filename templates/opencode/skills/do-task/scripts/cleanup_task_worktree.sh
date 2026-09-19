@@ -20,7 +20,7 @@ into the base branch. Refuses to delete anything that is not fully merged.
   WORKTREE_PATH  worktree location (default: $ANT_TEAM_WORKTREE_ROOT/<ISSUE_ID>
                  from .github-project.env, else <repo-parent>/<repo-name>-<ISSUE_ID>)
 
-Source ./.github-project.env first so ANT_TEAM_WORKTREE_ROOT is honored.
+The helper automatically reads the repository .github-project.env so ANT_TEAM_WORKTREE_ROOT is honored.
 USAGE
 }
 

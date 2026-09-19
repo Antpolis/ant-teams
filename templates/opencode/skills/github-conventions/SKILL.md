@@ -23,9 +23,10 @@ Apply this mapping consistently:
 | Task | GitHub Issue |
 | Workflow State | GitHub Project item status |
 | Implementation artifact | GitHub Branch + Pull Request |
-| Agent-to-agent communication | Central Obsidian project communication notes |
+| Collaboration Record | GitHub issue + linked pull request + GitHub Project `Workflow State` |
+| Handoffs, blockers, escalations, and task decisions | GitHub issue comments; use PR comments for code-specific discussion |
 | Final closing message / approval | GitHub issue and pull request comments |
-| Product and architecture documentation | Central Obsidian vault project path linked from the milestone or issue |
+| Product and architecture documentation | Curated central Obsidian vault project path linked from the milestone or issue |
 | Code implementation detail | Project repository and pull request |
 
 Do not treat milestone text as the full spec.
@@ -56,9 +57,11 @@ Each issue should include:
 - acceptance criteria
 - verification expectation
 - linked milestone
+- `Durable Context` with the canonical SPEC URL and exact URLs for applicable ARCH, ADR, GOV, and runbook notes; use `Not applicable — reason` when absent
+- open decisions with owner and blocking status
 - role owner
 
-Avoid giant issues that hide multiple major decisions.
+Avoid giant issues that hide multiple major decisions. A builder starts from the issue and follows its Durable Context URLs; it must not need to reconstruct requirements from chat or conduct a broad vault search.
 
 ## Project States
 
@@ -100,30 +103,33 @@ Use labels to improve filtering and routing, not as a substitute for clear issue
 
 ## Comments
 
-Use issue comments only for:
+Use issue comments for:
 
-- final decisions and status-critical updates
-- blocker and escalation status
-- closure and completion confirmations
-- concise founder decision requests
-- links to the Obsidian communication record
+- concise handoffs at meaningful role boundaries or state changes
+- task decisions, blocker and escalation status, and founder decision requests
+- current owner, next action, closure, and completion confirmations
+- links to durable Obsidian documentation when it constrains the task
 
-Use PR comments only for code-specific findings, review threads, approval evidence, and merge confirmation.
+Use PR descriptions for implementation summaries, verification evidence, known risks or skipped checks, review focus, and the builder-to-reviewer delegation. Use PR comments for code-specific findings, review threads, responses, approval evidence, reviewer-to-builder rework delegation, and merge confirmation.
 
-Working agent-to-agent discussion, delegation reasoning, shaping conclusions, and review-loop history live in the central Obsidian communication record, not in GitHub comments.
+Use the standard `## Delegation — <source> → <target>` format from `agent-communication-log`. The direct sub-agent instruction must include the same issue/PR URL, purpose, authoritative context URLs, expected action, and expected GitHub record; GitHub stores the durable handoff, not a copy of the entire runtime prompt.
 
-When strategist and tech-lead discuss a spec during shaping, they record the durable result of that discussion in the Obsidian communication record and post only the final decision summary to the milestone or shaping issue before handing work forward.
+The GitHub issue, linked pull request, and Project `Workflow State` are the Collaboration Record. They must let the next role continue without a chat transcript or separate Obsidian event file. Record review-loop history, if needed, in the issue or PR.
+
+When strategist and tech-lead discuss a spec during shaping, record the actionable conclusion, owner, and next action in the milestone or shaping issue. Update Obsidian only when the conclusion changes a curated spec, architecture reference, ADR, governance policy, runbook, or other reusable durable knowledge.
 
 ## Source Of Truth Rules
 
-- Keep product specs, architecture notes, ADRs, governance, lifecycle, and project memory in the central Obsidian vault.
-- Keep code-adjacent implementation detail in the project repository.
-- Link the central Obsidian document or Antpolis/documentation URL from the milestone.
-- Keep agent-to-agent shaping and task-local execution discussion in the central Obsidian communication note.
-- Keep GitHub status fields authoritative for workflow state.
-- Link the Obsidian communication note from the issue or milestone when useful.
+- Keep curated product specs, architecture notes, ADRs, governance, lifecycle, runbooks, and reusable project knowledge in the central Obsidian vault.
+- Keep code-adjacent implementation detail in the project repository and pull request.
+- Link the canonical SPEC from the milestone and every execution issue. Link each applicable ARCH, ADR, GOV, and runbook directly from the issue's `Durable Context`; GitHub links use normal URLs because it cannot resolve Obsidian wikilinks.
+- Keep task-local discussion, handoffs, blockers, escalation requests, review outcomes, and ownership decisions in GitHub.
+- Keep GitHub Project status fields authoritative for workflow state.
+- Do not create an Obsidian issue vault, per-task communication-event mirror, or routine task note.
+- Create or update an Obsidian document only for durable knowledge that meets GOV-001's write threshold.
+- Role memory is event-triggered and contains only reusable lessons; do not create `No new durable memory` entries.
 - Keep code-specific review on the pull request.
-- Reconcile GitHub artifacts and repo docs if they drift.
+- Reconcile GitHub artifacts and durable documentation if they drift.
 
 ## Usage Guidance
 

@@ -13,7 +13,7 @@ Use the agentic-flow-terms skill as the canonical glossary for workflow terms.
 Use github-agentic-delivery-flow for the overall GitHub operating model.
 Use do-task for the full queue-driving behavior before and around this decision point.
 Use state-transitions, approval-or-escalation, and founder-escalation-preflight for board movement and escalation decisions.
-Use agent-communication-log and role-memory when durable context needs to be checked before routing the next step.
+Use GitHub Issues, Pull Requests, milestone comments, and Project Workflow State as the operational collaboration record. Consult curated documentation or existing role memory only when relevant durable context is needed before routing the next step.
 
 ## Optional Ponytail Checkpoint
 
@@ -46,7 +46,7 @@ Apply this order every time an issue leaves the active loop:
 3. Check whether any other issue is already pending and executable (`Ready`, `In Progress`, `In Review`).
 4. If yes, continue directly to that pending issue.
 5. If no pending executable issue exists, check whether any issue is in `Need attentions`.
-6. If a `Need attentions` issue exists, inspect the founder-addressed GitHub comment and the linked Obsidian communication event:
+6. If a `Need attentions` issue exists, inspect the founder-addressed GitHub comment and related GitHub collaboration record:
    - `Need attentions` is founder-only: strategist and tech-lead review must already have been attempted and recorded before the issue entered this state.
    - Confirm the founder decision is genuinely pending; if strategist or tech-lead resolution was actually still possible, route it back to that role instead.
    - Founder-facing: run `founder-escalation-preflight` then escalate if confirmed.
@@ -74,12 +74,12 @@ When no pending executable issue remains, inspect issues that need attention bef
 
 `Need attentions` is founder-only: it is entered only after strategist and tech-lead review have both been attempted. When you find an issue there:
 
-- confirm the founder decision is genuinely pending from the founder-addressed GitHub comment and the linked Obsidian communication event
+- confirm the founder decision is genuinely pending from the founder-addressed GitHub comment and related GitHub collaboration record
 - if strategist or tech-lead resolution was actually still possible, route it back to that role and move the issue out of `Need attentions`
 - send any unresolved product meaning, scope cuts, success criteria, prioritization, or business tradeoff questions to `strategist` first
 - send any unresolved technical direction, sequencing, feasibility, architecture, or guardrail questions to `tech-lead` first
 
-If strategist or tech-lead can still resolve the issue safely, record the durable guidance and return the issue to its prior state.
+If strategist or tech-lead can still resolve the issue safely, record the operational guidance in GitHub and return the issue to its prior state.
 If they determine the issue is truly external or approval-bound, move it to `Blocked` or prepare the founder escalation.
 
 Do not escalate to the founder merely because `Need attentions` exists, and do not leave an issue in `Need attentions` that either role could still resolve.

@@ -32,11 +32,13 @@ Repository-specific defaults live in the sole committed project config source:
 
 `./.github-project.env`
 
+Centralized helpers load this file automatically. Source it once only when a direct shell command must expand an `ANT_TEAM_*` value:
+
 ```bash
 source ./.github-project.env
 ```
 
-That file stores every config value with the `ANT_TEAM_` prefix (`ANT_TEAM_GITHUB_OWNER`, `ANT_TEAM_GITHUB_PROJECT_NUMBER`, `ANT_TEAM_GITHUB_PROJECT_ID`, `ANT_TEAM_GITHUB_WORKFLOW_STATE_FIELD_ID`, `ANT_TEAM_GITHUB_WORKFLOW_STATE_OPTION_IN_REVIEW_ID`, `ANT_TEAM_WORKTREE_ROOT`, `ANT_TEAM_DOCS_PROJECT_PATH`, and so on), covering:
+That file stores every config value with the `ANT_TEAM_` prefix (`ANT_TEAM_GITHUB_OWNER`, `ANT_TEAM_GITHUB_PROJECT_NUMBER`, `ANT_TEAM_GITHUB_PROJECT_ID`, `ANT_TEAM_GITHUB_WORKFLOW_STATE_FIELD_ID`, `ANT_TEAM_GITHUB_WORKFLOW_STATE_OPTION_IN_REVIEW_ID`, `ANT_TEAM_WORKTREE_ROOT`, `ANT_TEAM_DOCS_PROJECT_PATH`, and documentation routing exports), covering:
 
 - owner, repo, owner type
 - project number and project ID
@@ -44,7 +46,7 @@ That file stores every config value with the `ANT_TEAM_` prefix (`ANT_TEAM_GITHU
 - Workflow State option IDs (one `ANT_TEAM_GITHUB_WORKFLOW_STATE_OPTION_<STATE>_ID` per canonical state; `<STATE>` is the canonical name uppercased with spaces and dashes mapped to underscores, e.g. `IN_PROGRESS`, `NEED_ATTENTIONS`)
 - the default `ANT_TEAM_WORKTREE_ROOT` and the `ANT_TEAM_DOCS_*` documentation routing exports
 
-Prefer sourcing it over any other config lookup. The env is seeded and updated by project initialization itself (`"$ANT_TEAM_SCRIPTS/init-project.sh"` after `scripts/init-company.sh`; there is no standalone generator and no JSON config): existing values are preserved and missing keys are filled. The helper sources this file read-only — it never writes or edits it. The bundled `gh_project_helper.sh` sources the env as its sole local runtime config; `"$ANT_TEAM_SCRIPTS/gh_project_helper.sh"` is the thin centralized wrapper that invokes it (with `bash`, so mirror execute bits are never required).
+Prefer centralized helpers for GitHub and worktree operations; source it only for direct `ANT_TEAM_*` variable access. The env is seeded and updated by project initialization itself (`"$ANT_TEAM_SCRIPTS/init-project.sh"` after `scripts/init-company.sh`; there is no standalone generator and no JSON config): existing values are preserved and missing keys are filled. The helper sources this file read-only — it never writes or edits it. The bundled `gh_project_helper.sh` sources the env as its sole local runtime config; `"$ANT_TEAM_SCRIPTS/gh_project_helper.sh"` is the thin centralized wrapper that invokes it (with `bash`, so mirror execute bits are never required).
 
 The env file is intended to be committed to the repository because it stores shared GitHub collaboration metadata rather than secrets.
 
@@ -68,11 +70,11 @@ Be concrete when the user asks for any of these common GitHub collaboration acti
 - complete an issue
 - create a PR when an issue is ready for code review
 - comment on a PR
+- submit a GitHub-native PR approval, request-changes, or review comment
 - reply to a PR review comment
 - inspect PR checks and CI workflow runs
 - create, inspect, or edit a release
 - recover the board state of an issue after a failed status mutation
-- reconcile a local Obsidian record with GitHub after an offline write
 
 For these actions, prefer returning the exact command sequence rather than only describing the workflow.
 
@@ -95,7 +97,7 @@ Do not guess field names, single-select option IDs, or project item IDs.
 
 Prefer commands in this order:
 
-1. the bundled helper for issue, milestone, PR/review, CI/testing, release, board/project query, and dual-record sync operations (`issue-create`, `issue-view`, `issue-list`, `issue-edit`, `issue-comment`, `issue-close`, `milestone-create`, `milestone-list`, `milestone-edit`, `milestone-close`, `pr-create`, `pr-view`, `pr-list`, `pr-comment`, `pr-close`, `pr-merge`, `pr-checks`, `pr-review-reply`, `run-list`, `run-view`, `workflow-list`, `workflow-run`, `release-create`, `release-list`, `release-view`, `release-edit`, `release-delete`, `issue-sync`, `milestone-sync`, plus the board/project query family: `item-id`, `item-state`, `item-get`, `list-statuses`, `list-items`, `list-unassigned`, `project-list`, `project-view`, `project-field-list`, `set-status`, `set-status-id`, `next-status`, `add-issue`, `gh-item-edit`) — thin wrappers around the matching `gh` subcommands and `gh api` that resolve the target repository and board from `.github-project.env` so no `--repo` or owner has to be repeated
+1. the bundled helper for issue, milestone, SPEC allocation/lookup, PR/review, CI/testing, release, board/project query operations (`issue-create`, `issue-view`, `issue-list`, `issue-edit`, `issue-comment`, `issue-close`, `milestone-create`, `milestone-list`, `milestone-edit`, `milestone-close`, `spec-next`, `spec-view`, `pr-create`, `pr-view`, `pr-list`, `pr-comment`, `pr-close`, `pr-merge`, `pr-checks`, `pr-review-reply`, `run-list`, `run-view`, `workflow-list`, `workflow-run`, `release-create`, `release-list`, `release-view`, `release-edit`, `release-delete`, plus the board/project query family: `item-id`, `item-state`, `item-get`, `list-statuses`, `list-items`, `list-unassigned`, `project-list`, `project-view`, `project-field-list`, `set-status`, `set-status-id`, `next-status`, `add-issue`, `gh-item-edit`) — thin wrappers around the matching `gh` subcommands and `gh api` that resolve the target repository and board from `.github-project.env` so no `--repo` or owner has to be repeated
 2. `gh issue ...` directly when operating outside a repository with `.github-project.env`
 3. raw `gh project ...` only for board operations the helper does not cover (every board read the workflow uses — items, statuses, fields, project metadata — has a helper subcommand)
 4. `gh api graphql` when GitHub Projects v2 mutations or richer joins are needed
@@ -106,10 +108,10 @@ Prefer structured output over human-formatted output:
 - use `--json`
 - use `--jq` for simple extraction
 - use external `jq` for more involved transforms
-- the helper's `issue-view` and `issue-list` print curated collaboration JSON by default; pass `--json`, `--jq`, `--template`, `--comments`, or `--web` to control the shape yourself (all other flags pass straight through to `gh issue`)
+- the helper's `issue-view` and `issue-list` print curated collaboration JSON by default; `issue-view ISSUE --comments` returns the newest five comments as a JSON array. Use `--limit N` for a different count or `--all-comments` for the complete newest-first history. For non-comment views, pass `--json`, `--jq`, `--template`, or `--web` to control the shape yourself (all other flags pass straight through to `gh issue`)
 - for repeated GitHub Project operations, prefer the centralized wrapper `"$ANT_TEAM_SCRIPTS/gh_project_helper.sh"` (it routes to this skill's bundled engine and saves tokens by avoiding re-derived GraphQL details)
-- prefer repo-local defaults (source `./.github-project.env` — the sole committed project config source — for `ANT_TEAM_*` values) before asking the user again for owner or project number
-- prefer repo-local IDs from the sourced env before calling GitHub endpoints to rediscover stable field IDs and option IDs
+- invoke centralized helpers directly: they read repo-local `ANT_TEAM_*` defaults from `.github-project.env` before asking the user again for owner or project number
+- source the env once only when a direct GitHub command needs its IDs; otherwise use the helper instead of rediscovering stable field IDs and option IDs
 
 ## Required Behavior
 
@@ -199,7 +201,7 @@ Use:
   --body "Final decision: approved with the follow-up filed as #51."
 ```
 
-Comments carry only final decisions, status, closure, and code-review outcomes; durable handoffs and reasoning live in the central Obsidian project folder. Pass `--body-file` for longer notes.
+Record routine handoffs, blockers, reasoning, and next actions in GitHub issue or PR comments. Link Obsidian only for curated durable knowledge under GOV-001. Pass `--body-file` for longer notes.
 
 ### Create Issue As A Task
 
@@ -213,11 +215,20 @@ Use:
   --milestone "SPEC-001"
 ```
 
-The first positional is the required title; every other flag passes straight through to `gh issue create`. Prefer `--body-file` when the task template is more than a couple of lines. The command is local-first (see the dual-record section) and prints the curated `{"number", "title", "state", "url"}` result derived from the creation response.
+The first positional is the required title; every other flag passes straight through to `gh issue create`. Prefer `--body-file` when the task template is more than a couple of lines. The command prints the curated `{"number", "title", "state", "url"}` result derived from the creation response.
 
 ### Create Milestone As A Spec
 
-Use:
+Allocate the numeric-only canonical ID before creating the Obsidian SPEC or its milestone:
+
+```bash
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" spec-next
+# SPEC-001
+```
+
+Canonical SPEC IDs are exactly `SPEC-###` (zero-padded to at least three digits); do not use alphanumeric or unpadded variants.
+
+Then use:
 
 ```bash
 "$ANT_TEAM_SCRIPTS/gh_project_helper.sh" milestone-create "SPEC-001: Deliverable name" \
@@ -272,7 +283,7 @@ Example (founder demo contract):
 
 ```bash
 "$ANT_TEAM_SCRIPTS/gh_project_helper.sh" set-status 37 "Ready"
-# {"issue_number":37,"title":"SPEC-003-T7: Local-first dual-record sync","state":"Ready","url":"https://github.com/Antpolis/ant-teams/issues/37"}
+# {"issue_number":37,"title":"SPEC-003-T7: GitHub helper update","state":"Ready","url":"https://github.com/Antpolis/ant-teams/issues/37"}
 
 "$ANT_TEAM_SCRIPTS/gh_project_helper.sh" list-items "In Review"
 # {"item_id":"PVTI_...","issue_number":45,"title":"...","state":"In Review","assignees":["chrissim"],"url":"..."}
@@ -402,7 +413,7 @@ The helper's shared exit contract:
 
 - `0` — success, including a verified idempotent no-op (a status command finding the item already in the requested state, or a sync finding nothing pending)
 - `1` — hard failure: usage/config errors, unresolvable Workflow State name or option, no board item for the issue, ambiguous duplicate board items, a failed `next-status` precondition, a post-edit verification mismatch, a `list-statuses` result with zero statuses, release-tag/title validation failures
-- `3` — retryable or deferred: exhausted board-read retries (rate limit, network — safe to retry later) and the dual-record offline deferral (the local record write is kept and marked `pending_sync: true`)
+- `3` — retryable: exhausted board-read retries (rate limit or network — safe to retry later)
 - any other non-zero code — gh's own failure propagating for a non-transient read failure; reads are never retried for these, and mutations are never retried at all
 
 ### Complete Issue
@@ -444,17 +455,25 @@ Related PR operations:
 "$ANT_TEAM_SCRIPTS/gh_project_helper.sh" pr-merge PR_NUMBER
 ```
 
-`pr-view` and `pr-list` print curated collaboration JSON by default; pass `--json`, `--jq`, `--template`, `--comments`, or `--web` to control the output shape yourself. `pr-create` prints the curated `{"number", "title", "state", "url"}` result from the creation response; `pr-close` and `pr-merge` mutate, re-read, and print the same four-field contract carrying the post-mutation state. `pr-merge` and `pr-close` are policy-controlled: caller flags pass through only; approval gates are never bypassed.
+`pr-view` and `pr-list` print curated collaboration JSON by default. `pr-view PR --comments` returns the newest five conversation comments as a JSON array; use `--limit N` for a different count or `--all-comments` for the complete newest-first history. For non-comment views, pass `--json`, `--jq`, `--template`, or `--web` to control the output shape yourself. `pr-create` prints the curated `{"number", "title", "state", "url"}` result from the creation response; `pr-close` and `pr-merge` mutate, re-read, and print the same four-field contract carrying the post-mutation state. `pr-merge` and `pr-close` are policy-controlled: caller flags pass through only; approval gates are never bypassed.
 
-### Comment On A PR
+### Comment Or Review A PR
 
-Use:
+Use a normal PR comment for review handoffs, retest notes, and high-level discussion:
 
 ```bash
 "$ANT_TEAM_SCRIPTS/gh_project_helper.sh" pr-comment PR_NUMBER --body "MESSAGE"
 ```
 
-Use this for review handoffs, retest notes, or high-level review conversation. PR comments carry final decisions, status, closure, and code-review results; durable handoffs and reasoning live in the central Obsidian project folder.
+Use `pr-review` for an explicit native GitHub review decision:
+
+```bash
+"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" pr-review PR_NUMBER \
+  --approve \
+  --body-file /tmp/review.md
+```
+
+Use `--request-changes` for blocking findings. PR comments and native review events carry final decisions, status, closure, and code-review results; durable handoffs and reasoning live in GitHub, while only durable specifications, architecture, and reusable knowledge belong in the central Obsidian project folder.
 
 ### Reply To A PR Review Comment
 
@@ -501,27 +520,6 @@ Use:
 
 `release-view` and `release-list` print curated JSON by default; pass `--json`, `--jq`, `--template`, or `--web` to control the output shape yourself. `release-create` and `release-edit` mutate, then re-read the release and print the same curated shape as `release-view` (the mutation response is only a URL). `release-delete` prints `{"tagName", "url", "deleted": true}`. All three validate the tag against the canonical Git tag rules before the underlying release command runs. `release-delete` is policy-controlled and destructive: caller flags pass through only and the `--yes` auto-confirm is never injected.
 
-### Reconcile Local Records With GitHub (Dual-Record Sync)
-
-The mutating issue and milestone CRUD commands (`issue-create`, `issue-edit`, `issue-close`, `milestone-create`, `milestone-edit`, `milestone-close`) are local-first: they write the local Obsidian record under `ANT_TEAM_DOCS_PROJECT_PATH/issue/` or `.../spec/` FIRST, then synchronize it to GitHub when online. Mapping is deterministic: issue number → `issue/ISSUE-0NN-*.md` (frontmatter `github_number`); milestone number → `spec/SPEC-0NN-*.md` (frontmatter `github_milestone`). The "Local Notes" section and local-only frontmatter are always preserved.
-
-Canonical-source rule:
-
-- `templates/opencode/` is the canonical implementation source (helper behavior, command contracts, agent-facing guidance); generated mirrors are never hand-edited.
-- Local Obsidian records are the local-first working source, authoritative for durable content (title, body, "Local Notes", local-only frontmatter). They are never regenerated from GitHub.
-- GitHub is the online execution board/state, authoritative for execution-state fields (Workflow State, closure, assignees, labels, milestone link) when connected.
-
-Offline or on GitHub failure, the local write is kept and marked `pending_sync: true`; the command exits `3` and names the recovery command on stderr. The local write is never rolled back. Recover and converge with:
-
-```bash
-"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" issue-sync ISSUE_NUMBER
-"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" milestone-sync MILESTONE_NUMBER
-```
-
-Both are idempotent: pending local durable content (title, body) is pushed, GitHub execution-state fields (state/closure, labels, assignees, milestone link, URL) are pulled. On conflict (both sides changed since the last sync), durable content resolves toward the local record, execution-state toward GitHub, and unresolved conflicts are reported on stderr.
-
-Read commands fall back to the local record when GitHub is unreachable and never write it; `issue-comment` and board commands stay GitHub-only. Local record writes are atomic (temp file + rename), slugified, and confined to `ANT_TEAM_DOCS_PROJECT_PATH/{issue,spec}/`; the helper never runs Git commit or push on the vault.
-
 ## GitHub Projects Notes
 
 Assume GitHub Projects v2 unless the repository clearly uses something else.
@@ -550,7 +548,7 @@ When the workflow takes multiple commands, present them as a small sequence with
 - Avoid bulk edits without previewing targets first.
 - Avoid hard-coding IDs that were not freshly discovered.
 - Avoid acting on the wrong owner or repo because of local defaults.
-- Prefer individual Obsidian communication event files for agent handoffs, blockers, and reasoning. Use GitHub comments for final closing messages, status-critical updates, and links to the Obsidian event.
+- Record routine agent handoffs, blockers, reasoning, and next actions in GitHub issue or PR comments. Link curated Obsidian documentation only when the outcome meets the GOV-001 durable-knowledge threshold; never create a routine communication-event mirror.
 - If a mutation could affect many items, summarize the intended scope before executing.
 
 ## Reference File
@@ -570,7 +568,6 @@ Read [references/command-patterns.md](./references/command-patterns.md) whenever
 - PR lifecycle (create, view, list, comment, close, merge, checks) and review replies
 - CI workflow-run inspection and dispatch
 - release operations
-- dual-record sync and offline recovery
 - reporting filters
 
 Use [scripts/gh_project_helper.sh](./scripts/gh_project_helper.sh) (the bundled engine; `"$ANT_TEAM_SCRIPTS/gh_project_helper.sh"` is its thin centralized wrapper) whenever the user asks for repeated GitHub Project, issue, or milestone operations and the goal is to minimize prompt tokens, avoid repeating raw GraphQL mutations, and keep the repository resolved from `.github-project.env`.

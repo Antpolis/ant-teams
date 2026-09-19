@@ -53,10 +53,12 @@ Typical owner:
 Allowed when:
 
 - founder direction is clear
-- spec is written or linked
+- the canonical Obsidian SPEC is stable and linked from the milestone and issue
+- strategist-to-tech-lead planning handoff is recorded in GitHub
 - tech-lead says the scope is technically viable
-- initial task shape is clear enough to execute
 - the work has been materialized into one or more GitHub task issues
+- each issue has bounded scope, non-goals, acceptance criteria, dependencies, verification, owner, and exact Durable Context URLs (SPEC plus applicable ARCH, ADR, GOV, and runbook)
+- no unresolved decision blocks scope, acceptance criteria, architecture, dependency, security, or verification
 - the next responsible role for the ready issue is builder
 
 Typical owner:
@@ -67,8 +69,9 @@ Typical owner:
 
 Allowed when:
 
-- the issue has acceptance criteria
+- the issue still satisfies the `Ready` documentation and decision gate
 - dependencies are not blocking
+- a builder has read the issue and its exact Durable Context links
 - a builder is taking ownership
 
 Typical owner:
@@ -89,7 +92,7 @@ Typical owner:
 
 - builder
 
-Builder is responsible for this transition only after the branch, PR, verification evidence, and durable handover note are in place.
+Builder is responsible for this transition only after the branch, PR, verification evidence, and durable handover comment in the issue or PR are in place.
 
 ### `In Review` -> `In Progress`
 
@@ -111,13 +114,13 @@ Reviewer should record durable findings and return the issue to builder on the s
 - strategist review has been attempted and cannot resolve the question
 - tech-lead review has been attempted and cannot resolve the question
 - the remaining question is a real founder decision: product direction, prioritization, approval, credentials, or a tradeoff agents cannot safely make
-- the agent has recorded the full reasoning in an Obsidian communication event file and left a concise founder-addressed GitHub comment naming the exact decision needed
+- the agent has recorded the full reasoning in a founder-addressed GitHub issue comment naming the exact decision needed, with any relevant PR discussion linked
 
 Typical owner:
 
 - any role, after strategist and tech-lead review; usually routed by orchestrator or tech-lead
 
-Internal strategist or tech-lead questions must not use `Need attentions`. Resolve them in Obsidian communication and keep the issue in its current state (or return it to `Ready`) while internal resolution happens.
+Internal strategist or tech-lead questions must not use `Need attentions`. Resolve them in GitHub issue comments and keep the issue in its current state (or return it to `Ready`) while internal resolution happens.
 
 ### `Need attentions` -> Prior State
 
@@ -162,7 +165,7 @@ Reviewer must post the approval comment on the PR before making this transition.
 
 - tech-lead and strategist have both attempted resolution and cannot clear the problem internally
 - a dependency, decision, credential, permission, or external condition prevents safe progress
-- the blocker is recorded as an Obsidian communication event file with a concise GitHub status note saying what is needed to unblock it
+- a GitHub issue comment records the blocker, attempted internal resolution, and what is needed to unblock it; link relevant PR discussion when applicable
 
 Typical owner:
 
@@ -200,9 +203,9 @@ After merge, tech-lead owns cleanup: removing the task worktree and local branch
 - Do not move work to `Done` because it looks close.
 - Do not move work to `Done` directly from `In Review`; it must pass through `Ready to Merge` after reviewer approval.
 - Do not move work to `Ready to Merge` without a reviewer approval comment on the PR explicitly stating no blockers remain.
-- Do not move work to `Ready` if the spec is still argument-shaped instead of execution-shaped.
+- Do not move work to `Ready` if the spec is still argument-shaped instead of execution-shaped, its canonical URL is missing, a required durable-context reference is absent or ambiguous, or a planning-blocking decision remains open.
 - Do not move work into `Need attentions` before strategist and tech-lead review have both been attempted; it is a founder-only decision state, and the founder-addressed GitHub comment must name the exact decision needed.
-- Do not use `Need attentions` for internal strategist or tech-lead questions; resolve those in Obsidian communication while the issue stays in its current state.
+- Do not use `Need attentions` for internal strategist or tech-lead questions; resolve those in GitHub issue comments while the issue stays in its current state.
 - Do not move a spec or milestone forward based only on comments if no builder-usable task issue exists yet.
 - Do not move work into `Blocked` before tech-lead and strategist resolution has been attempted, and never leave it there without saying what is needed to unblock it.
 - Do not bounce work between `In Progress` and `In Review` indefinitely; escalate recurring architectural rework.

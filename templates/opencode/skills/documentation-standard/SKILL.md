@@ -17,7 +17,7 @@ This skill should also help decide what kind of document to create. In particula
 
 - Treat `/home/chrissim/Projects/documentation` as an Obsidian vault, not as an ordinary repository docs folder.
 - Never create project documentation directly in the vault root `/home/chrissim/Projects/documentation/`.
-- Always resolve the project folder by sourcing `./.github-project.env` in the repository (the sole committed project config source) and using `ANT_TEAM_DOCS_PROJECT_PATH` (by default `$ANT_TEAM_DOCS_VAULT_PATH/02-Architecture-Landscape/projects/$ANT_TEAM_DOCS_PROJECT_NAME`, or the configured concrete value).
+- Resolve the project folder from the sole committed `.github-project.env` config using `ANT_TEAM_DOCS_PROJECT_PATH` (by default `$ANT_TEAM_DOCS_VAULT_PATH/02-Architecture-Landscape/projects/$ANT_TEAM_DOCS_PROJECT_NAME`, or the configured concrete value). Source the env once only when a direct command must expand that variable; centralized helpers load it themselves.
 - Root-level vault files are reserved for vault-wide indexes, governance entry points, and architecture-meta references; they are not valid destinations for project notes.
 - After completing any vault documentation task, inspect the diff, commit only the files changed for that task, and push the commit to the vault remote. Never stage unrelated user changes or secrets.
 - For every vault documentation task, use the Obsidian skills before editing: `obsidian-markdown` for notes and `obsidian-bases` for Bases.
@@ -27,14 +27,17 @@ This skill should also help decide what kind of document to create. In particula
 - Preserve template frontmatter, required properties, naming conventions, and linked Base fields; do not silently create incompatible metadata.
 
 - The canonical product documentation root is `/home/chrissim/Projects/documentation`.
-- Resolve the project-specific destination from `ANT_TEAM_DOCS_PROJECT_PATH` by sourcing `./.github-project.env` — the sole committed project config source.
+- Resolve the project-specific destination from `ANT_TEAM_DOCS_PROJECT_PATH`, sourcing `.github-project.env` once only when a direct command must expand it.
 - Use `obsidian-markdown` whenever creating or editing Obsidian Markdown, properties, wikilinks, embeds, callouts, or templates.
+- Link every relationship to another vault note with an Obsidian wikilink (`[[note-name]]` or `[[note-name|Display Text]]`). Never use a relative Markdown link for a vault note; reserve standard Markdown links for external URLs only.
+- Use explicit display text and filename-qualified targets where stable IDs collide across scopes, for example `[[ARCH-001-agentic-delivery-system-architecture|Ant Teams ARCH-001]]`.
 - Use `obsidian-bases` whenever creating or editing `.base` files, Base filters, views, formulas, or summaries.
 - Use `obsidian-cli` only when a running Obsidian instance is available; otherwise edit valid vault files directly and validate their structure.
 - Read the central vault governance and project notes before changing product documentation.
 - Do not create new product documentation under a repository `docs/` or `.docs/` folder. Keep only code-adjacent operational guidance locally.
 - Do not rely on numeric document ordering.
 - Use stable IDs such as `ADR-001`, `GOV-001`, `ARCH-001`, `SPEC-001`, `DB-001`, `API-001`, `DEPLOY-001`, `QA-001`, or `RUNBOOK-001`.
+- Every canonical specification ID must be exactly `SPEC-###`: numeric only, zero-padded to at least three digits. Do not create `SPEC-AUTH-001`, `SPEC-1`, or other variants. Before creating a SPEC, obtain the next candidate with `"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" spec-next` and put that exact value in `spec_id` frontmatter, the note title, and the GitHub milestone.
 - Use `adr` for architecture decision records.
 - Use `gov` for governance, standards, policies, conventions, and required process docs.
 - Use `arch` for customized architecture decisions and architecture guidance specific to the repository.
@@ -42,6 +45,20 @@ This skill should also help decide what kind of document to create. In particula
 - Prefer content-based metadata: domain, applies-to, keywords, related docs, and supersedes.
 - Mark stale or replaced docs as `deprecated` or `superseded`; do not silently delete historical docs unless explicitly asked.
 - Keep documentation technical, specific, and actionable.
+
+## Obsidian Role Responsibilities
+
+Obsidian is the durable knowledge base. GitHub Issues, Pull Requests, milestone discussions, Project `Workflow State`, review threads, blockers, approvals, and next actions remain the active operational record.
+
+| Role | Durable Obsidian responsibility | Do not use Obsidian for |
+|---|---|---|
+| **Strategist** | Owns durable product intent: `SPEC` problem statement, goals, non-goals, success criteria, scope, and confirmed product decisions. Updates a SPEC only when the result changes durable product truth. | Routine shaping conversation, task handoffs, status, or an unresolved product question. Record those in GitHub. |
+| **Tech-lead** | Owns durable technical truth: `ARCH`, `ADR`, `GOV`, technical runbooks, architecture constraints, technical decisions, and reusable technical lessons. | Routine implementation direction, task sequencing chatter, review status, or unresolved technical questions. Record those in GitHub. |
+| **Builder** | Does not write routine vault notes. May update a durable note only when explicitly assigned. Routes a reusable implementation lesson or an architecture/documentation gap to tech-lead through the GitHub issue. | Implementation progress, verification output, handoffs, blockers, or review rework. |
+| **Reviewer** | Does not write routine vault notes. May update a durable note only when explicitly assigned. Routes a confirmed reusable review, security, architecture, or runtime lesson to tech-lead through the GitHub issue. | Review findings, approval/request-changes, retest evidence, or review-loop history. |
+| **Orchestrator** | Routes durable documentation work to strategist or tech-lead and verifies that the appropriate durable record is updated when required. | Authoring product or technical truth by default, or duplicating the GitHub workflow record. |
+
+A durable result is recorded only after it is confirmed and likely to guide future work beyond the current issue or PR. When uncertain, record the active question and resolution in GitHub first; promote it to Obsidian only after the responsible strategist or tech-lead confirms the durable outcome.
 
 ## Document Type Routing
 
@@ -102,7 +119,7 @@ Column definitions:
 - `Summary`: One concise sentence explaining the document purpose.
 - `Keywords`: Search terms, aliases, feature names, modules, services, tables, APIs, tools, and likely synonyms.
 - `Applies To`: Modules, services, components, environments, or teams affected by the document.
-- `Related Docs`: IDs of documents that should be read together.
+- `Related Docs`: Obsidian wikilinks to documents that should be read together; use display text when an ID is ambiguous.
 - `Supersedes`: IDs of older documents replaced by this document, or blank.
 - `Last Updated`: ISO date, `YYYY-MM-DD`.
 
@@ -124,7 +141,7 @@ Metadata:
 | Owner | <owner or team if known> |
 | Applies To | <services/modules/components/environments> |
 | Keywords | <comma-separated searchable terms> |
-| Related Docs | <doc IDs or paths> |
+| Related Docs | [[note-filename|Document title]] |
 | Supersedes | <doc IDs or blank> |
 | Last Updated | <YYYY-MM-DD> |
 
@@ -154,7 +171,7 @@ Metadata:
 
 ## Related Documents
 
-<Links to related docs by ID and path.>
+<Obsidian wikilinks to related vault notes. Use standard Markdown only for external URLs.>
 ```
 
 ## Type-Specific Additions
@@ -293,15 +310,15 @@ When looking for relevant docs:
 
 When documentation work involves the central vault:
 
-1. Source `./.github-project.env` — the sole committed project config source — and resolve the vault and the exact project folder from `ANT_TEAM_DOCS_VAULT_PATH` and `ANT_TEAM_DOCS_PROJECT_PATH`.
+1. For direct documentation commands, source `./.github-project.env` once—the sole committed project config source—and resolve the vault and exact project folder from `ANT_TEAM_DOCS_VAULT_PATH` and `ANT_TEAM_DOCS_PROJECT_PATH`. Do not prefix centralized helper commands with it.
 2. Confirm the destination is the project-specific folder, never the vault root.
 3. Inspect the matching template before editing; stop if none exists.
 4. Load `obsidian-markdown` for note authoring and link/property conventions.
 5. Load `obsidian-bases` for portfolio, project, architecture, or memory views.
 6. Create or update the note in the resolved project folder using the approved template.
-7. Verify frontmatter, internal links, and Base references.
+7. Verify frontmatter, internal links, and Base references: every vault-note relationship must use `[[wikilinks]]`; no relative Markdown links may point to vault notes.
 8. Keep GitHub links as external execution references; do not duplicate live issue status in notes.
 
 ## Preferred Paths
 
-Use `ANT_TEAM_DOCS_PROJECT_PATH` (sourced from `./.github-project.env`, the sole committed project config source) for all product, architecture, ADR, governance, lifecycle, and specification documents. Resolve to the current project folder under the central Obsidian vault. Do not create these documents in repository `docs/` or `.docs/`.
+Use `ANT_TEAM_DOCS_PROJECT_PATH` from the sole committed `.github-project.env` config for all product, architecture, ADR, governance, lifecycle, and specification documents; source it once only when a direct command needs the value. Resolve to the current project folder under the central Obsidian vault. Do not create these documents in repository `docs/` or `.docs/`.

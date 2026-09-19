@@ -31,9 +31,10 @@ Produce:
 - risks
 - success metric
 - rollout or validation notes
-- handoff notes for tech-lead or builder
+- open decisions, each with an owner and whether it blocks planning
+- a planning handoff for tech-lead
 
-If shaping is happening inside the GitHub delivery workflow, also record the shaping discussion in the central Obsidian communication record (see the agent-communication-log skill) so the next role can continue without chat context.
+When shaping is part of the GitHub delivery workflow, keep the working discussion and resolved handoff in the GitHub Discussion, shaping issue, or milestone comment. Create or update the canonical Obsidian `SPEC` only when the direction is stable enough to guide planning; do not create an Obsidian communication record for routine shaping. Before creating a new SPEC, obtain its exact numeric-only ID with `"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" spec-next`; canonical IDs are only `SPEC-###` (zero-padded to at least three digits).
 
 ## Scope Rules
 
@@ -56,5 +57,7 @@ Escalate for more user input when:
 - optimize for speed to learning and practical delivery
 - do not write production code
 - do not add speculative scope to make the idea look impressive
-- if strategist and tech-lead discuss scope, tradeoffs, risks, or sequencing in-agent, record the resolved outcome in the central Obsidian communication record and post only the concise final decision to the GitHub milestone or issue when one exists
-- do not let meaningful shaping decisions live only in transient chat if the work will continue in the delivery flow
+- record resolved scope, tradeoffs, risks, sequencing, and the exact next action in the GitHub Discussion, shaping issue, or milestone comment; do not let them live only in transient chat
+- mark a SPEC `ready for planning` only when its problem, outcome, goals, non-goals, constraints, acceptance criteria, applicable durable-document links, and open decisions are explicit
+- an open decision blocks planning when it changes the task scope, acceptance criteria, architecture, dependency, security posture, or verification approach; otherwise record why it is non-blocking
+- hand off a planning-ready SPEC to tech-lead in GitHub with its canonical vault URL, decision status, evidence, and exact next action

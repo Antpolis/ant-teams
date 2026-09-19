@@ -5,7 +5,7 @@ description: Use when preparing a release from a completed GitHub milestone, cre
 
 # Release Management
 
-Use this skill after task approval and before/after production release.
+Use this skill after task approval and before/after production release. When releasing an entire completed SPEC/milestone, use `spec-closeout` to coordinate this release flow with milestone closure, board reconciliation, and safe local workspace cleanup.
 
 Start release work from the GitHub milestone and its completed issues. The primary release artifact is the GitHub Release feature, with the canonical release tag attached to it.
 
@@ -140,3 +140,4 @@ Release readiness should confirm:
 - required checks passed
 - GitHub collaboration record updated
 - role memory updated if a durable lesson was learned
+- if the release completes a SPEC/milestone, the `spec-closeout` milestone comment is posted, the milestone is closed, and only merged local task workspaces are cleaned

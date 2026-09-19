@@ -23,14 +23,15 @@ This skill is not for inventing a new architecture style. It is for helping the 
 
 Before making strong implementation decisions:
 
-1. Read the relevant task, spec, or issue if one exists.
-2. Read the nearest existing code in the same feature or module area.
-3. Read any linked repository docs that define architecture, governance, or implementation guardrails.
-4. Prefer local repository guidance over generic best-practice instincts.
+1. Start with the assigned GitHub issue: read its scope, non-goals, acceptance criteria, dependencies, verification, and `Durable Context` section.
+2. Open the issue's canonical SPEC and every applicable linked ARCH, ADR, GOV, and runbook from the central Obsidian project folder. Do not reconstruct requirements from chat or broad-search the vault unless a required link is missing.
+3. If a required durable-context URL is missing, ambiguous, stale, or conflicts with the issue, stop and request tech-lead clarification in the issue; do not guess.
+4. Read the nearest existing code in the same feature or module area.
+5. Prefer project-specific guidance over generic best-practice instincts.
 
 Useful repo guidance often lives in:
 
-- the central Obsidian project documentation path from `ANT_TEAM_DOCS_PROJECT_PATH` in `.github-project.env` — the sole committed project config source (source `./.github-project.env`)
+- the central Obsidian project documentation path from `ANT_TEAM_DOCS_PROJECT_PATH` in `.github-project.env` — the sole committed project config source; source it once only when a direct command needs that variable
 - project-specific architecture, governance, and ADR notes in that vault path
 - related skill docs and workflow docs under `.opencode/skills/`
 

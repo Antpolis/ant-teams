@@ -21,7 +21,7 @@ Bundled helpers for issue-isolated development live in:
 - `$ANT_TEAM_SCRIPTS/cleanup-task-worktree.sh`
 
 Use these helpers instead of inventing ad hoc `git worktree` commands when the builder needs to start or clean up issue workspaces. `ANT_TEAM_SCRIPTS` is installed and configured by `init-company.sh`.
-These helpers read the default issue-worktree root from `ANT_TEAM_WORKTREE_ROOT` in `.github-project.env` (source it: `source ./.github-project.env` — the sole committed project config source) when it is present.
+These helpers load `ANT_TEAM_WORKTREE_ROOT` from `.github-project.env` themselves; invoke them directly rather than prefixing each call with `source ./.github-project.env &&`.
 
 ## Issue Done Definition
 
@@ -44,7 +44,7 @@ The orchestrator must verify all three conditions are met before treating an iss
 
 The `orchestrator` owns the queue pass and role-to-role control flow for execution.
 The `tech-lead` provides the ordered issue list, execution priorities, technical interpretation, and guardrails for each pass.
-The delegated execution roles own their own workflow side effects. Once `builder` takes an issue, `builder` is responsible for creating or switching to the issue worktree and task branch, moving the issue into the correct implementation state, opening or updating the PR, and leaving a durable implementation handover note before `reviewer` takes over. `orchestrator` should coordinate and verify those handoff artifacts exist, not perform them on behalf of delegated agents.
+The delegated execution roles own their own workflow side effects. Once `builder` takes an issue, `builder` is responsible for creating or switching to the issue worktree and task branch, moving the issue into the correct implementation state, opening or updating the PR, and leaving a durable implementation handover note in the issue or PR before `reviewer` takes over. `orchestrator` should coordinate and verify those handoff artifacts exist, not perform them on behalf of delegated agents.
 
 Do not require strategist confirmation for every issue.
 Bring in `strategist` only when product intent, scope meaning, or execution meaning is unclear.
@@ -63,9 +63,9 @@ Bring in `tech-lead` when technical interpretation, sequencing, guardrails, or l
    - if the issue is in `Ready to Merge`: route to `tech-lead` for final check and merge (see Tech-Lead Merge Gate)
    - if the issue is `In Progress`: review with `builder` whether implementation is done or still in flight; if done, verify builder left the required handover note and PR linkage, then delegate `reviewer`
    - if the issue is `In Review`: delegate `reviewer` before pulling fresh queue work
-   - if the issue is in `Need attentions`: it is a founder decision state; verify from the founder-addressed GitHub comment and linked Obsidian event that strategist and tech-lead review were both attempted, run `founder-escalation-preflight`, and surface the founder decision
-   - if review shows strategist or tech-lead resolution was actually still possible, route it back to that role, record the resolution in the Obsidian communication record, and return the issue to its prior state (`Ready`, `In Review`, or `Backlog`)
-   - once the founder decides, record the decision in the Obsidian communication record, post the final decision as a concise GitHub comment, and return the issue to its prior state, or move to `Blocked` if the remaining problem is an external dependency or approval
+   - if the issue is in `Need attentions`: it is a founder decision state; verify from the founder-addressed GitHub comment that strategist and tech-lead review were both attempted, run `founder-escalation-preflight`, and surface the founder decision
+   - if review shows strategist or tech-lead resolution was actually still possible, route it back to that role, record the resolution in an issue comment, and return the issue to its prior state (`Ready`, `In Review`, or `Backlog`)
+   - once the founder decides, record the decision in a GitHub issue comment and return the issue to its prior state, or move to `Blocked` if the remaining problem is an external dependency or approval
    - if `builder` has questions about product intent or scope, invoke `strategist` as needed and record the discussion in GitHub comments
    - if `builder` has questions about technical direction or guardrails, invoke `tech-lead` and continue the pass after the answer
    - if the issue is blocked for any reason, move it to `Blocked`, add a GitHub comment explaining the blocker, and notify the user
@@ -117,23 +117,24 @@ Before returning for a founder decision, run founder-escalation-preflight and in
 
 For each issue:
 
-- confirm the technical requirement is clear enough for implementation
-- read the linked spec, dependencies, prior delegations, and relevant repository docs
+- confirm the issue is genuinely builder-ready: bounded scope, non-goals, acceptance criteria, dependencies, verification, owner, and a `Durable Context` section with exact canonical SPEC and applicable ARCH, ADR, GOV, and runbook URLs
+- read the issue first, then open every Durable Context URL; do not reconstruct requirements from chat or perform a broad vault search
+- if a required URL is missing, ambiguous, stale, or conflicts with the issue, do not invoke builder; request tech-lead clarification in a GitHub issue comment and keep the issue out of `Ready`
 - if product intent, scope meaning, or execution meaning is unclear, clear it with `strategist`
 - if technical interpretation, sequencing, or guardrails are unclear, resolve them with `tech-lead`
-- record each clarification discussion as an Obsidian communication event file for auditability; update GitHub only for status or final closure
-- if the issue has a blocker or needs human intervention, record it in the Obsidian communication record with a concise GitHub status note and skip to the next executable issue
-- if the issue needs strategist or tech-lead resolution before safe execution can continue, request that resolution through the Obsidian communication record and keep the issue in its current state; `Need attentions` is reserved for founder decisions after both reviews were attempted
+- record each delegation, clarification, blocker, and resolution in a GitHub issue comment; use PR comments or review threads when it concerns code review
+- if the issue has a blocker or needs human intervention, record the blocker and required unblocking action in a GitHub issue comment and skip to the next executable issue
+- if the issue needs strategist or tech-lead resolution before safe execution can continue, request and record that resolution in an issue comment and keep the issue in its current state; `Need attentions` is reserved for founder decisions after both reviews were attempted
 - once the technical requirement is clear, invoke `builder` and record that delegation in GitHub
 - after delegating, expect `builder` to own issue worktree creation or reuse, branch creation or reuse inside that worktree, implementation-state transitions, PR creation or update, and the builder handover note
 - do not create the issue worktree, task branch, open the PR, or write the builder's implementation handover note unless the user explicitly asks the current role to do emergency manual recovery
 
 ## Builder And Reviewer Gate
 
-- `builder` works the delegated issue according to the assigned GitHub issue, approved guardrails, and the shared build-review loop
+- `builder` works from the assigned GitHub issue first, then its exact Durable Context links, approved guardrails, and the shared build-review loop; the linked canonical SPEC is authoritative for durable product intent
 - when `builder` starts, `builder` must create or switch to the issue worktree, create or switch to the issue branch in that worktree, and move the issue into `In Progress`
 - after `builder` finishes implementation, `builder` must create or update the PR, move the issue into `In Review`, and leave a durable handover note in the issue or PR before `reviewer` review starts
-- builder-reviewer agent communication must be recorded as individual Obsidian event files in the issue communication folder; code-specific findings and final approval remain in PR comments or review threads
+- builder-reviewer communication, findings, rework reasoning, and approvals must be recorded in PR comments or review threads; use issue comments for concise task-state summaries
 - `orchestrator` should only check that the worktree, branch, PR, state change, and handover note exist before delegating `reviewer`
 - after the PR is ready, `reviewer` must review before the issue advances
 - if `reviewer` finds issues, `reviewer` returns the issue to `builder` in the same worktree and on the same branch and continues the loop through durable review findings
@@ -154,7 +155,7 @@ The repository ships optional Ponytail skills: `ponytail`, `ponytail-review`, `p
 - every issue in `Ready to Merge` must be routed to `tech-lead` by `orchestrator` before it is considered done
 - `tech-lead` reads the linked central Obsidian project documentation, GitHub issue, and PR diff to verify that implementation matches approved scope and satisfies architecture guardrails (KISS, separation of concerns, folder/package/namespace)
 - if the check passes: `tech-lead` merges the PR, moves the issue to `Done`, and posts a merge confirmation comment on the PR
-- if the check fails: `tech-lead` posts the code-specific findings as PR comments and records the full reasoning in the Obsidian communication record; builder picks the findings up on the same branch and the review loop continues through `In Progress` and `In Review`; `tech-lead` moves the issue to `Need attentions` only when a founder decision is required before the findings can be addressed
+- if the check fails: `tech-lead` posts the code-specific findings and rework reasoning in PR comments, with a concise issue-comment summary; builder picks the findings up on the same branch and the review loop continues through `In Progress` and `In Review`; `tech-lead` moves the issue to `Need attentions` only when a founder decision is required before the findings can be addressed
 - a tech-lead final check failure that results in builder rework counts as a continuation of the same review loop — the 8-loop cap applies across all review passes for the issue including those triggered by tech-lead findings; if the cap is hit, treat it as a loop-breaker and escalate to founder
 - `tech-lead` is the only role that merges; no other role may merge without an explicit recovery exception recorded in GitHub
 - an issue is `Done` only after `tech-lead` has merged the PR following a passed final check
@@ -163,9 +164,9 @@ The repository ships optional Ponytail skills: `ponytail`, `ponytail-review`, `p
 
 - GitHub Issues are the canonical execution tasks
 - GitHub Project status is the canonical workflow board
-- individual Obsidian issue and milestone communication event files are the canonical agent-to-agent delegation log
-- GitHub issue comments and PR comments are the final status, closure, and code-review audit record
-- the central Obsidian project folder is the canonical product and architecture source
+- GitHub issue comments are the canonical delegation, clarification, blocker, founder-request, and task-status record
+- PR comments and review threads are the canonical code-review, rework, approval, and merge-reasoning record
+- the central Obsidian project folder may be linked for durable specs, architecture, ADRs, GOV, runbooks, and exceptional decisions; it is not a routine event log
 - repository files are canonical only for code-adjacent implementation guidance
 
 ## Delegation Rule
@@ -181,7 +182,7 @@ The repository ships optional Ponytail skills: `ponytail`, `ponytail-review`, `p
 - `orchestrator` owns queue selection, cross-role coordination, and verification that required GitHub artifacts exist.
 - `strategist` owns product framing, scope clarity, success criteria, and product-level resolution of ambiguous work.
 - `tech-lead` owns technical interpretation, architecture guardrails, sequencing, loop-breaker technical decisions, verifying `Need attentions` founder-decision readiness (routing back to `strategist` when internal resolution is still possible), the final spec-alignment check, the merge decision, the transition from `Ready to Merge` to `Done`, and post-merge cleanup of the task worktree and local branch.
-- `builder` owns the issue worktree, task branch, implementation, implementation-state transitions into active work and review, PR creation or update, and builder handover event files in Obsidian.
+- `builder` owns the issue worktree, task branch, implementation, implementation-state transitions into active work and review, PR creation or update, and the builder handover comment in the issue or PR.
 - `reviewer` owns review findings, review approvals, return-to-builder decisions, reviewer verification notes, and the transition from `In Review` to `Ready to Merge` on approval or back to `In Progress` on findings. Reviewer does not merge and does not move issues to `Done`.
 - A role should not perform another role's normal workflow mutation just because it has tool access. If recovery is necessary, record why the usual owner could not perform the action.
 
@@ -198,27 +199,21 @@ The repository ships optional Ponytail skills: `ponytail`, `ponytail-review`, `p
 
 ## Required Delegation Content
 
-Every orchestrator or tech-lead delegation to builder should include:
+Record each meaningful delegation using the `agent-communication-log` `## Delegation` template in the GitHub issue or PR location where the receiver acts. The direct runtime instruction to the delegated sub-agent must carry the same minimum context: issue/PR URL, task outcome, reason for the role, exact durable-context URLs, constraints, expected action, and expected GitHub record.
 
-- current issue and spec
-- technical interpretation of the requirement
-- guardrails and constraints
-- dependencies or blockers
-- expected verification
-- exact next action
+Use placement deliberately:
 
-Every builder-to-reviewer handover should include:
+- strategist ↔ tech-lead planning, tech-lead → builder, and any task-level clarification: issue or milestone comment;
+- builder → reviewer implementation handoff: PR description;
+- reviewer → builder code rework: PR review thread/comment;
+- builder/reviewer → strategist or tech-lead ambiguity: issue comment.
 
-- worktree path, branch name, and PR link
-- concise implementation summary
-- verification already run
-- known risks, tradeoffs, or follow-up items
-- exact review focus or open questions
+Do not paste entire specs or chat transcripts into a delegation. The issue and its `Durable Context` URLs are the authoritative navigation path.
 
 ## Stop And Skip Rules
 
 - if an issue needs human intervention, record it and skip to the next executable issue
-- if an active issue is blocked after tech-lead and strategist resolution was attempted, move it to `Blocked`, add a concise GitHub status note linking the Obsidian blocker event, and notify the user
+- if an active issue is blocked after tech-lead and strategist resolution was attempted, move it to `Blocked`, add a concise GitHub issue comment stating the blocker and required unblocking action, and notify the user
 - if a spec is too unclear to proceed safely, record the clarification need in GitHub before pausing or switching
 - if the executable queue is empty, treat that as a triage trigger, not as completion of the pass
 - do not start a new spec unless the remaining work changes scope

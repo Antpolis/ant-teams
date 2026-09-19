@@ -12,8 +12,9 @@ All named agents must use these terms consistently in:
 - GitHub milestones;
 - GitHub issues;
 - pull requests;
-- Obsidian communication records;
-- role memory;
+- GitHub issue and pull request comments;
+- GitHub Project workflow state;
+- role memory when a reusable lesson warrants it;
 - review findings;
 - handoffs;
 - final summaries.
@@ -29,7 +30,7 @@ All named agents must use these terms consistently in:
 | Project Board | The GitHub Project used to track workflow state. |
 | Production Base Branch | The branch containing runnable production code. |
 | Task Branch | The branch created for one task or spec. |
-| Handoff | A durable transfer of context between agents recorded in Obsidian. |
+| Handoff | A concise transfer of actionable context between agents recorded in the relevant GitHub issue or pull request. |
 | Approval Gate | A required approval checkpoint before merge or completion. The current approval gate is reviewer approval plus lightweight smoke verification. |
 
 ## Development and review terms
@@ -51,14 +52,14 @@ All named agents must use these terms consistently in:
 
 | Term | Meaning |
 |---|---|
-| Collaboration Record | Full agent communication history stored as individual Obsidian event files. |
-| GitHub Collaboration Record | GitHub-side status, decisions, closure, review findings, and approval evidence. |
-| Role Memory | Durable role-specific lessons extracted from collaboration records. |
+| Collaboration Record | The GitHub issue, linked pull request, and GitHub Project `Workflow State` that together record operational task context. |
+| GitHub Collaboration Record | Deprecated synonym for Collaboration Record; use `Collaboration Record`. |
+| Role Memory | Durable role-specific lessons recorded only when an event produces reusable knowledge beyond the current issue or PR. |
 | Builder Memory | Implementation patterns, pitfalls, and verification lessons. |
 | Reviewer Memory | Review and smoke-verification lessons. |
 | Architect Memory | Architecture constraints, tradeoffs, defer decisions, and loop-breaker rationale. |
 | Durable Memory | Information likely to matter for future work. |
-| No New Durable Memory | Explicit note that no durable role memory was discovered. |
+| No-op Memory | A role-memory entry stating that no durable lesson was discovered; prohibited. |
 
 ## Architecture and planning terms
 
@@ -81,7 +82,7 @@ All named agents must use these terms consistently in:
 | Acceptance Tests | Tests or commands proving acceptance criteria. |
 | Reviewer Verification | Reviewer-owned code review and lightweight smoke verification. |
 | Merge Approval | Permission to merge after reviewer approval. |
-| Completed Task | A task satisfying definition of done, acceptance tests, reviewer gate, communication logging, and role-memory requirements. |
+| Completed Task | A task satisfying its definition of done, acceptance tests, required review/approval gates, and GitHub operational-record requirements. Role memory is not a completion requirement. |
 
 ## Required usage
 

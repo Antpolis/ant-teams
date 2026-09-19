@@ -17,9 +17,9 @@
  *          config, no `canonicalWorkflowStates` field).
  *   INV-3  The GitHub helper targets the canonical "Workflow State" field and
  *          never mutates remote board options.
- *   INV-4  Record split: Obsidian is the full agent communication and
- *          role-memory record; GitHub issue/PR comments carry only final
- *          decisions, status, closure, and code-review results.
+ *   INV-4  Record split: GitHub issue/PR comments and Project Workflow State
+ *          are the operational collaboration record; Obsidian holds only
+ *          curated durable knowledge and exceptional decisions.
  *   INV-5  Tech-lead owns merge and cleanup.
  *   INV-6  Operational scripts run through ANT_TEAM_SCRIPTS (sync-company
  *          prerequisite); the legacy local-markdown pm-lib script family is
@@ -35,10 +35,13 @@
  *          sync-company + project-init prerequisite, tilde expansion), and the
  *          runtime-facing commands and skills mention .github-project.json
  *          only in env-paired, no-JSON, or canonical-source contexts.
- *   INV-11 No active surface claims GitHub comments are the canonical or
- *          durable communication record: Obsidian is the full record, GitHub
- *          comments carry only final decisions, status, closure, and
- *          code-review results (2026-08 audit finding 1).
+ *   INV-11 No active surface requires routine Obsidian communication-event
+ *          records or no-op role-memory updates. GitHub remains the
+ *          operational record (2026-09 GOV-001 migration).
+ *   INV-11bc Canonical SPEC IDs are numeric-only (`SPEC-###`) and allocated
+ *           through the GitHub helper before authoring a new specification.
+ *   INV-11bd Completed specs use a gated closeout: GitHub Release/tag,
+ *           milestone closure, preserved Done history, and safe local cleanup.
  *   INV-12 No legacy state names (Shaping, Inbox) or board statuses on active
  *          surfaces; the issue template Workflow State dropdown lists exactly
  *          the canonical nine states (audit finding 2).
@@ -303,42 +306,32 @@ check('INV-3d: helper resolves option IDs by exact remote name or known local ID
   mustContain(h, 'select(.name == $state)', 'helper');
 });
 
-// --- INV-4: record split ------------------------------------------------------
-
-check('INV-4a: top-level flow skill states the Obsidian/GitHub record split', () => {
-  const flow = read('templates/opencode/skills/github-agentic-delivery-flow/SKILL.md');
-  mustContain(flow, 'central Obsidian project folder is the canonical full agent communication and role-memory record', 'flow skill');
-  mustContain(flow, 'GitHub issue comments and PR comments carry only final decisions, status, closure, and code-review results', 'flow skill');
-});
-
-check('INV-4b: no skill or agent prompt still claims GitHub comments are the canonical handoff log', () => {
-  const offenders = [];
-  const roots = ['templates/opencode/skills', 'templates/opencode/commands', 'AGENTS.md'];
-  const walk = (dir) => {
-    for (const e of fs.readdirSync(path.join(REPO_ROOT, dir), { withFileTypes: true })) {
-      const rel = path.join(dir, e.name);
-      if (e.isDirectory()) walk(rel);
-      else if (e.name.endsWith('.md')) {
-        if (read(rel).includes('canonical handoff and review log')) offenders.push(rel);
-      }
-    }
-  };
-  for (const r of roots) {
-    const full = path.join(REPO_ROOT, r);
-    if (fs.statSync(full).isDirectory()) walk(r);
-    else if (read(r).includes('canonical handoff and review log')) offenders.push(r);
-  }
+check('INV-3e: role prompts use the centralized helper wrapper, never the skill source path', () => {
   const oc = read('templates/opencode/opencode.json');
-  if (oc.includes('canonical handoff and review log')) offenders.push('templates/opencode/opencode.json');
-  assert.deepStrictEqual(offenders, [], 'no file may claim GitHub comments are the canonical handoff log');
+  mustContain(oc, '$ANT_TEAM_SCRIPTS/gh_project_helper.sh', 'role prompts');
+  mustNotContain(oc, './.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh', 'role prompts');
 });
 
-check('INV-4c: agent prompts carry the Obsidian record rule', () => {
+// --- INV-4: GitHub operational record / Obsidian knowledge boundary ----------
+
+check('INV-4a: top-level flow defines the GitHub operational record', () => {
+  const flow = read('templates/opencode/skills/github-agentic-delivery-flow/SKILL.md');
+  mustContain(flow, 'Collaboration Record is the GitHub issue, linked pull request, and GitHub Project `Workflow State`', 'flow skill');
+  mustContain(flow, 'never use it as a routine task, communication-event, or review-loop mirror', 'flow skill');
+});
+
+check('INV-4b: communication skill requires GitHub for routine collaboration', () => {
+  const log = read('templates/opencode/skills/agent-communication-log/SKILL.md');
+  mustContain(log, 'GitHub issue and PR comments carry routine discussion, handoffs, status, blockers, review findings, approvals, and closure', 'agent-communication-log');
+  mustContain(log, 'Do not create a per-task communication-event mirror or Obsidian issue vault', 'agent-communication-log');
+});
+
+check('INV-4c: agent prompts preserve the GitHub-first routine collaboration rule', () => {
   const oc = JSON.parse(read('templates/opencode/opencode.json'));
   const agents = Object.values(oc.agent || {});
   assert.ok(agents.length >= 5, 'expected at least 5 role agents');
   for (const a of agents) {
-    mustContain(a.prompt || '', 'canonical full agent communication and role-memory record', 'agent prompt');
+    mustContain(a.prompt || '', 'GitHub Issues and PRs are the active collaboration and execution record', 'agent prompt');
   }
 });
 
@@ -451,7 +444,6 @@ function initArgs(tmp, extra = []) {
     '--name', 'demo',
     '--github-owner', 'antpolis',
     '--github-project-number', '1',
-    '--skip-inspection',
     ...extra,
   ];
 }
@@ -497,11 +489,10 @@ check('INV-9b: rerun with a stray JSON is idempotent and leaves the JSON untouch
 
 check('INV-10a: AGENTS.md is the primary runtime guidance for .github-project.env', () => {
   const a = read('AGENTS.md');
-  // Must-source rule covering the three runtime operation classes.
-  mustContain(a, 'source ./.github-project.env', 'AGENTS.md');
-  mustContain(a, 'before GitHub API/project operations', 'AGENTS.md');
-  mustContain(a, 'documentation access', 'AGENTS.md');
-  mustContain(a, 'worktree operations', 'AGENTS.md');
+  // Helpers load the env themselves; direct variable access sources it once.
+  mustContain(a, '$ANT_TEAM_SCRIPTS/gh_project_helper.sh', 'AGENTS.md');
+  mustContain(a, 'do not prefix every helper command', 'AGENTS.md');
+  mustContain(a, 'direct shell command that must expand an `ANT_TEAM_*` variable', 'AGENTS.md');
   // No-JSON rule: the env is the sole committed config; no JSON config exists.
   mustContain(a, 'sole committed project config source', 'AGENTS.md');
   // Key ANT_TEAM_* variables are shown.
@@ -578,56 +569,116 @@ check('INV-10b: runtime-facing commands and skills never instruct runtime JSON p
   );
 });
 
-// --- INV-11: no GitHub-comments-as-canonical-record language (audit 1) -------
+// --- INV-11: no routine Obsidian communication-event regression ---------------
 
-const GITHUB_AUTHORITY_PHRASES = [
-  'canonical collaboration log',
-  'canonical handoff log',
-  'canonical handoff surface',
-  'canonical handoff and review log',
-  'durable handoff surface',
-  'durable GitHub comment',
-  'GitHub-ready summary',
+const ROUTINE_OBSIDIAN_REQUIREMENTS = [
+  'must be recorded as individual Obsidian communication event files',
+  'record each clarification discussion as an Obsidian communication event file',
+  'full agent communication record in the central Obsidian project folder',
 ];
 
-check('INV-11a: no active surface claims GitHub comments are the canonical/durable record', () => {
+check('INV-11a: active guidance does not require routine Obsidian event records', () => {
   const offenders = [];
   for (const f of activeMarkdownSurfaces()) {
-    for (const phrase of GITHUB_AUTHORITY_PHRASES) {
+    for (const phrase of ROUTINE_OBSIDIAN_REQUIREMENTS) {
       if (read(f).includes(phrase)) offenders.push(`${f}: ${phrase}`);
     }
   }
   const oc = read('templates/opencode/opencode.json');
-  for (const phrase of GITHUB_AUTHORITY_PHRASES) {
+  for (const phrase of ROUTINE_OBSIDIAN_REQUIREMENTS) {
     if (oc.includes(phrase)) offenders.push(`templates/opencode/opencode.json: ${phrase}`);
   }
-  assert.deepStrictEqual(
-    offenders,
-    [],
-    'GitHub comments carry only final decisions/status/closure/review results; the full record is Obsidian:\n' +
-      offenders.join('\n')
-  );
+  assert.deepStrictEqual(offenders, [], `routine Obsidian event requirements must not return:\n${offenders.join('\n')}`);
 });
 
-check('INV-11b: the finding-1 files route the full record through Obsidian', () => {
+check('INV-11b: AGENTS.md references GOV-001 as the record-boundary policy', () => {
+  const agents = read('AGENTS.md');
+  mustContain(agents, 'GOV-001 — GitHub Operational Record and Obsidian Knowledge Base', 'AGENTS.md');
+  mustContain(agents, 'operational execution, handoff, blocker, and review record', 'AGENTS.md');
+});
+
+check('INV-11ba: project initialization skill provides evidence-based vault baseline templates', () => {
+  const skill = read('templates/opencode/skills/project-initialization/SKILL.md');
+  const template = read('templates/opencode/skills/project-initialization/references/project-baseline-template.md');
+  mustContain(skill, 'GitHub remains the operational collaboration record', 'project-initialization skill');
+  mustContain(skill, 'Do not infer an ADR merely from code structure', 'project-initialization skill');
+  mustContain(skill, 'PROJECT_OVERVIEW.md', 'project-initialization skill');
+  mustContain(template, '[[DOCUMENT_INDEX|Document index]]', 'project baseline template');
+  mustContain(read('templates/opencode/commands/init-project.md'), 'invoke `project-initialization`', 'init-project command');
+});
+
+check('INV-11bb: documentation standard defines role-specific Obsidian ownership', () => {
+  const docs = read('templates/opencode/skills/documentation-standard/SKILL.md');
+  mustContain(docs, '## Obsidian Role Responsibilities', 'documentation standard');
+  for (const role of ['**Strategist**', '**Tech-lead**', '**Builder**', '**Reviewer**', '**Orchestrator**']) {
+    mustContain(docs, role, 'documentation standard role ownership');
+  }
+  mustContain(docs, 'GitHub Issues, Pull Requests, milestone discussions', 'documentation standard record boundary');
+  mustContain(docs, 'Does not write routine vault notes', 'documentation standard builder/reviewer boundary');
+});
+
+check('INV-11bc: new specifications use helper-allocated numeric-only IDs', () => {
+  const helper = read('templates/opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh');
+  const docs = read('templates/opencode/skills/documentation-standard/SKILL.md');
+  const shaping = read('templates/opencode/skills/product-shaping/SKILL.md');
+  const command = read('templates/opencode/commands/new-spec.md');
+  mustContain(helper, 'spec-next', 'GitHub helper');
+  mustContain(helper, "spec_id: SPEC-\\([0-9][0-9][0-9]*\\)", 'GitHub helper numeric SPEC matcher');
+  for (const [content, label] of [[docs, 'documentation standard'], [shaping, 'product shaping'], [command, 'new-spec command']]) {
+    mustContain(content, 'SPEC-###', label);
+    mustContain(content, 'spec-next', label);
+  }
+  mustContain(docs, 'Do not create `SPEC-AUTH-001`', 'documentation standard numeric-only rule');
+});
+
+check('INV-11bd: completed specs use the gated GitHub closeout flow', () => {
+  const closeout = read('templates/opencode/skills/spec-closeout/SKILL.md');
+  const command = read('templates/opencode/commands/close-spec.md');
+  const flow = read('templates/opencode/skills/github-agentic-delivery-flow/SKILL.md');
+  mustContain(closeout, 'all required milestone issues are in `Done`', 'spec closeout gate');
+  mustContain(closeout, 'release-create TAG', 'spec closeout release creation');
+  mustContain(closeout, 'milestone-close MILESTONE_NUMBER', 'spec closeout milestone closure');
+  mustContain(closeout, 'Keep completed items in GitHub Project `Done`', 'spec closeout board history');
+  mustContain(closeout, 'cleanup-task-worktree.sh', 'spec closeout local cleanup');
+  mustContain(closeout, 'Do not use `git branch -D`', 'spec closeout destructive-cleanup guard');
+  mustContain(command, 'spec-closeout', 'close-spec command');
+  mustContain(flow, 'run `spec-closeout`', 'delivery-flow closeout integration');
+});
+
+check('INV-11c: planning requires a stable SPEC and recorded decision status', () => {
+  const shaping = read('templates/opencode/skills/product-shaping/SKILL.md');
+  const tasks = read('templates/opencode/skills/how-to-create-task/SKILL.md');
+  mustContain(shaping, 'ready for planning', 'product-shaping');
+  mustContain(shaping, 'open decision blocks planning', 'product-shaping');
+  mustContain(tasks, 'planning-blocking decision remains unresolved', 'how-to-create-task');
+  mustContain(tasks, 'canonical SPEC', 'how-to-create-task');
+});
+
+check('INV-11d: Ready issues provide deterministic builder documentation context', () => {
   const files = [
     'templates/opencode/skills/how-to-create-task/SKILL.md',
-    'templates/opencode/commands/new-spec.md',
-    'templates/opencode/commands/deliver.md',
-    'templates/opencode/skills/product-shaping/SKILL.md',
+    'templates/opencode/skills/state-transitions/SKILL.md',
+    'templates/opencode/skills/do-task/SKILL.md',
+    'templates/opencode/skills/development-hygiene/SKILL.md',
+    'templates/opencode/skills/pr-review-flow/SKILL.md',
+    'templates/opencode/skills/task-completion/SKILL.md',
+    'templates/opencode/opencode.json',
   ];
   for (const f of files) {
-    const s = read(f);
-    mustContain(s, 'Obsidian', f);
-    mustNotContain(s, 'only canonical collaboration log', f);
+    mustContain(read(f), 'Durable Context', f);
   }
-  const log = read('templates/opencode/skills/agent-communication-log/SKILL.md');
-  mustContain(log, 'The full agent communication and role-memory record is stored in Obsidian', 'agent-communication-log');
-  mustContain(
-    log,
-    'GitHub issue and PR comments carry only',
-    'agent-communication-log'
-  );
+  mustContain(read('templates/opencode/skills/state-transitions/SKILL.md'), 'Do not move work to `Ready`', 'state-transitions');
+  mustContain(read('templates/opencode/skills/do-task/SKILL.md'), 'do not invoke builder', 'do-task');
+  mustContain(read('templates/opencode/skills/pr-review-flow/SKILL.md'), 'do not approve the PR', 'pr-review-flow');
+  mustContain(read('templates/opencode/skills/task-completion/SKILL.md'), 'do not approve completion', 'task-completion');
+  mustContain(read('templates/opencode/skills/approval-or-escalation/SKILL.md'), 'updates the Obsidian SPEC only when it changes durable product intent', 'approval-or-escalation');
+  mustContain(read('templates/opencode/skills/approval-or-escalation/SKILL.md'), 'updates ARCH, ADR, GOV, or runbook documentation only when the outcome is durable', 'approval-or-escalation');
+  mustContain(read('templates/opencode/opencode.json'), 'route product intent, scope, success criteria, or acceptance ambiguity to strategist', 'opencode builder routing');
+  mustContain(read('templates/opencode/opencode.json'), 'Route product intent, scope, success-criteria, or acceptance ambiguity to strategist', 'opencode reviewer routing');
+  mustContain(read('templates/opencode/skills/agent-communication-log/SKILL.md'), '## Delegation — <source> → <target>', 'agent-communication-log delegation template');
+  mustContain(read('templates/opencode/skills/do-task/SKILL.md'), 'direct runtime instruction', 'do-task delegation context');
+  mustContain(read('templates/opencode/skills/pr-review-flow/SKILL.md'), '## Review Delegation — builder → reviewer', 'pr-review-flow review delegation');
+  mustContain(read('templates/opencode/skills/pr-review-flow/SKILL.md'), 'pr-review <PR> --approve', 'pr-review-flow native approval');
 });
 
 // --- INV-12: legacy state names and issue-template drift (audit 2) -----------
@@ -642,6 +693,16 @@ check('INV-12a: issue template Workflow State options are exactly the canonical 
     CANONICAL_BOARD_STATES,
     `task.yml Workflow State options must be the canonical nine in order:\n${options.join(', ')}`
   );
+});
+
+check('INV-12aa: issue and PR templates carry durable context and delegation contracts', () => {
+  const issue = read('.github/ISSUE_TEMPLATE/task.yml');
+  const pr = read('.github/pull_request_template.md');
+  const delegation = read('.github/delegation-template.md');
+  mustContain(issue, 'id: durable_context', 'task.yml');
+  mustContain(issue, 'Open decisions', 'task.yml');
+  mustContain(pr, '## Review Delegation — builder → reviewer', 'pull_request_template.md');
+  mustContain(delegation, '## Delegation — <source> → <target>', 'delegation-template.md');
 });
 
 check('INV-12b: issue template role owner options are the current roles only', () => {

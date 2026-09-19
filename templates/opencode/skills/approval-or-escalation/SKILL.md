@@ -27,7 +27,7 @@ The builder does not self-approve final readiness. The issue does not move to `D
 - Rework should stay within approved scope unless the founder or tech-lead expands it.
 - Repeated findings of the same kind are a signal that the spec, task, or guardrails are weak.
 - If the loop stops producing meaningful progress, escalate instead of forcing more churn.
-- Track each review-development loop in the Obsidian collaboration record; keep GitHub to status and final outcomes.
+- Track each review-development loop in PR comments or review threads; summarize material state changes in the GitHub issue.
 - Do not exceed 8 review-development loops before forcing an escalation decision.
 
 ## Escalation Restraint Rules
@@ -63,7 +63,7 @@ The approving role handling the loop-breaker decision should review:
 - relevant ADR, GOV, and ARCH docs
 - current code direction
 
-Record the loop-breaker decision in the Obsidian collaboration record and post the final outcome as a concise GitHub status comment so the next role can continue without chat context.
+Record the loop-breaker decision and reasoning in the PR conversation, with a concise GitHub issue-comment summary so the next role can continue without chat context. Link Obsidian only if an exceptional decision requires a durable ADR, GOV, architecture, or runbook update.
 
 Possible loop-breaker decisions:
 
@@ -80,9 +80,9 @@ Use when:
 - the user value is unclear
 - the issue should be split or scope-cut
 - acceptance criteria do not represent the intended product outcome
-- an issue needs product, scope, or success-criteria clarification before it can safely continue (resolve in Obsidian communication; do not move it to `Need attentions`, which is founder-only)
+- an issue needs product, scope, or success-criteria clarification before it can safely continue (resolve in GitHub issue comments; do not move it to `Need attentions`, which is founder-only)
 
-When escalating to `strategist`, prefer a concrete question such as scope cut, success criteria fix, acceptance rewrite, or product tradeoff choice instead of a generic "please review."
+When escalating to `strategist`, prefer a concrete question such as scope cut, success criteria fix, acceptance rewrite, or product tradeoff choice instead of a generic "please review." Strategist records the resolution, evidence, and next action in the GitHub issue, and updates the Obsidian SPEC only when it changes durable product intent.
 
 ## Escalate To Tech-Lead
 
@@ -93,9 +93,9 @@ Use when:
 - the reviewer keeps finding the same structural problem
 - the task needs to be re-sequenced or decomposed
 - 8 review loops have been reached and a technical decision is required
-- an issue needs technical clarification or guardrail correction before it can safely continue (resolve in Obsidian communication; do not move it to `Need attentions`, which is founder-only)
+- an issue needs technical clarification or guardrail correction before it can safely continue (resolve in GitHub issue comments; do not move it to `Need attentions`, which is founder-only)
 
-When escalating to `tech-lead`, include the current implementation direction, reviewer findings if any, and the smallest technical decision needed to continue safely.
+When escalating to `tech-lead`, include the current implementation direction, reviewer findings if any, and the smallest technical decision needed to continue safely. Tech-lead records the resolution, guardrail, and next action in the GitHub issue, and updates ARCH, ADR, GOV, or runbook documentation only when the outcome is durable.
 
 ## Escalate To Founder
 
@@ -141,16 +141,16 @@ Before moving an issue to `Need attentions`:
 - confirm strategist review was attempted and could not resolve the question
 - confirm tech-lead review was attempted and could not resolve the question
 - confirm the remaining question is a real founder decision: product direction, prioritization, approval, credentials, or a tradeoff agents cannot safely make
-- record the full reasoning and what was already attempted in an Obsidian communication event file
+- record the full reasoning and what was already attempted in a founder-addressed GitHub issue comment; link relevant PR discussion when applicable
 - run `founder-escalation-preflight` to confirm internal paths are exhausted
-- leave a concise founder-addressed GitHub comment explaining what decision is needed and what the smallest unblocking answer looks like
+- leave the comment with the exact decision needed and the smallest unblocking answer
 
 After the founder decision is recorded:
 
 - move the issue back to the state it came from — typically `Ready`, `In Review`, or `Backlog`
 - move the issue to `Blocked` instead when the founder decision depends on an external condition outside anyone's control
 
-Internal strategist or tech-lead questions must not use `Need attentions`. Resolve them in the Obsidian communication record while the issue stays in its current state, and return it to `Ready` once the next executable step is clear.
+Internal strategist or tech-lead questions must not use `Need attentions`. Resolve them in GitHub issue comments while the issue stays in its current state, and return it to `Ready` once the next executable step is clear.
 
 ## Usage Guidance
 

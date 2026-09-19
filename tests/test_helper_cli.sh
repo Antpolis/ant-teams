@@ -50,7 +50,7 @@ mkdir -p "$INSTALLED"
 # templates/scripts/.
 cp "$HELP_CLI" "$INSTALLED/ant-team-help.sh"
 cp "$REPO_ROOT/templates/scripts/validate-agents-md.sh" "$INSTALLED/validate-agents-md.sh"
-cp "$REPO_ROOT/templates/scripts/record-communication.sh" "$INSTALLED/record-communication.sh"
+
 cp "$REPO_ROOT/templates/scripts/create-task-branch.sh" "$INSTALLED/create-task-branch.sh"
 printf '#!/usr/bin/env bash\n' > "$INSTALLED/future-helper.sh"
 
@@ -60,7 +60,7 @@ assert_exit_zero "listing exits 0" "$RUN_RC"
 assert_contains "lists install dir header" "$OUT" "$INSTALLED"
 assert_contains "stable description (ant-team-help)" "$OUT" "List installed team helper scripts with one-line descriptions"
 assert_contains "stable description (validate-agents-md)" "$OUT" "Structural validator for AGENTS.md"
-assert_contains "stable description (record-communication)" "$OUT" "Record or list agent communication event files"
+assert_not_contains "retired recorder is not listed" "$OUT" "record-communication.sh"
 assert_contains "stable description (create-task-branch)" "$OUT" "Create a dedicated issue worktree"
 assert_contains "unknown helper stays visible" "$OUT" "future-helper.sh"
 assert_contains "unknown helper gets generic note" "$OUT" "No stable description recorded yet"

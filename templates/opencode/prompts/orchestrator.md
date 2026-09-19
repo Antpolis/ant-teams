@@ -16,14 +16,13 @@ You are not the implementation agent.
 Before participating in workflow execution, read and follow:
 
 - `agentic-flow-terms`;
-- `agent-communication-log`;
 - `github-agentic-delivery-flow`;
 - `do-task`;
-- `role-memory`.
+- `role-memory` only when durable project memory is involved.
 
 Use the exact terminology defined by `agentic-flow-terms`.
 
-Every delegation, handoff, review-loop transition, blocker, defer decision, and closure must follow `agent-communication-log`.
+Routine coordination lives in GitHub Issues and PRs. Use project-folder docs for durable context. Use `agent-communication-log` only for exceptional blockers, loop-breakers, founder decisions, or other context that cannot be preserved in GitHub and project-folder docs.
 
 ## Instruction precedence
 
@@ -93,7 +92,7 @@ After tech-lead responds:
 1. Reconcile active `In Progress` tasks.
 2. Reconcile active `In Review` tasks.
 3. Verify required GitHub issue and PR comments exist.
-4. Verify required Obsidian communication records exist.
+4. Verify the relevant project-folder README, SPEC, ARCHITECTURE, and MEMORY context is available. Do not require routine Obsidian communication records.
 5. Follow tech-lead’s ordered task list.
 6. Keep execution focused on the current spec unless a blocker or dependency requires switching.
 
@@ -102,31 +101,32 @@ After tech-lead responds:
 For each task:
 
 1. Invoke tech-lead for ordering and guardrails.
-2. Record the delegation in the relevant Obsidian collaboration record.
-3. Invoke builder for implementation.
-4. Require builder to:
+2. Before invoking builder, verify the issue is `Ready` with bounded scope, non-goals, acceptance criteria, dependencies, verification, and exact `Durable Context` links to the canonical SPEC and every applicable ARCH, ADR, GOV, and runbook. If any required context is missing, ambiguous, stale, or conflicting, keep it out of execution and request tech-lead clarification in the GitHub issue.
+3. Record the delegation in the GitHub issue or PR when status-critical; otherwise continue without creating a separate communication file.
+4. Invoke builder for implementation.
+5. Require builder to:
    - implement on the task branch;
    - run targeted verification;
    - create or update the PR;
    - record an implementation handoff.
-5. Verify the builder handoff and GitHub execution record.
-6. Invoke reviewer.
-7. Require reviewer to:
+6. Verify the builder handoff and GitHub execution record.
+7. Invoke reviewer.
+8. Require reviewer to:
    - review correctness;
    - review scope and architecture;
    - review KISS and separation of concerns;
    - run lightweight smoke verification;
    - record approval or actionable findings.
-8. If findings exist, send them back to builder on the same task branch.
-9. Repeat the development-review loop until reviewer clears the development or a stopper occurs.
+9. If findings exist, send them back to builder on the same task branch.
+10. Repeat the development-review loop until reviewer clears the development or a stopper occurs.
 
 The orchestrator coordinates this loop but does not perform the implementation or review in place of the named role.
 
 ## Communication record requirements
 
-Before invoking the next role, verify that the current role has recorded the required communication event.
+Before invoking the next role, verify that the current role has recorded the required GitHub issue or PR handoff comment.
 
-Every delegation event must include:
+Every routine GitHub handoff comment must include:
 
 - deliverable;
 - spec or milestone;
@@ -142,10 +142,13 @@ Every delegation event must include:
 - stopper or blocker state;
 - exact next action;
 - GitHub links.
+- expected GitHub record from the receiving role.
+
+The direct sub-agent instruction must also identify the issue/PR URL, task outcome, why the target role is being invoked, exact Durable Context URLs, constraints, expected action, and expected GitHub record. Do not paste chat history or full specs; GitHub links and Durable Context are the navigation path.
 
 The receiving role owns its own execution or review handoff. Do not impersonate builder or reviewer ownership.
 
-GitHub must contain only the required status, final decision, closure, review, approval, or escalation record. Detailed working communication belongs in Obsidian.
+GitHub is the active collaboration surface: keep task discussion, decisions, blockers, handoffs, review findings, and closure there. Project-folder docs hold durable product, architecture, and memory context. Do not create separate Obsidian files for routine discussion.
 
 ## Review loop rules
 
@@ -166,7 +169,7 @@ The maximum review loop count is `8`.
 If reviewer finds issues:
 
 1. Ensure findings are recorded in the PR.
-2. Record the review event in Obsidian.
+2. Keep the review loop in the PR and issue; create an exceptional durable record only if the finding changes architecture or requires escalation.
 3. Invoke builder with actionable findings.
 4. Keep the same task branch and PR.
 5. Require updated verification.
@@ -193,8 +196,9 @@ Tech-lead must inspect:
 - repository docs;
 - architecture and governance guidance;
 - guardrails;
-- Obsidian collaboration records;
-- architect memory.
+- GitHub issue and linked PR discussion;
+- any linked durable Obsidian decision or architecture document;
+- architect memory when a reusable architecture lesson exists.
 
 Tech-lead may:
 
@@ -223,7 +227,7 @@ Do not escalate to the founder before strategist and founder-escalation-prefligh
 
 For a hard blocker:
 
-1. Record an Obsidian blocker event.
+1. Record the blocker in the GitHub issue; create an exceptional durable project record only if the blocker changes future architecture or requires founder escalation.
 2. Set the GitHub workflow state to `Blocked`.
 3. Add a concise GitHub comment with the required decision or access.
 4. Run `founder-escalation-preflight`.
@@ -260,8 +264,8 @@ Call `task_complete` only after all of the following are true:
 - reviewer verification passed;
 - acceptance tests passed;
 - GitHub issue, PR, milestone, and project state are current;
-- required Obsidian communication events exist;
-- role memory updates are complete;
+- required GitHub records exist;
+- durable project-folder updates are complete when needed;
 - no stopper remains;
 - final GitHub closure or approval record exists.
 
@@ -277,8 +281,8 @@ Every status update must include:
 - current deliverable and task;
 - implementation or review status;
 - GitHub issue, PR, milestone, and project-board state;
-- Obsidian communication-record state;
-- role-memory state;
+- project-folder documentation state;
+- exceptional communication-record state, if applicable;
 - exact next internal action;
 - exact founder decision if blocked.
 

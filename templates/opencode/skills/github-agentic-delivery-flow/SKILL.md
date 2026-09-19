@@ -33,22 +33,25 @@ Use this GitHub mapping consistently:
 | Task | GitHub Issue |
 | Workflow State | GitHub Project item status (canonical `Workflow State` field) |
 | Implementation branch / PR | GitHub Branch + Pull Request |
-| Agent-to-agent communication and role memory | Central Obsidian project folder |
-| Final decisions, status, closure, code-review result | GitHub issue comments and PR comments |
-| Canonical implementation detail | Repository docs linked from the milestone or issue |
+| Collaboration Record | GitHub issue + linked pull request + GitHub Project `Workflow State` |
+| Handoffs, blockers, escalations, and task decisions | GitHub issue comments; use PR comments for code-specific discussion |
+| Product, architecture, and governance knowledge | Curated central Obsidian project documentation linked from the milestone or issue |
+| Canonical implementation detail | Repository and linked pull request |
 
-Do not rely on GitHub milestone text alone as the full spec. Keep the canonical spec in the repository and link it from the milestone.
+Do not rely on GitHub milestone text alone as the full spec. Keep the canonical spec in the central Obsidian project documentation and link it from the milestone.
 
 ## Source Of Truth Rules
 
-- The repository spec document is the canonical implementation spec.
-- The GitHub milestone is the tracking container for that spec.
-- GitHub issues are the canonical task records for execution state.
+- The central Obsidian project documentation is the canonical source for curated specs, architecture, ADRs, governance, runbooks, and exceptional durable decisions.
+- The GitHub milestone is the tracking container for a deliverable and links to its applicable durable documentation.
+- The Collaboration Record is the GitHub issue, linked pull request, and GitHub Project `Workflow State` together.
+- GitHub issues are the canonical task records for scope, ownership, handoffs, blockers, escalations, and task decisions.
 - GitHub Projects is the canonical workflow board for state visualization, using the canonical `Workflow State` field.
-- The central Obsidian project folder is the canonical full agent communication and role-memory record: handoffs, delegation reasoning, findings, review-loop history, and durable coordination context.
-- GitHub issue comments and PR comments carry only final decisions, status, closure, and code-review results.
+- Pull requests are the canonical implementation and code-review record, including verification evidence, findings, responses, and approval.
+- Add or update Obsidian only when the result meets the GOV-001 durable-knowledge threshold; never use it as a routine task, communication-event, or review-loop mirror.
+- Role memory is event-triggered: record only reusable lessons, recurring constraints, or cross-task tradeoffs. Do not create no-op memory entries.
 - Local markdown task files, local workflow boards, and chat transcripts are not part of the active execution flow.
-- If GitHub and repo docs disagree, reconcile them instead of silently choosing one.
+- If GitHub and durable documentation disagree, reconcile them instead of silently choosing one.
 
 ## Agent Roles
 
@@ -58,7 +61,7 @@ Default roles in this workflow:
 - `strategist`: pressure-tests the idea, sharpens the MVP, writes the business sections of the spec (problem statement, business value, success metrics, goals, non-goals, stakeholders, constraints), and confirms the issue set maps to business value before execution starts
 - `tech-lead`: verifies technical feasibility and architecture direction; writes the technical sections of the spec (functional requirements, technical requirements, architecture notes, acceptance criteria); is the sole owner of the GitHub milestone and every execution issue — no other role creates or modifies milestones or issues in normal flow; sequences all issues and sets per-issue guardrails before marking anything `Ready`; performs the final spec-alignment check and is the only role that merges PRs
 - `builder`: implements approved scoped work with focused code changes and verification, owns branch and PR lifecycle for the delegated task, updates task state during implementation, and leaves a durable review handover note
-- `reviewer`: reviews builder output, checks scope and architecture alignment, flags unnecessary additions, performs lightweight smoke verification, and records clear findings or approval back into the GitHub workflow
+- `reviewer`: reviews builder output, checks scope and architecture alignment, flags unnecessary additions, performs lightweight smoke verification, and records clear findings or approval back into the GitHub workflow; routes product/scope/acceptance ambiguity to strategist and technical/architecture/verification ambiguity to tech-lead
 
 Use specialized skills beneath these roles when the task needs domain-specific handling. The orchestration roles should stay focused on flow ownership and decision quality.
 
@@ -70,6 +73,7 @@ Use specialized skills beneath these roles when the task needs domain-specific h
 - Challenge weak assumptions and reduce the scope to the smallest practical MVP.
 - Produce a spec draft that is concrete enough for technical review.
 - `strategist` is also the product-level review gate and should confirm the work is worth doing, the intended outcome is clear, and major business constraints are captured before technical planning continues.
+- Record shaping discussion and the strategist-to-tech-lead handoff in GitHub. Promote the stable result to the canonical Obsidian SPEC, with open decisions and applicable durable-document links; routine shaping does not create Obsidian event records.
 
 ### 2. Validate the technical direction
 
@@ -77,6 +81,7 @@ Use specialized skills beneath these roles when the task needs domain-specific h
 - Add architecture constraints, sequencing notes, and guardrails.
 - Decide whether the work is ready, needs scope adjustment, or should stop.
 - `tech-lead` is the technical review gate and should confirm the requested change is technically viable and implementable before tasks are created.
+- Tech-lead may start milestone and issue creation only after the canonical SPEC has a GitHub planning handoff, explicit open-decision status, and the required business and technical content.
 
 ### 3. Create the execution container
 
@@ -91,7 +96,7 @@ Tech-lead creates the GitHub milestone. No other role creates or modifies the mi
 Tech-lead creates all execution issues using the `how-to-create-task` skill. No other role creates issues in normal flow.
 
 - Break the spec into small GitHub issues, each representing one scoped unit of execution.
-- Every issue must include: Why, Outcome, Scope, Dependencies (with architecture doc links), Tech-Lead Guardrails, Acceptance Criteria traceable to spec, Verification, Owner, and Sequence Position.
+- Every issue must include: Why, Outcome, Scope, Durable Context (canonical SPEC plus applicable ARCH, ADR, GOV, and runbook URLs), Dependencies and open-decision status, Tech-Lead Guardrails, Acceptance Criteria traceable to spec, Verification, Owner, and Sequence Position.
 - Record the full sequence in a durable milestone comment before marking any issue `Ready`.
 - Strategy and tech-lead work is incomplete until the full task set exists in GitHub issues and every spec acceptance criterion is covered.
 - If the work is approved to proceed, create all task issues before advancing — do not leave only guidance in comments.
@@ -104,8 +109,8 @@ Coverage gate (required before any issue moves to `Ready`):
 ### 4.5 Activate execution
 
 - Tech-lead sets `Current role: builder` and Sequence Position on each issue.
-- Tech-lead moves issues to `Ready` only after the sequencing and coverage gate passes.
-- If no task is actually ready, leave the work in `Backlog` or `Blocked` with an explicit reason recorded in the Obsidian communication record. Do not pretend the flow has advanced.
+- Tech-lead moves issues to `Ready` only after the sequencing and coverage gate passes, every required Durable Context URL is exact, and no unresolved decision blocks implementation.
+- If no task is actually ready, leave the work in `Backlog` or `Blocked` with an explicit reason and next action in the relevant GitHub issue or milestone comment. Do not pretend the flow has advanced.
 
 ### 5. Run the build-review loop
 
@@ -134,7 +139,7 @@ If the check passes:
 
 If the check fails:
 - `tech-lead` posts specific findings on the PR as comments.
-- Moves the issue back to `Need attentions` only when a founder decision is required; otherwise records the findings in the Obsidian communication record and returns the issue to builder rework on the same branch.
+- Moves the issue back to `Need attentions` only when a founder decision is required; otherwise records the findings and next action in the PR or issue and returns the issue to builder rework on the same branch.
 - Builder picks up the findings, fixes them on the same branch, and the review loop restarts from `In Review`.
 
 ### 6. Close the work
@@ -142,6 +147,8 @@ If the check fails:
 - An issue is `Done` only after the PR is merged by tech-lead following a passed final check.
 - Close the milestone only when all required issues are done or explicitly deferred.
 - Record follow-up debt, defer items, and unresolved risks before closing the milestone.
+- When the milestone represents a shipped SPEC, run `spec-closeout`: reconcile the completed issues and acceptance criteria, create the GitHub Release/tag through `release-management`, post the closeout evidence, close the milestone, and remove only merged local task worktrees and branches.
+- Keep completed GitHub Project items in `Done`; do not archive or remove them as part of closeout. They are the auditable execution history.
 
 ## State Machine
 
@@ -156,7 +163,7 @@ Use them like this:
 - `Open`: captured but not yet shaped
 - `Backlog`: being refined by strategist and/or founder
 - `Need attentions`: founder-only decision state, entered only after strategist and tech-lead review have both been attempted and neither can resolve the question; a founder-addressed GitHub comment naming the exact decision must exist before moving here
-- `Ready`: approved for implementation with clear scope
+- `Ready`: approved for implementation with clear scope, verification, exact durable-context links, and no planning-blocking open decision
 - `In Progress`: builder is actively executing
 - `In Review`: waiting for reviewer review or re-review
 - `Ready to Merge`: reviewer has approved with no blockers and posted an explicit approval comment on the PR; waiting for tech-lead final check and merge
@@ -181,7 +188,7 @@ Every GitHub issue used as a task should include:
 - verification steps or expected evidence
 - linked milestone
 - owner role or current responsible agent
-- links to relevant spec/docs/PRs
+- exact links to the canonical SPEC and every applicable ARCH, ADR, GOV, and runbook; mark non-applicable references with a reason
 
 If the issue is intended for a builder next, it must be actionable without requiring the builder to reinterpret strategist or tech-lead comments into a new plan.
 
@@ -189,9 +196,9 @@ Avoid giant issues that require multiple major decisions at once.
 
 ## Handoff Rules
 
-Use durable delegation notes whenever work moves between roles.
+At each meaningful role boundary or state change, record one concise GitHub handoff in the issue or PR. Use the issue for task ownership, scope, blockers, and state changes; use the PR for implementation detail and code review.
 
-Every internal delegation should record:
+Every handoff should record:
 
 - current state
 - what changed
@@ -200,18 +207,18 @@ Every internal delegation should record:
 - open findings, blockers, or risks
 - exact next expected action
 
-For builder-owned implementation handoffs, the delegated agent should also record the branch, PR, verification evidence, and review focus so the next role can continue from the Obsidian communication record plus the GitHub issue and PR alone.
+For builder-owned implementation handoffs, the PR description is the default handoff and should include the branch, implementation summary, verification evidence, known risks or skipped checks, and review focus. Add an issue comment only when ownership, state, scope, or a non-code decision changes.
 
 When an agent moves an issue to `Need attentions`:
 
 - strategist and tech-lead review must both have been attempted first
-- record the full reasoning in an Obsidian communication event file
-- leave a concise founder-addressed GitHub comment naming the exact decision needed
+- leave a concise founder-addressed GitHub comment naming the exact decision needed, the reason it is blocked, and the intended next state
 - state the smallest decision or clarification needed to move the issue back toward its prior state
 
 When `tech-lead` asks `strategist` to clarify a spec or issue during execution:
 
-- record the clarification request and resolution as individual Obsidian communication event files; update GitHub status and final closure messages as required
+- record the clarification request, resolution, and next action in the relevant GitHub issue or PR
+- update an Obsidian document only if the result changes durable product intent, architecture, governance, a runbook, or reusable cross-task knowledge
 - keep the issue in the current spec group unless it is blocked
 - skip to another issue only when waiting on a real blocker or human input
 

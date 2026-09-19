@@ -30,11 +30,15 @@ Generated local OpenCode runtime: `.opencode/` (created by `scripts/init-company
 ## Documentation
 
 All documentation: `ANT_TEAM_DOCS_PROJECT_PATH` from `.github-project.env` (currently `/home/chrissim/Projects/documentation/02-Architecture-Landscape/projects/ant-teams/`)
-Use the central Obsidian vault for product specs, architecture, ADRs, governance, lifecycle, and project documentation. Do not treat repository files as the documentation source of truth.
+Use the central Obsidian vault for curated product specs, architecture, ADRs, governance, lifecycle, runbooks, and reusable project documentation. Do not treat repository files as the documentation source of truth.
+
+Workflow-record policy: [`GOV-001 — GitHub Operational Record and Obsidian Knowledge Base`](../documentation/02-Architecture-Landscape/projects/ant-teams/governance/GOV-001-github-operational-record-and-obsidian-knowledge-base.md). GitHub Issues, Pull Requests, and Project Workflow State are the operational collaboration and delivery record; Obsidian stores only curated durable knowledge and exceptional decisions.
+
+Master workflow architecture: [`ARCH-001 — Agentic Delivery System Architecture`](../documentation/02-Architecture-Landscape/projects/ant-teams/architecture/ARCH-001-agentic-delivery-system-architecture.md) defines system boundaries and source ownership; [`ARCH-002 — GitHub Delivery Model and Lifecycle`](../documentation/02-Architecture-Landscape/projects/ant-teams/architecture/ARCH-002-github-delivery-model-and-lifecycle.md) defines GitHub artifacts, lifecycle, and handoff behavior. Read them before changing workflow architecture, GitHub delivery mechanics, or runtime ownership.
 
 ## Runtime Environment
 
-Agents must source `.github-project.env` (`source ./.github-project.env`) before GitHub API/project operations (gh CLI calls, project-board reads and writes), documentation access (resolving the central vault and project documentation paths), and worktree operations. It exports the `ANT_TEAM_*` runtime metadata and is the sole committed project config source. The canonical Workflow State names live as constants in the workflow skills, tests, and docs.
+`.github-project.env` is the sole committed `ANT_TEAM_*` runtime config source. Centralized helpers load it themselves: run `$ANT_TEAM_SCRIPTS/gh_project_helper.sh` and the task-worktree helpers directly—do not prefix every helper command with `source ./.github-project.env &&`. Source it once only in a direct shell command that must expand an `ANT_TEAM_*` variable, such as accessing `$ANT_TEAM_DOCS_PROJECT_PATH` without a helper. The canonical Workflow State names live as constants in the workflow skills, tests, and docs.
 
 Key variables:
 
@@ -48,17 +52,16 @@ Prerequisite and updates: `.github-project.env` is seeded and updated directly b
 
 ## Worktree and Documentation Routing
 
-1. Source `.github-project.env` (`source ./.github-project.env`) before creating a task worktree or accessing project documentation (see Runtime Environment for the full rule and key variables).
-2. Use the centralized helper `$ANT_TEAM_SCRIPTS/create-task-branch.sh` to create one worktree per issue; do not construct ad-hoc `git worktree add` commands.
+1. Run the centralized helper `$ANT_TEAM_SCRIPTS/create-task-branch.sh` directly to create one worktree per issue; do not construct ad-hoc `git worktree add` commands. It loads the project config itself.
+2. Source `.github-project.env` once only when a direct command needs an `ANT_TEAM_*` value, such as a direct documentation-vault operation.
 3. The helper reads `ANT_TEAM_WORKTREE_ROOT` and enforces the repository worktree convention; do not set `core.worktree`.
 4. Store this project's documentation in `ANT_TEAM_DOCS_PROJECT_PATH` (resolved as `$ANT_TEAM_DOCS_VAULT_PATH/02-Architecture-Landscape/projects/$ANT_TEAM_DOCS_PROJECT_NAME`, or a configured concrete value when set).
-5. Keep GitHub Issues, PRs, and Project Workflow State as the live execution record (GitHub comments carry only final decisions, status, closure, and code-review results); keep the full agent communication record, role memory, and durable product documentation in the Obsidian vault.
+5. Follow [`GOV-001 — GitHub Operational Record and Obsidian Knowledge Base`](../documentation/02-Architecture-Landscape/projects/ant-teams/governance/GOV-001-github-operational-record-and-obsidian-knowledge-base.md): keep GitHub Issues, PRs, and Project Workflow State as the operational execution, handoff, blocker, and review record. Keep only curated durable product documentation, architecture, ADRs, governance, runbooks, and reusable lessons in the Obsidian vault; do not create routine communication-event or issue-mirror notes.
 6. After any documentation-vault task, inspect the diff, stage only task-owned files, commit, and push to the vault remote. Never stage unrelated user changes or secrets.
 
 Example:
 
 ```sh
-source ./.github-project.env
 "$ANT_TEAM_SCRIPTS/create-task-branch.sh" 123 master feat/issue-123
 ```
 
@@ -68,7 +71,7 @@ Scratch directory for work-in-progress and logs: `./tmp/`
 
 ## Project Initialization
 
-Project initialization is an explicit founder-facing command, not an automatically invoked skill. Use `/init-project` when bootstrapping or re-initializing a repository. The command is derived into the managed `init-project` skill with `disable-model-invocation: true`, so agents must not invoke it implicitly. It runs the canonical `$ANT_TEAM_SCRIPTS/init-project.sh` tooling script, which seeds or updates `.github-project.env`, configures worktree and central Obsidian documentation routing, and installs the minimal project runtime. Source `.github-project.env` before GitHub, documentation, or worktree operations.
+Project initialization is an explicit founder-facing command, not an automatically invoked skill. Use `/init-project` when bootstrapping or re-initializing a repository. The command is derived into the managed `init-project` skill with `disable-model-invocation: true`, so agents must not invoke it implicitly. It runs the canonical `$ANT_TEAM_SCRIPTS/init-project.sh` tooling script, which seeds or updates `.github-project.env`, configures worktree and central Obsidian documentation routing, and installs the minimal project runtime. Invoke centralized helpers directly because they load the env themselves; source it only for direct `ANT_TEAM_*` variable access.
 
 ## GitHub Project Helper
 
@@ -86,5 +89,5 @@ Runtime metadata (owner, project/field/option IDs, worktree root, documentation 
 - `.github-project.env` — the sole committed project config source: `ANT_TEAM_*` runtime exports seeded and updated by project initialization — source it for GitHub, documentation, and worktree metadata
 - `.opencode/` — generated local OpenCode runtime configuration. Recreate it with `scripts/init-company.sh`; do not treat it as the editable source.
 - `templates/opencode/` — canonical editable OpenCode configuration, commands, and skill source. `scripts/init-company.sh` installs it to `.opencode/` and `~/.config/opencode/`, and syncs its skills to `~/.agents/skills/`.
-- `templates/scripts/` — canonical editable operational script source installed to `~/.agents/scripts`; `ant-team-help.sh` lists every installed helper script with its description, and `record-communication.sh` records/lists agent communication events in the Obsidian project folder
+- `templates/scripts/` — canonical editable operational script source installed to `~/.agents/scripts`; `ant-team-help.sh` lists every installed helper script with its description. Routine agent communication belongs in GitHub; use Obsidian only under the threshold defined by `GOV-001`.
 - `scripts/` — company installation and managed-skill synchronization entrypoints

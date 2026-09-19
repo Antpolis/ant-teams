@@ -25,7 +25,7 @@ All tasks for one spec live as separate GitHub issues linked to the same GitHub 
 
 Do not use local markdown task files as the execution surface.
 Do not stop at comments if the intended next role is builder — create the actual GitHub issues.
-If strategist and tech-lead refine scope or sequencing, record the discussion in the central Obsidian communication record (see the agent-communication-log skill) and post the resolved outcome as a concise final decision on the milestone before creating issues. Do not create issues from unresolved discussion.
+If strategist and tech-lead refine scope or sequencing, record the resolved decision on the GitHub milestone before creating issues. Do not create issues from unresolved discussion.
 
 ## Required Inputs — Hard Gate
 
@@ -55,8 +55,10 @@ Technical sections (must be present in the spec — written by tech-lead; each m
 - [ ] Rollout and rollback plan (phasing, feature flags, migration steps, rollback procedure)
 
 Also confirm:
-- [ ] Relevant architecture docs in the central Obsidian project folder have been read and inform the guardrails for this spec
-- [ ] No open shaping discussion remains unresolved in chat or comments
+- [ ] The canonical SPEC is stored in the central Obsidian project folder, uses the exact numeric-only `SPEC-###` ID allocated by `"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" spec-next`, and its URL is available for the milestone and every execution issue
+- [ ] Relevant ARCH, ADR, GOV, and runbook notes have been read and are linked where they constrain the work
+- [ ] Every open decision is listed with an owner and blocking status; no planning-blocking decision remains unresolved
+- [ ] The strategist-to-tech-lead planning handoff is recorded in GitHub with the resolved scope, evidence, open risks, and next action
 
 If any checkbox cannot be checked, record which items are missing as a GitHub comment on the milestone, leave the milestone in `Backlog`, and stop. Do not create issues from an incomplete spec.
 
@@ -67,8 +69,8 @@ Tech-lead creates the milestone before creating any issue. Use `.github/mileston
 ```md
 ## Spec
 
-- Spec document: <path to spec file in repo>
-- Spec ID: <SPEC-ID>
+- Canonical spec: <URL to the Obsidian SPEC>
+- Spec ID: <SPEC-###>
 - Milestone created by: tech-lead
 
 ## Delivery Intent
@@ -149,11 +151,19 @@ Use this structure for each task issue:
 - In scope:
 - Out of scope:
 
+## Durable Context
+
+- Canonical SPEC: <URL>
+- Applicable ARCH: <URL(s), or Not applicable — reason>
+- Applicable ADR: <URL(s), or Not applicable — reason>
+- Applicable GOV: <URL(s), or Not applicable — reason>
+- Runbook / operational reference: <URL(s), or Not applicable — reason>
+
 ## Dependencies
 
-- Spec / milestone:
+- Milestone:
 - Blocking issues:
-- Architecture docs:
+- Open decisions: <none, or decision / owner / blocking status>
 
 ## Tech-Lead Guardrails
 
@@ -189,10 +199,8 @@ Use this structure for each task issue:
 
 ## Links
 
-- Spec:
 - PR:
-- Architecture docs:
-- Related docs:
+- Related GitHub artifacts:
 ```
 
 ## Task Quality Bar
@@ -205,12 +213,15 @@ Every task must include:
 - Clear dependencies and sequence position
 - Acceptance criteria traceable to the spec's acceptance criteria
 - Verification expectations
-- A link to the milestone and spec document
+- A link to the milestone and canonical SPEC
+- A `Durable Context` section with exact URLs for every applicable ARCH, ADR, GOV, and runbook, or an explicit Not applicable reason
+- No unresolved decision that blocks scope, acceptance criteria, architecture, dependency, security, or verification
 - The current responsible role or assignee
 
 Every task must also be builder-activatable:
 
-- a builder should be able to start from the issue without reconstructing scope from scattered comments or re-reading the full spec
+- a builder starts from the issue and follows its `Durable Context` URLs; do not require broad vault search, chat reconstruction, or re-planning
+- if a required URL is missing, ambiguous, stale, or conflicts with the issue, leave it out of `Ready` and request tech-lead clarification in a GitHub issue comment
 - if the issue is ready now, set the owner role to builder and move it to `Ready` — but only after tech-lead has sequenced all issues for this spec pass
 - if it is not ready, say exactly what is missing and leave it in `Backlog` or `Blocked`
 
@@ -221,7 +232,7 @@ Tech-lead must complete all sequencing and coverage checks before any issue is m
 Sequencing (tech-lead):
 - [ ] All issues for this spec are created
 - [ ] Each issue has a Sequence Position assigned
-- [ ] The full sequence is recorded as a final decision on the milestone, with the reasoning kept in the Obsidian communication record
+- [ ] The full sequence and builder-relevant reasoning are recorded as a final decision on the milestone
 - [ ] Parallelism conflicts are identified and resolved or called out
 
 Coverage (tech-lead confirms, strategist co-signs):
@@ -240,11 +251,11 @@ If any checkbox fails, create the missing issue or record the gap in a GitHub mi
 
 ## Execution Record Rule
 
-- GitHub issues are the only execution task records for this workflow.
-- The GitHub Project `Workflow State` field is the only canonical task board for workflow state.
-- GitHub issue comments and PR comments carry only final decisions, status, closure, and code-review results.
-- The central Obsidian project folder is the canonical full agent communication and role-memory record (see the agent-communication-log skill).
-- Repository docs remain the canonical place for specs, architecture, ADRs, GOV docs, and other reusable guidance.
+- GitHub issues are the execution task records for this workflow.
+- The GitHub Project `Workflow State` field is the canonical task board for workflow state.
+- GitHub milestone, issue, and PR comments are the operational collaboration record. Record builder-useful task decisions, sequencing rationale, guardrails, status, handoffs, blockers, defer decisions, closure, and code-review results there.
+- The central Obsidian project folder is only for curated durable specs, architecture, ADRs, governance, runbooks, and reusable knowledge; do not create routine communication-event or issue-mirror notes.
+- The central Obsidian project folder remains the canonical place for specs, architecture, ADRs, GOV docs, and other reusable guidance.
 
 ## Required Task Types — Hard Gate
 

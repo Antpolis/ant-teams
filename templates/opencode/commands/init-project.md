@@ -9,11 +9,10 @@ Initialize or re-initialize the current repository for agentic delivery work.
 
 ```sh
 bash scripts/init-company.sh
-source ./.github-project.env
 "$ANT_TEAM_SCRIPTS/init-project.sh" --dry-run
 ```
 
-Run `--dry-run` first to preview. Then run without flags to apply.
+Run `--dry-run` first to preview. Then run without flags to apply. After runtime initialization, invoke `project-initialization` to inspect the repository and Git history, then create durable vault records from its templates when the evidence is confirmed.
 
 Required behavior:
 - seed or update `.github-project.env` directly as the sole sourceable `ANT_TEAM_*` configuration; preserve founder-set values
@@ -23,6 +22,6 @@ Required behavior:
 - after initialization, show the founder the resolved documentation path (`$ANT_TEAM_DOCS_VAULT_PATH`) and discuss:
   - **AGENTS.md project-specific content**: purpose, conventions, build/test/run commands, relationships
   - **`.github-project.env` confirmation**: walk through owner, project number/ID, Workflow State field/option IDs, worktree root, vault paths; replace placeholders only with founder-verified values
-  - **Obsidian initial docs**: with founder direction, create initial spec/arch/gov/product notes from the canonical vault templates — nothing created without explicit founder consent
+  - **Obsidian initial docs**: after founder confirmation, use the `project-initialization` skill and its templates to create or update the project overview, architecture baseline, and document index. The shell initializer never writes durable architecture documentation; create SPEC, ADR, and GOV notes only when their content is known.
 
 Re-run is safe and idempotent. Existing `.github-project.env` values are preserved and only missing keys are filled.

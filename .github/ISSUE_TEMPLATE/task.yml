@@ -12,8 +12,9 @@ body:
         Before submitting:
         - The parent spec must be implementation-ready (all business and technical sections complete)
         - This issue must be linked to the correct milestone
-        - Tech-lead guardrails must be filled in before builder picks this up
+        - Tech-lead guardrails and Durable Context must be filled in before builder picks this up
         - No issue should move to `Ready` before the full sequence and coverage gate passes
+        - No unresolved decision may block scope, acceptance criteria, architecture, dependency, security, or verification
 
   - type: textarea
     id: why
@@ -47,17 +48,40 @@ body:
       required: true
 
   - type: textarea
+    id: durable_context
+    attributes:
+      label: Durable Context
+      description: Use normal GitHub-accessible URLs. The linked SPEC is the durable product authority; do not duplicate full documentation here.
+      value: |
+        Canonical SPEC:
+        -
+
+        Applicable ARCH:
+        -
+
+        Applicable ADR:
+        -
+
+        Applicable GOV:
+        -
+
+        Runbook / operational reference:
+        -
+    validations:
+      required: true
+
+  - type: textarea
     id: dependencies
     attributes:
-      label: Dependencies
+      label: Dependencies and Open Decisions
       value: |
-        Spec / milestone:
+        Milestone:
         -
 
         Blocking issues:
         -
 
-        Architecture docs (cite the docs that govern placement and patterns for this task):
+        Open decisions (owner and blocking status; write None when resolved):
         -
     validations:
       required: true
@@ -174,16 +198,10 @@ body:
     attributes:
       label: Links
       value: |
-        Spec:
-        -
-
         PR:
         -
 
-        Architecture docs:
-        -
-
-        Related docs:
+        Related GitHub artifacts:
         -
     validations:
       required: false
