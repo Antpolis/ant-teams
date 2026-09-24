@@ -681,6 +681,24 @@ check('INV-11d: Ready issues provide deterministic builder documentation context
   mustContain(read('templates/opencode/skills/pr-review-flow/SKILL.md'), 'pr-review <PR> --approve', 'pr-review-flow native approval');
 });
 
+check('INV-11e: no active surface mandates no-op "No New Durable Memory" role-memory entries', () => {
+  const offenders = [];
+  for (const f of activeMarkdownSurfaces()) {
+    const lines = read(f).split('\n');
+    for (const line of lines) {
+      // A mandate tells the agent to verify or create such an entry;
+      // a prohibition tells the agent NOT to. Only mandates are violations.
+      if (/No [Nn]ew [Dd]urable [Mm]emory/.test(line) && !/[Dd]o not create/.test(line)) {
+        offenders.push(f);
+        break;
+      }
+    }
+  }
+  const oc = read('templates/opencode/opencode.json');
+  if (/No [Nn]ew [Dd]urable [Mm]emory/.test(oc)) offenders.push('templates/opencode/opencode.json');
+  assert.deepStrictEqual(offenders, [], 'no active surface may mandate no-op role-memory entries:\n' + offenders.join('\n'));
+});
+
 // --- INV-12: legacy state names and issue-template drift (audit 2) -----------
 
 check('INV-12a: issue template Workflow State options are exactly the canonical nine', () => {

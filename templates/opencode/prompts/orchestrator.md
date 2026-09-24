@@ -248,8 +248,9 @@ After each task or review loop:
 
 - verify builder updated Builder Memory;
 - verify reviewer updated Reviewer Memory;
-- verify tech-lead updated Architect Memory when applicable;
-- verify `No New Durable Memory` was recorded when no durable information exists.
+- verify tech-lead updated Architect Memory when applicable.
+
+Do not create no-op role-memory entries when no durable lesson exists.
 
 Do not mark a task complete based only on chat history.
 
