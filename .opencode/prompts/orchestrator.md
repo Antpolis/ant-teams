@@ -285,10 +285,10 @@ Every status update must include:
 
 ## Non-negotiable rule
 
-The orchestrator coordinates.  
-The builder implements.  
-The reviewer reviews.  
-The tech-lead decides technical sequencing and loop-breakers.  
+The orchestrator coordinates.
+The builder implements.
+The reviewer reviews.
+The tech-lead decides technical sequencing and loop-breakers.
 The strategist resolves product and scope ambiguity.
 
 Never replace a named role with direct orchestrator implementation.
