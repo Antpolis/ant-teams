@@ -220,9 +220,31 @@ rm -rf "$target_dir"
 mkdir -p "$target_dir"
 cp -R "$temp_dir"/. "$target_dir"/
 
+# Install repo-local .opencode/ runtime from templates/opencode (canonical
+# source). Only config files and commands are synced; skills are synced
+# separately by the managed-skill sync below. Unlike the global
+# ~/.config/opencode install, the repo-local .opencode/ is a pure copy — no
+# provider merge, because it is generated from the canonical source.
+sync_repo_opencode() {
+  local local_dir="$script_root/.opencode"
+  local temp_opencode
+  temp_opencode="$(mktemp -d)"
+  cp -R "$source_dir"/. "$temp_opencode"/
+  rm -rf "$temp_opencode/skills"
+
+  mkdir -p "$(dirname "$local_dir")"
+  rm -rf "$local_dir"
+  mkdir -p "$local_dir"
+  cp -R "$temp_opencode"/. "$local_dir"/
+  rm -rf "$temp_opencode"
+
+  echo "Synced $source_dir -> $local_dir"
+}
+
 echo "Synced $source_dir -> $target_dir"
 sync_team_scripts
 sync_copilot_agents "$source_dir/opencode.json"
+sync_repo_opencode
 
 # SPEC-002 FR-12.2 / INT-3.2 (amended by the 2026-08-25 founder-direct
 # tech-lead plan): managed sync runs only after the canonical install
