@@ -27,7 +27,7 @@ Flow:
    - key gaps or unanswered questions
    - the suggested implementation direction
 8. Get explicit founder confirmation or correction before proposing or writing the spec. If material ambiguity remains, keep collaborating. Do not draft prematurely.
-9. Before creating the canonical SPEC, allocate its numeric-only identifier with `"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" spec-next`. Use exactly the returned `SPEC-###` identifier in the Obsidian `spec_id`, note title, and subsequent GitHub milestone. Strategist writes the business sections of the spec. Tech-lead writes the technical sections. Use `documentation-standard` SPEC type.
+9. Allocate a numeric-only SPEC identifier with `"$ANT_TEAM_SCRIPTS/gh_project_helper.sh" spec-next`. Use exactly the returned `SPEC-###` identifier in the milestone title, GitHub milestone, and subsequent spec document. Strategist writes the business sections of the spec. Tech-lead writes the technical sections. Use `documentation-standard` SPEC type.
 
    GATE — the spec is not implementation-ready and the flow must not advance to step 10 unless every section below is present and complete:
 
@@ -55,7 +55,7 @@ Flow:
    - Rollout and rollback plan: phasing, feature flags, migration steps, rollback procedure, and who is responsible
    - Open decisions: each decision's owner, whether it blocks planning, and why any non-blocking decision may wait
 
-   Record the strategist-to-tech-lead planning handoff in GitHub with the canonical Obsidian SPEC URL, decision status, evidence, and exact next action. Do not continue while a planning-blocking decision remains open.
+   Record the strategist-to-tech-lead planning handoff as a GitHub issue or milestone comment with the canonical SPEC URL, decision status, evidence, and exact next action. Do not continue while a planning-blocking decision remains open.
 
 10. Tech-lead creates the GitHub milestone and all execution issues using the `how-to-create-task` skill.
 
@@ -65,7 +65,7 @@ Flow:
     - Every issue's Durable Context has exact normal URLs to the canonical SPEC and each applicable ARCH, ADR, GOV, and runbook; non-applicable references have a reason
     - No unresolved decision blocks an issue's scope, acceptance criteria, architecture, dependency, security, or verification
     - Tech-lead has worked through the Required Task Types checklist — every type either has an issue or an explicit exclusion recorded in the milestone
-    - Documentation tasks point to the existing project folder, and testing/QA execution tasks exist unless explicitly excluded with written justification
+    - Documentation tasks point to the central Obsidian project folder, and testing/QA execution tasks exist unless explicitly excluded with written justification
     - Tech-lead has sequenced all issues and recorded the full sequence in the milestone
     - Every spec acceptance criterion is covered by at least one issue
     - Every functional, technical, data model, API, security, observability, and error handling requirement from the spec is addressed by at least one issue
@@ -73,7 +73,7 @@ Flow:
 
     If any check fails, create the missing issues or record the gap in the milestone before marking anything Ready.
 
-11. Move confirmed executable issues to `Ready`. Leave non-executable work in `Backlog` or `Blocked` with the exact reason reflected in the GitHub issue or milestone.
+11. Move confirmed executable issues to `Ready`. Leave non-executable work in `Backlog` or `Blocked` with the exact reason recorded in the GitHub issue or milestone.
 12. Confirm at least one builder-ready issue exists. If not, record why in GitHub and tell the founder exactly what is missing before stopping.
 13. Recommend `do-tasks` only after GitHub is updated and at least one builder-ready issue exists.
 

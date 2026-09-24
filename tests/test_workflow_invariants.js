@@ -117,6 +117,7 @@ function activeMarkdownSurfaces() {
   return [
     ...walkFiles('templates/opencode/skills', ['.md']),
     ...walkFiles('templates/opencode/commands', ['.md']),
+    ...walkFiles('templates/opencode/prompts', ['.md']),
     'README.md',
     'AGENTS.md',
     '.github/ISSUE_TEMPLATE/task.yml',
@@ -645,6 +646,36 @@ check('INV-11bd: completed specs use the gated GitHub closeout flow', () => {
   mustContain(flow, 'run `spec-closeout`', 'delivery-flow closeout integration');
 });
 
+check('INV-11be: no active surface requires role-memory updates as a completion gate', () => {
+  // GOV-001: role memory stores only reusable lessons — no no-op entries.
+  // Active guidance must not require verifying/creating role memory after every loop
+  // when there is no durable lesson to capture.
+  const bannedPhrases = [
+    'verify builder updated Builder Memory',
+    'verify reviewer updated Reviewer Memory',
+    'verify tech-lead updated Architect Memory',
+  ];
+  const oc = read('templates/opencode/opencode.json');
+  const prompts = read('templates/opencode/prompts/orchestrator.md');
+  const offenders = [];
+  for (const phrase of bannedPhrases) {
+    if (oc.includes(phrase)) offenders.push(`opencode.json: ${phrase}`);
+    if (prompts.includes(phrase)) offenders.push(`prompts/orchestrator.md: ${phrase}`);
+  }
+  for (const f of activeMarkdownSurfaces()) {
+    for (const phrase of bannedPhrases) {
+      if (read(f).includes(phrase)) offenders.push(`${f}: ${phrase}`);
+    }
+  }
+  assert.deepStrictEqual(offenders, [], `role-memory must not be required as a completion gate:\n${offenders.join('\n')}`);
+});
+
+check('INV-11bf: orchestrator prompt explicitly forbids no-op role-memory entries', () => {
+  const prompts = read('templates/opencode/prompts/orchestrator.md');
+  mustContain(prompts, 'Do not create no-op memory entries when no durable lesson exists', 'orchestrator.md');
+  mustContain(prompts, 'Do not verify or require role-memory updates as a completion gate', 'orchestrator.md');
+});
+
 check('INV-11c: planning requires a stable SPEC and recorded decision status', () => {
   const shaping = read('templates/opencode/skills/product-shaping/SKILL.md');
   const tasks = read('templates/opencode/skills/how-to-create-task/SKILL.md');
@@ -679,6 +710,24 @@ check('INV-11d: Ready issues provide deterministic builder documentation context
   mustContain(read('templates/opencode/skills/do-task/SKILL.md'), 'direct runtime instruction', 'do-task delegation context');
   mustContain(read('templates/opencode/skills/pr-review-flow/SKILL.md'), '## Review Delegation — builder → reviewer', 'pr-review-flow review delegation');
   mustContain(read('templates/opencode/skills/pr-review-flow/SKILL.md'), 'pr-review <PR> --approve', 'pr-review-flow native approval');
+});
+
+check('INV-11e: no active surface mandates no-op "No New Durable Memory" role-memory entries', () => {
+  const offenders = [];
+  for (const f of activeMarkdownSurfaces()) {
+    const lines = read(f).split('\n');
+    for (const line of lines) {
+      // A mandate tells the agent to verify or create such an entry;
+      // a prohibition tells the agent NOT to. Only mandates are violations.
+      if (/No [Nn]ew [Dd]urable [Mm]emory/.test(line) && !/[Dd]o not create/.test(line)) {
+        offenders.push(f);
+        break;
+      }
+    }
+  }
+  const oc = read('templates/opencode/opencode.json');
+  if (/No [Nn]ew [Dd]urable [Mm]emory/.test(oc)) offenders.push('templates/opencode/opencode.json');
+  assert.deepStrictEqual(offenders, [], 'no active surface may mandate no-op role-memory entries:\n' + offenders.join('\n'));
 });
 
 // --- INV-12: legacy state names and issue-template drift (audit 2) -----------

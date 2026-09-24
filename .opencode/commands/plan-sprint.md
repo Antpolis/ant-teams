@@ -18,9 +18,9 @@ Flow:
    - existing milestones and the issues linked to them
    - issues already in `Open`, `Backlog`, `Ready`, `Blocked`, or `In Progress` when they affect what can fit in the sprint
 3. Use the github-agentic-delivery-flow, state-transitions, and github-conventions skills to confirm what work is still shaping, what is blocked, what needs clarification, and what is realistically selectable for the sprint.
-4. Use the github-issues-projects-cli skill, `gh`, `jq`, and the repo GitHub wrapper to inspect milestone linkage, project-board status, issue dependencies, and missing planning metadata. Source `./.github-project.env` first and use its `ANT_TEAM_*` runtime metadata (owner, project, field/option IDs) — it is the sole committed project config source.
+4. Use the github-issues-projects-cli skill and the repo GitHub wrapper to inspect milestone linkage, project-board status, issue dependencies, and missing planning metadata; invoke the wrapper directly because it loads `.github-project.env` itself. Source the env once only if a direct command must expand an `ANT_TEAM_*` value.
 5. Work through past or current `Need attentions` issues first:
-   - read the concise GitHub status comment and Obsidian communication record that explain why the issue was moved to `Need attentions`
+   - read the founder-addressed GitHub issue comment and linked PR context that explain why the issue was moved to `Need attentions`; read a linked Obsidian decision only when it contains durable product or architecture context
    - identify whether the issue needs product clarification, scope clarification, sequencing help, acceptance clarification, or a decision to defer
    - use strategist judgment to suggest the cleanest resolution path
    - bring the founder into the decision when prioritization, product intent, or sprint tradeoffs need founder input
@@ -39,6 +39,7 @@ Flow:
    - suggested milestone to focus on
    - suggested issues to include this sprint
    - issues that still need clarification before inclusion
+   - whether each proposed issue satisfies the builder-ready gate: exact Durable Context URLs, verification, dependencies, and no planning-blocking decision
    - the next practical command, usually `do-tasks <issue>` only after the founder agrees on the sprint choice
 
 Expected behavior:

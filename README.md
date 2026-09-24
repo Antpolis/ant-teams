@@ -8,7 +8,7 @@ This repo contains the agentic delivery workflow for this company: project initi
 - GitHub Issues are the canonical execution task records
 - The GitHub Project `Workflow State` field is the canonical workflow board
 - GitHub issue comments and PR comments carry only final decisions, status, closure, and code-review results
-- The central Obsidian project folder is the canonical documentation, full agent communication, and role-memory record
+- The central Obsidian project folder retains only durable specs, architecture/governance/runbooks, reusable lessons, and material founder decisions; GitHub is the operational communication record.
 
 ## Workflow State Model
 
@@ -92,7 +92,7 @@ See the central Obsidian project folder for the managed-skill sync runbook, arch
 
 - `templates/opencode/` — canonical editable OpenCode configuration, skills, and command source
 - `.opencode/` — generated local OpenCode runtime; recreate it with `scripts/init-company.sh`
-- `templates/scripts/` — canonical editable team-script source installed to `~/.agents/scripts` (`ant-team-help.sh`, `record-communication.sh`, worktree helpers, `validate-agents-md.sh`)
+- `templates/scripts/` — canonical editable team-script source installed to `~/.agents/scripts` (`ant-team-help.sh`, worktree helpers, `validate-agents-md.sh`)
 - `.github/ISSUE_TEMPLATE/task.yml` — execution-task issue template (tech-lead owned)
 - `.github-project.env` — sole committed project config source (`ANT_TEAM_*` runtime exports)
 - The central Obsidian project folder — canonical product, architecture, governance, runbook, and project documentation
