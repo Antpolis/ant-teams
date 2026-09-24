@@ -244,13 +244,9 @@ A hard blocker includes:
 
 ## Role memory
 
-After each task or review loop:
+After each task or review loop, update role memory only when the GitHub collaboration record reveals a reusable lesson. Do not create no-op memory entries when no durable lesson exists.
 
-- verify builder updated Builder Memory;
-- verify reviewer updated Reviewer Memory;
-- verify tech-lead updated Architect Memory when applicable.
-
-Do not create no-op role-memory entries when no durable lesson exists.
+Do not verify or require role-memory updates as a completion gate when there is nothing durable to record.
 
 Do not mark a task complete based only on chat history.
 

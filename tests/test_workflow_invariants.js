@@ -117,6 +117,7 @@ function activeMarkdownSurfaces() {
   return [
     ...walkFiles('templates/opencode/skills', ['.md']),
     ...walkFiles('templates/opencode/commands', ['.md']),
+    ...walkFiles('templates/opencode/prompts', ['.md']),
     'README.md',
     'AGENTS.md',
     '.github/ISSUE_TEMPLATE/task.yml',
@@ -643,6 +644,36 @@ check('INV-11bd: completed specs use the gated GitHub closeout flow', () => {
   mustContain(closeout, 'Do not use `git branch -D`', 'spec closeout destructive-cleanup guard');
   mustContain(command, 'spec-closeout', 'close-spec command');
   mustContain(flow, 'run `spec-closeout`', 'delivery-flow closeout integration');
+});
+
+check('INV-11be: no active surface requires role-memory updates as a completion gate', () => {
+  // GOV-001: role memory stores only reusable lessons — no no-op entries.
+  // Active guidance must not require verifying/creating role memory after every loop
+  // when there is no durable lesson to capture.
+  const bannedPhrases = [
+    'verify builder updated Builder Memory',
+    'verify reviewer updated Reviewer Memory',
+    'verify tech-lead updated Architect Memory',
+  ];
+  const oc = read('templates/opencode/opencode.json');
+  const prompts = read('templates/opencode/prompts/orchestrator.md');
+  const offenders = [];
+  for (const phrase of bannedPhrases) {
+    if (oc.includes(phrase)) offenders.push(`opencode.json: ${phrase}`);
+    if (prompts.includes(phrase)) offenders.push(`prompts/orchestrator.md: ${phrase}`);
+  }
+  for (const f of activeMarkdownSurfaces()) {
+    for (const phrase of bannedPhrases) {
+      if (read(f).includes(phrase)) offenders.push(`${f}: ${phrase}`);
+    }
+  }
+  assert.deepStrictEqual(offenders, [], `role-memory must not be required as a completion gate:\n${offenders.join('\n')}`);
+});
+
+check('INV-11bf: orchestrator prompt explicitly forbids no-op role-memory entries', () => {
+  const prompts = read('templates/opencode/prompts/orchestrator.md');
+  mustContain(prompts, 'Do not create no-op memory entries when no durable lesson exists', 'orchestrator.md');
+  mustContain(prompts, 'Do not verify or require role-memory updates as a completion gate', 'orchestrator.md');
 });
 
 check('INV-11c: planning requires a stable SPEC and recorded decision status', () => {
