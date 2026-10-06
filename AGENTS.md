@@ -71,7 +71,7 @@ Scratch directory for work-in-progress and logs: `./tmp/`
 
 ## Project Initialization
 
-Project initialization is an explicit founder-facing command, not an automatically invoked skill. Use `/init-project` when bootstrapping or re-initializing a repository. The command is derived into the managed `init-project` skill with `disable-model-invocation: true`, so agents must not invoke it implicitly. It runs the canonical `$ANT_TEAM_SCRIPTS/init-project.sh` tooling script, which seeds or updates `.github-project.env`, configures worktree and central Obsidian documentation routing, and installs the minimal project runtime. Invoke centralized helpers directly because they load the env themselves; source it only for direct `ANT_TEAM_*` variable access.
+Project initialization is the founder-facing, explicitly invoked `init-project` native skill (`templates/opencode/skills/init-project/SKILL.md`, `disable-model-invocation: true`) — use `/init-project` to bootstrap or re-initialize, and agents must not invoke it implicitly. It runs in two layers: the deterministic `$ANT_TEAM_SCRIPTS/init-project.sh` engine seeds or updates `.github-project.env`, configures worktree and central Obsidian documentation routing, and installs the minimal project runtime; the skill then tailors this `AGENTS.md` from repository evidence, preserving existing content and confirming with the founder before any substantial overwrite or merge. Durable vault documentation is delegated to the `project-initialization` skill. Invoke centralized helpers directly because they load the env themselves; source it only for direct `ANT_TEAM_*` variable access.
 
 ## GitHub Project Helper
 

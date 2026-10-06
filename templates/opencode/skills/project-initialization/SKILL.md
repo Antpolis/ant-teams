@@ -7,9 +7,9 @@ description: Establish an evidence-based delivery baseline for an existing repos
 
 ## Boundary
 
-`$ANT_TEAM_SCRIPTS/init-project.sh` configures the local runtime, `.github-project.env`, helper access, and a generated repository `AGENTS.md`. It does **not** write durable architecture documentation.
+The native `init-project` skill owns initialization. It runs the deterministic `$ANT_TEAM_SCRIPTS/init-project.sh` engine (env setup, helper access, minimal `AGENTS.md` baseline) and then tailors `AGENTS.md` from repository evidence with founder confirmation. That skill does **not** write durable architecture documentation.
 
-Use this skill for the judgment-based documentation pass after initialization. GitHub remains the operational collaboration record; create or update Obsidian notes only for durable project understanding.
+Use this skill for the durable vault documentation pass after `init-project` completes. GitHub remains the operational collaboration record; create or update Obsidian notes only for durable project understanding.
 
 ## Discovery
 

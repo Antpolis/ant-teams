@@ -33,8 +33,10 @@ sleep 1
 sync_capture "$OUT" "$SYNC_REAL_SCRIPT" "$HOME_DIR"
 assert_exit_zero "run 2 exit 0" "$SYNC_RC"
 
-# AC-7.1: every entry NOOP. 38 entries => 38 [NOOP] lines.
-assert_eq "run 2: 38 NOOP lines" "$(grep -cF '[NOOP]' "$OUT" || true)" "38"
+# AC-7.1: every managed entry reports [NOOP]; the count must equal the
+# manifest inventory (41 entries post-SPEC-005).
+assert_eq "run 2: NOOP lines == managed entries" \
+  "$(grep -cF '[NOOP]' "$OUT" || true)" "$(sync_manifest_count_entries "$MANIFEST")"
 assert_count "run 2: no INSTALL" "$OUT" "[INSTALL]" 0
 assert_count "run 2: no UPDATE"  "$OUT" "[UPDATE]" 0
 assert_count "run 2: no SKIP"    "$OUT" "[SKIP modified]" 0
