@@ -42,6 +42,10 @@
  *           through the GitHub helper before authoring a new specification.
  *   INV-11bd Completed specs use a gated closeout: GitHub Release/tag,
  *           milestone closure, preserved Done history, and safe local cleanup.
+ *   INV-11bg init-project is a native source skill (frontmatter name +
+ *           disable-model-invocation, engine invocation, project-initialization
+ *           delegation); its command source and command-derived duplicate stay
+ *           retired (SPEC-005).
  *   INV-12 No legacy state names (Shaping, Inbox) or board statuses on active
  *          surfaces; the issue template Workflow State dropdown lists exactly
  *          the canonical nine states (audit finding 2).
@@ -605,7 +609,7 @@ check('INV-11ba: project initialization skill provides evidence-based vault base
   mustContain(skill, 'Do not infer an ADR merely from code structure', 'project-initialization skill');
   mustContain(skill, 'PROJECT_OVERVIEW.md', 'project-initialization skill');
   mustContain(template, '[[DOCUMENT_INDEX|Document index]]', 'project baseline template');
-  mustContain(read('templates/opencode/commands/init-project.md'), 'invoke `project-initialization`', 'init-project command');
+  mustContain(read('templates/opencode/skills/init-project/SKILL.md'), 'invoke `project-initialization`', 'init-project skill');
 });
 
 check('INV-11bb: documentation standard defines role-specific Obsidian ownership', () => {
@@ -674,6 +678,18 @@ check('INV-11bf: orchestrator prompt explicitly forbids no-op role-memory entrie
   const prompts = read('templates/opencode/prompts/orchestrator.md');
   mustContain(prompts, 'Do not create no-op memory entries when no durable lesson exists', 'orchestrator.md');
   mustContain(prompts, 'Do not verify or require role-memory updates as a completion gate', 'orchestrator.md');
+});
+
+check('INV-11bg: init-project is a native source skill, not command-derived', () => {
+  const skill = read('templates/opencode/skills/init-project/SKILL.md');
+  mustContain(skill, 'name: init-project', 'init-project skill frontmatter');
+  mustContain(skill, 'disable-model-invocation: true', 'init-project skill frontmatter');
+  mustContain(skill, '$ANT_TEAM_SCRIPTS/init-project.sh', 'init-project skill engine invocation');
+  mustContain(skill, 'invoke `project-initialization`', 'init-project skill vault-docs delegation');
+  assert.ok(
+    !fs.existsSync(path.join(REPO_ROOT, 'templates/opencode/commands/init-project.md')),
+    'templates/opencode/commands/init-project.md must not exist — init-project is a native source skill'
+  );
 });
 
 check('INV-11c: planning requires a stable SPEC and recorded decision status', () => {

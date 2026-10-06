@@ -12,7 +12,7 @@ Metadata:
 | Applies To | `scripts/init-company.sh`, `scripts/sync-managed-skills.sh`, `~/.config/opencode`, `~/.agents/skills/`, `~/.agents/skills/.manifest.json` |
 | Keywords | managed sync, two-target install, ~/.config/opencode, ~/.agents/skills, manifest, force, dry-run, collision, command-derived skills, validation |
 | Related Docs | SPEC-002, ARCH-004, SPEC-001, ARCH-003, DOCUMENT_INDEX, README.md |
-| Last Updated | 2026-08-03 |
+| Last Updated | 2026-10-06 |
 
 ## Purpose
 
@@ -33,21 +33,25 @@ A single `scripts/init-company.sh` invocation maintains two independent install 
 
 ## What Gets Synced Into `~/.agents/skills/`
 
-The managed mirror is populated with 34 entries: 26 source skill directories plus 8 command-derived skill directories.
+The managed mirror is populated with 41 entries: 33 source skill directories plus 8 command-derived skill directories.
 
-### Source skills (26) — full-directory copy
+### Source skills (33) — full-directory copy
 
 Each directory under `.opencode/skills/<name>/` is copied in full, including `SKILL.md` plus any `scripts/`, `references/`, `assets/`, `evals/`, `agents/`, or `examples/` subdirectories. In-skill `.gitignore` files are excluded.
 
 ```
-agent-communication-log      founder-escalation-preflight  orchestrator-task-done   security-review
-agentic-flow-terms           frontend-design               playwright-cli           skill-creator
-approval-or-escalation       github-agentic-delivery-flow  pr-review-flow           state-transitions
-development-hygiene          github-conventions            product-shaping          task-completion
-do-task                      github-issues-projects-cli    project-initialization   webapp-testing
-doc-coauthoring              how-to-create-task            release-management
-documentation-standard       idea-challenge                role-memory
+agent-communication-log      github-agentic-delivery-flow  ponytail                      release-management
+agentic-flow-terms           github-conventions            ponytail-audit                role-memory
+approval-or-escalation       github-issues-projects-cli    ponytail-debt                 security-review
+development-hygiene          how-to-create-task            ponytail-gain                 skill-creator
+do-task                      idea-challenge                ponytail-review               spec-closeout
+doc-coauthoring              init-project                  pr-review-flow                state-transitions
+documentation-standard       orchestrator-task-done        product-shaping               task-completion
+founder-escalation-preflight playwright-cli               project-initialization        webapp-testing
+frontend-design
 ```
+
+`init-project` is a native source skill (SPEC-005): it is authored directly under `.opencode/skills/` with `disable-model-invocation: true`, not derived from a command. Its former command source `templates/opencode/commands/init-project.md` is retired.
 
 ### Command-derived skills (8) — exact-name transform
 
@@ -59,8 +63,8 @@ Each file `.opencode/commands/<name>.md` is transformed into `~/.agents/skills/<
 - a trailing newline
 
 ```
-deliver        fix-bug        migrate        plan-sprint    sprint-clean   sync-spec
-do-tasks       new-spec
+close-spec    deliver        do-tasks       fix-bug
+new-spec      plan-sprint    sprint-clean   sync-spec
 ```
 
 Command-derived `SKILL.md` files are derived artifacts: the authoritative source is always `.opencode/commands/<name>.md`. Never hand-edit the generated files; edit the source command and re-sync.
