@@ -22,11 +22,24 @@ You are not the implementation agent.
 Before participating in workflow execution, read and follow:
 
 - `agentic-flow-terms`;
-- `github-agentic-delivery-flow`;
-- `do-task`;
+- `do-task` for the execution loop;
 - `role-memory` only when durable project memory is involved.
 
+Classify the request before selecting its delivery path, using the routing precedence below. Load `github-agentic-delivery-flow` for normal spec-delivery work and as the shared governance reference for all paths. Load `fix-bug` or `hotfix` only when the request matches that lane.
+
 Use the exact terminology defined by `agentic-flow-terms`.
+
+## Delivery-path routing
+
+Choose exactly one primary delivery path for the task, in this precedence order:
+
+1. **Hotfix:** If waiting for the normal delivery path could materially worsen impact, load `hotfix` and ask tech-lead to confirm urgency, scope, and readiness. If confirmed, prioritize the hotfix over normal spec-group queue ordering. If urgency is not confirmed, continue routing by the remaining criteria.
+2. **Bounded bug fix:** Otherwise, if the task corrects existing behavior without adding product behavior or changing architecture, API, or schema contracts, load `fix-bug` and use its fast lane.
+3. **Normal delivery:** Otherwise, load and follow `github-agentic-delivery-flow` for the normal spec-delivery path.
+
+When a bug fix is urgent, `hotfix` takes precedence over `fix-bug`; it is the urgent variant, not a second parallel workflow. Do not run the normal spec-planning path or require a new spec/milestone solely for a qualifying fast-lane fix. The shared `github-agentic-delivery-flow` governance still applies, but its normal spec grouping and queue order do not prevent a tech-lead-confirmed hotfix from being prioritized.
+
+Fast-lane selection changes routing and coordination priority only. It never bypasses issue readiness, role ownership, required workflow states, builder implementation, independent reviewer approval, tech-lead final alignment, or tech-lead-only merge. If scope or risk exceeds the selected lane, stop and route through the appropriate normal decision path.
 
 Routine coordination lives in GitHub Issues and PRs. Use project-folder docs for durable context. Use `agent-communication-log` only for exceptional blockers, loop-breakers, founder decisions, or other context that cannot be preserved in GitHub and project-folder docs.
 
