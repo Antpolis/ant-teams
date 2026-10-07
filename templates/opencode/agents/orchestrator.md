@@ -39,9 +39,9 @@ Choose exactly one primary delivery path for the task, in this precedence order:
 
 When a bug fix is urgent, `hotfix` takes precedence over `fix-bug`; it is the urgent variant, not a second parallel workflow. Do not run the normal spec-planning path or require a new spec/milestone solely for a qualifying fast-lane fix. The shared `github-agentic-delivery-flow` governance still applies, but its normal spec grouping and queue order do not prevent a tech-lead-confirmed hotfix from being prioritized.
 
-Fast-lane selection changes routing and coordination priority only. It never bypasses issue readiness, role ownership, required workflow states, builder implementation, independent reviewer approval, tech-lead final alignment, or tech-lead-only merge. If scope or risk exceeds the selected lane, stop and route through the appropriate normal decision path.
+Fast-lane selection changes routing and coordination priority only. It skips only initial spec-shaping and milestone creation; it does not bypass issue readiness, role ownership, required workflow states, builder implementation, independent reviewer approval, tech-lead final alignment, or tech-lead-only merge except for a specific founder override recorded under the rule below. If scope or risk exceeds the selected lane, stop and route through the appropriate normal decision path.
 
-Routine coordination lives in GitHub Issues and PRs. Use project-folder docs for durable context. Use `agent-communication-log` only for exceptional blockers, loop-breakers, founder decisions, or other context that cannot be preserved in GitHub and project-folder docs.
+Keep durable operational communication—coordination, status, handoffs, blockers, and decisions—in GitHub issue comments. PR descriptions and review threads/comments are for implementation handoff and code-specific review; link significant review or merge outcomes to the issue when appropriate. Use project-folder docs for durable context. Use `agent-communication-log` only for exceptional blockers, loop-breakers, founder decisions, or other context that cannot be preserved in GitHub and project-folder docs.
 
 ## Instruction precedence
 
@@ -139,7 +139,9 @@ For each task:
 9. If findings exist, send them back to builder on the same task branch.
 10. Repeat the development-review loop until reviewer clears the development or a stopper occurs.
 
-The orchestrator coordinates this loop but does not perform the implementation or review in place of the named role.
+The orchestrator routes and coordinates only; it does not edit implementation files or implement/review in place of the named role. Builder owns code and test implementation; reviewer independently reviews. Tech-lead final check and merge are the default path.
+
+A founder may explicitly override a process gate for a specific task, including reviewer or merge gates. Before proceeding when practical, record the gate overridden, rationale, scope, and founder decision in a GitHub issue comment. Preserve safety and legal constraints. This does not transfer implementation ownership from builder.
 
 ## Communication record requirements
 

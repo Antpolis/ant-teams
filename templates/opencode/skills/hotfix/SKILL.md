@@ -17,7 +17,7 @@ Urgency is not established merely by a requested deadline or preference for spee
 
 ## Fast-lane rules
 
-- Use or have `tech-lead` create a GitHub issue as the task's operational record. No role other than `tech-lead` creates or modifies issues in normal flow.
+- Use a GitHub task issue with no milestone; do not create a milestone or attach the issue to one. If no suitable issue exists, have `tech-lead` create it. No role other than `tech-lead` creates or modifies issues in normal flow. Fast lanes skip only initial spec-shaping and milestone creation.
 - The issue must identify the impact and urgency rationale, observed and expected behavior, bounded scope and non-goals, acceptance criteria, verification evidence, risks, and applicable Durable Context.
 - Do not require a new spec or milestone solely because the fix is urgent. If the change requires new product behavior, material scope expansion, or architecture/API/schema decisions, pause the hotfix implementation and route the broader work through the normal flow.
 - Minimize delay in coordination and handoffs, not in evidence, safety, or required approval. Keep all task status, handoffs, blockers, and decisions in GitHub.
@@ -25,11 +25,15 @@ Urgency is not established merely by a requested deadline or preference for spee
 ## Workflow and ownership
 
 1. **Orchestrator — recognize and route.** When a request may qualify, load this playbook and consult `tech-lead` for the ordered queue/technical assessment before implementation work. Identify the issue and PR, urgency rationale, current state, risks, exact next owner, and any active work that must be reconciled. Do not interrupt or replace in-flight work without reconciling its GitHub record.
-2. **Tech-lead — confirm readiness.** Confirm urgency, bounded scope, acceptance, verification, risks, and applicable Durable Context. Ensure the issue is builder-ready, sequenced appropriately, and in the correct project state. Provision or verify the task branch and worktree under the existing workflow. If any requirement is missing or ambiguous, resolve it or stop and record the blocker in GitHub.
+2. **Tech-lead — confirm readiness.** Confirm urgency and builder readiness before implementation: architecture and durable requirements/context are identified and consistent; scope and non-goals are bounded; risk and guardrails are understood; acceptance criteria are testable; and the verification plan is adequate. Ensure the issue is sequenced appropriately and in the correct project state. Provision or verify the task branch and worktree under the existing workflow. Record readiness in the GitHub issue. If anything is missing or ambiguous, resolve it or stop and record the blocker in GitHub.
 3. **Builder — implement and evidence.** Make the smallest root-cause correction on the tech-lead-provided branch/worktree. Reproduce or establish the failure mode, add/update a focused regression test when practical, and run targeted checks plus relevant safety checks. Record exact commands and outcomes, skipped checks, remaining risks, and review focus in the PR handoff.
 4. **Reviewer — independently verify.** Review scope, correctness, risks, acceptance evidence, and lightweight smoke verification. Record explicit approval or actionable findings in the PR. If findings require scope or technical decisions, route them to the appropriate owner rather than silently expanding the fix.
-5. **Tech-lead — final gate and merge.** After reviewer approval, perform the final issue alignment and guardrail check. Only tech-lead may merge, and only after reviewer approval and the final check. Record merge evidence and update the issue/project state using existing conventions.
+5. **Tech-lead — final gate and merge.** After reviewer approval, perform the final issue alignment and guardrail check. The default is tech-lead-only merge after reviewer approval and the final check. Record merge evidence and update the issue/project state using existing conventions.
 6. **Orchestrator — continue and close the loop.** Verify the required GitHub records and gates, route any rework to builder on the same branch/PR, and ensure follow-up work is tracked separately when it falls outside the bounded urgent fix.
+
+## Founder override
+
+A founder may explicitly override a process gate for this specific task, including reviewer or merge gates. Before proceeding when practical, record in a GitHub issue comment the exact gate overridden, rationale, scope, and founder decision. Preserve all safety and legal constraints. An override does not transfer implementation ownership from builder.
 
 ## Stop or leave the hotfix lane
 
@@ -46,8 +50,8 @@ Record the impact, blocker, decision owner, and smallest next action in the GitH
 
 ## Records and governance
 
-- GitHub issues, PRs, and Project Workflow State remain the operational collaboration record.
+- Keep durable operational communication—coordination, status, handoffs, blockers, and decisions—in GitHub issue comments. PR descriptions and review threads/comments are for implementation handoff and code-specific review; link significant review or merge outcomes to the issue when appropriate.
 - Use the canonical handoff location and concise handoff format defined by `github-agentic-delivery-flow` and `agent-communication-log`; do not duplicate an existing handoff in another comment.
 - Keep durable product, architecture, governance, or reusable knowledge in the central Obsidian project docs only when it meets the existing GOV-001 threshold. Do not create routine hotfix event notes or issue mirrors.
 - Record role memory only for a reusable lesson; do not create a no-op entry.
-- Preserve the existing review-loop, approval, state-transition, and tech-lead-only merge rules. This playbook grants no exception to them.
+- Preserve the existing review-loop, approval, state-transition, and tech-lead-only merge defaults, subject only to an explicit founder override recorded as above.

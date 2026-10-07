@@ -13,20 +13,25 @@ Use this skill for the complete delivery of a bounded bug fix. It does not repla
 
 A bounded fix corrects an existing behavior that is demonstrably broken or regressed. It does not add new product behavior, settle a product decision, or change architecture, API, or schema contracts.
 
-A bounded fix does not require a new spec or milestone. It does require a builder-ready GitHub issue that defines the defect, expected behavior, acceptance criteria, and verification evidence:
+Fast lanes skip only initial spec-shaping and milestone creation. A bounded fix requires a GitHub task issue with no milestone; do not create a milestone or attach the task issue to one. The issue must define the defect, expected behavior, acceptance criteria, verification evidence, scope, and applicable Durable Context:
 
 - Reuse the assigned issue when the bug falls within its approved scope.
-- If no suitable issue exists, ask the tech-lead to create a standalone task issue. Do not create a spec or milestone for an otherwise bounded fix.
+- If no suitable issue exists, ask the tech-lead to create a standalone task issue without a milestone. Do not create a spec or milestone for an otherwise bounded fix.
 - Do not begin implementation while expected behavior or acceptance is ambiguous. Route technical or verification ambiguity to the tech-lead.
 
 ## Workflow
 
 1. **Confirm scope and ownership.** Read the issue, acceptance criteria, guardrails, and applicable Durable Context. Confirm the defect fits the issue and the fast-lane boundary. Keep the issue as the Collaboration Record. Follow the existing task-branch and project-state rules.
 2. **Establish evidence.** Reproduce the defect or confirm the failure mode with an existing failing test, trace, or other observable evidence. Record the observed behavior and the expected behavior from the issue. If evidence is unavailable or expected behavior is unclear, stop and ask the tech-lead to resolve it before coding.
-3. **Make the smallest correction.** Trace the failure to its root cause, then change only what is needed to restore the accepted behavior. Do not widen the fix beyond the bug unless necessary and approved. Add or update a behavior-focused regression test when practical.
-4. **Verify the fix.** Run the targeted regression test and relevant checks for the affected area. Confirm the reproduction now passes and the expected behavior holds. Report exact commands and outcomes. Disclose skipped or unavailable checks and any remaining risk; do not claim success without evidence.
-5. **Prepare the review handoff.** Open or update the task PR under the existing builder workflow. Include the issue link, root cause, implementation summary, reproduction evidence, verification results, skipped checks, known risks, and reviewer focus. Move the issue to the appropriate review state using the established project workflow. Keep task status, handoffs, blockers, and review discussion in GitHub.
-6. **Complete the existing review and merge gates.** The reviewer independently checks scope, correctness, acceptance evidence, and lightweight smoke verification, then records approval or actionable findings on the PR. The tech-lead performs the final spec/issue alignment check and is the only role that merges. Do not self-approve, bypass review, or merge.
+3. **Tech-lead readiness confirmation.** Before builder starts, tech-lead confirms the issue is ready: applicable architecture and durable requirements/context are identified and consistent; scope and non-goals are bounded; risk and guardrails are understood; acceptance criteria are testable; and the verification plan is adequate. Record readiness in the GitHub issue. If any item is missing or ambiguous, resolve it or stop before implementation.
+4. **Make the smallest correction.** Trace the failure to its root cause, then change only what is needed to restore the accepted behavior. Do not widen the fix beyond the bug unless necessary and approved. Add or update a behavior-focused regression test when practical.
+5. **Verify the fix.** Run the targeted regression test and relevant checks for the affected area. Confirm the reproduction now passes and the expected behavior holds. Report exact commands and outcomes. Disclose skipped or unavailable checks and any remaining risk; do not claim success without evidence.
+6. **Prepare the review handoff.** Open or update the task PR under the existing builder workflow. Include the issue link, root cause, implementation summary, reproduction evidence, verification results, skipped checks, known risks, and reviewer focus. Move the issue to the appropriate review state using the established project workflow. Keep task status, handoffs, blockers, and review discussion in GitHub.
+7. **Complete the existing review and merge gates.** The reviewer independently checks scope, correctness, acceptance evidence, and lightweight smoke verification, then records approval or actionable findings on the PR. The tech-lead performs the final issue alignment check and merge. These are the default gates.
+
+## Founder override
+
+A founder may explicitly override a process gate for this specific task, including reviewer or merge gates. Before proceeding when practical, record in a GitHub issue comment the exact gate overridden, rationale, scope, and founder decision. Preserve all safety and legal constraints. An override does not transfer implementation ownership from builder.
 
 ## Escalate out of the fast lane
 
@@ -42,6 +47,6 @@ Ask the tech-lead to resolve technical scope, architecture, risk, or verificatio
 
 ## Communication and records
 
-- Keep GitHub issues, PRs, and project workflow state as the operational record for scope, status, handoffs, blockers, verification, review, and approval.
+- Keep durable operational communication—coordination, status, handoffs, blockers, and decisions—in GitHub issue comments. PR descriptions and review threads/comments are for implementation handoff and code-specific review; link significant review or merge outcomes to the issue when appropriate.
 - Do not create routine Obsidian notes or communication-event records for a bug fix. Add or update Obsidian only if the result meets the durable-knowledge threshold in the applicable governance.
 - Add role memory only when the task produces a reusable lesson. Do not create a no-op memory entry.
