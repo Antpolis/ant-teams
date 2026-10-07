@@ -33,10 +33,15 @@
 #          executes the engine from the managed mirror — with the mirror
 #          engine forced non-executable (0644), proving centralized wrapper
 #          execution without mirror execute bits; the init engine and its
-#          support assets must be installed into ~/.agents/scripts
+#          support assets must be installed into ~/.agents/scripts. The
+#          coordinator regenerates the repo-local `.opencode/` mirror next to
+#          itself, so it runs from a disposable copy of the canonical sources
+#          (sync-suite fixture convention) and the source checkout's tracked
+#          mirror is asserted unchanged (review-loop-1 fix, PR #74).
 #
 # No network access. Temp HOME fixtures only — never the real ~/.agents or
-# ~/.config trees.
+# ~/.config trees, and never the source checkout's generated `.opencode/`
+# mirror.
 #
 # Run directly: `bash tests/test_mirror_init.sh`.
 #
@@ -62,6 +67,27 @@ copy_tree_no_exec() {
   cp -R "$src/." "$dst/"
   find "$dst" -type d -exec chmod 0755 {} +
   find "$dst" -type f -exec chmod 0644 {} +
+}
+
+# opencode_mirror_state REPO_ROOT — stable fingerprint of REPO_ROOT's
+# generated `.opencode/` mirror: one "<mode> <sha256> <relpath>" line per
+# regular file. Prints ABSENT when the mirror does not exist. Used to prove a
+# run left the source checkout's tracked mirror byte-identical (git-visible
+# dirt = file content, mode, or inventory changes — all captured here).
+opencode_mirror_state() {
+  local root="$1"
+  if [[ ! -d "$root/.opencode" ]]; then
+    printf 'ABSENT\n'
+    return 0
+  fi
+  (
+    cd "$root" || exit 1
+    find .opencode -type f | LC_ALL=C sort | while IFS= read -r f; do
+      printf '%s %s %s\n' \
+        "$(stat -c %a "$f" 2>/dev/null || stat -f %Lp "$f")" \
+        "$(sha256sum "$f" 2>/dev/null | awk '{print tolower($1)}')" "$f"
+    done
+  )
 }
 
 # build_simulated_install HOME — simulated post-init-company layout. Echoes
@@ -181,12 +207,44 @@ assert_not_exists "MIR-2: no skills copied on preflight failure" "$mir2_target/.
 
 init_suite "MIR-3 real init-company + direct wrapper execution"
 
+# init-company.sh regenerates the repo-local `.opencode/` mirror NEXT TO
+# ITSELF (sync_repo_opencode: rm -rf + copy from templates/opencode), so it
+# must never run with $script_root inside the source checkout. Mirror the
+# sync-suite fixture convention (sync_make_fixture_repo_with_company): copy
+# the real coordinator + managed sync and the canonical templates/opencode
+# into a disposable repo under the suite TMP — every generated output lands
+# in the copy and the checkout stays byte-identical.
+mir3_repo="$TMP/mir3-repo"
+mkdir -p "$mir3_repo/scripts" "$mir3_repo/templates"
+cp "$INIT_REPO_ROOT/scripts/init-company.sh" \
+  "$INIT_REPO_ROOT/scripts/sync-managed-skills.sh" "$mir3_repo/scripts/"
+chmod 0755 "$mir3_repo/scripts/init-company.sh" \
+  "$mir3_repo/scripts/sync-managed-skills.sh" 2>/dev/null || true
+cp -R "$INIT_REPO_ROOT/templates/opencode" "$mir3_repo/templates/opencode"
+cp -R "$INIT_REPO_ROOT/templates/scripts" "$mir3_repo/templates/scripts"
+
+# Isolation proof setup: fingerprint the checkout's generated `.opencode/`
+# mirror before the run; compared unchanged below.
+mir3_checkout_before="$(opencode_mirror_state "$INIT_REPO_ROOT")"
+
 mir3_home="$TMP/mir3-home"
 mkdir -p "$mir3_home"
-init_run_cmd "$OUT" "$ERR" "$INIT_REPO_ROOT" \
+init_run_cmd "$OUT" "$ERR" "$mir3_repo" \
   -u OPENCODE_CONFIG_DIR "HOME=$mir3_home" -- \
-  bash "$INIT_REPO_ROOT/scripts/init-company.sh"
+  bash "$mir3_repo/scripts/init-company.sh"
 assert_exit_zero "MIR-3: init-company.sh exits 0 into temp HOME" "$INIT_RC"
+
+# The disposable copy absorbed the generated repo-local mirror; the source
+# checkout's tracked mirror is unchanged (isolation promise,
+# tests/lib/init_helpers.sh).
+assert_exists "MIR-3: generated repo-local mirror lands in the disposable copy" \
+  "$mir3_repo/.opencode/opencode.json"
+mir3_checkout_after="$(opencode_mirror_state "$INIT_REPO_ROOT")"
+if [[ "$mir3_checkout_after" == "$mir3_checkout_before" ]]; then
+  check OK "MIR-3: source checkout .opencode/ mirror unchanged (mode+content+inventory)"
+else
+  check FAIL "MIR-3: source checkout .opencode/ mirror mutated during the run"
+fi
 
 mir3_scripts="$mir3_home/.agents/scripts"
 wrapper="$mir3_scripts/gh_project_helper.sh"
