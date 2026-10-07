@@ -649,7 +649,7 @@ ensure_opencode_gitignore() {
 # SEC-3.2's "no explicit `chmod` call is required" holds verbatim, and avoids a
 # post-copy `chmod` that would violate SEC-3.1 ("must not set explicit
 # permissions beyond what `mkdir -p` and `cp` provide by default"). Tests in
-# `tests/test_skills_copy.js` assert the source invariant AND the target
+# `tests/test_skills_copy.sh` assert the source invariant AND the target
 # outcome for every required shell script so a source-mode regression cannot
 # silently ship a non-executable script into a fresh init.
 copy_required_skills() {
@@ -851,7 +851,7 @@ ensure_project_runtime_env() {
     --arg project_number "$(pick "${env_map[ANT_TEAM_GITHUB_PROJECT_NUMBER]:-}" "$opt_github_project_number" "1")" \
     --arg project_id "$(pick "${env_map[ANT_TEAM_GITHUB_PROJECT_ID]:-}" "PVT_kwDOEXAMPLE")" \
     --arg ws_field_id "$(pick "${env_map[ANT_TEAM_GITHUB_WORKFLOW_STATE_FIELD_ID]:-}" "workflow-state-field-id")" \
-    --arg worktree_root "$worktree_root" \
+    --arg worktree_root "$(pick "${env_map[ANT_TEAM_WORKTREE_ROOT]:-}" "$worktree_root")" \
     --arg docs_vault "$(pick "${env_map[ANT_TEAM_DOCS_VAULT_PATH]:-}" "")" \
     --arg docs_project_name "$(pick "${env_map[ANT_TEAM_DOCS_PROJECT_NAME]:-}" "$repo_name")" \
     --arg docs_repository "$(pick "${env_map[ANT_TEAM_DOCS_REPOSITORY]:-}" "")" \
@@ -1546,10 +1546,15 @@ run_preflight "$project_dir" "$managed_skills_root"
 
 project_dir="$(mkdir -p "$project_dir" && cd "$project_dir" && pwd)"
 docs_root="${docs_root%/}"
-repo_name="${opt_name:-$(basename "$project_dir")}"
+# Pre-migration parity (SPEC-004 FR-06 / ARCH-003 rule 3): the env-seed repo
+# name is ALWAYS the detected git repository name (basename of the project
+# root). `--name` shapes AGENTS.md prose (repo_name below) but never seeds
+# ANT_TEAM_DOCS_PROJECT_NAME / ANT_TEAM_GITHUB_REPO fallbacks.
+repo_basename="$(basename "$project_dir")"
+repo_name="${opt_name:-$repo_basename}"
 
 if [[ -z "$worktree_root" ]]; then
-  worktree_root="$HOME/Projects/worktree/$repo_name"
+  worktree_root="$HOME/Projects/worktree/$repo_basename"
 fi
 
 worktree_root="$(expand_path "$worktree_root")"
@@ -1565,7 +1570,7 @@ fi
 ensure_project_runtime_env \
   "$project_dir" \
   "$worktree_root" \
-  "$repo_name" \
+  "$repo_basename" \
   "$opt_github_owner" \
   "$opt_github_project_number" \
   "$engine_assets/github-project.env.template"
