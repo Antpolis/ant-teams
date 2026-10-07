@@ -125,7 +125,7 @@ When strategist and tech-lead discuss a spec during shaping, record the actionab
 - Link the canonical SPEC from the milestone and every execution issue. Link each applicable ARCH, ADR, GOV, and runbook directly from the issue's `Durable Context`; GitHub links use normal URLs because it cannot resolve Obsidian wikilinks.
 - Keep task-local discussion, handoffs, blockers, escalation requests, review outcomes, and ownership decisions in GitHub.
 - Keep GitHub Project status fields authoritative for workflow state.
-- Do not create an Obsidian issue vault, per-task communication-event mirror, or routine task note.
+- Do not create an Obsidian issue vault, per-task communication-event mirror, or routine task note. The scoped exception is the orchestrator-assigned local `session-context/<session_id>.md` note (GOV-001) for in-flight cross-agent context within one root session; it is never workflow state, never a durable document, and never committed to the documentation repo.
 - Create or update an Obsidian document only for durable knowledge that meets GOV-001's write threshold.
 - Role memory is event-triggered and contains only reusable lessons; do not create `No new durable memory` entries.
 - Keep code-specific review on the pull request.

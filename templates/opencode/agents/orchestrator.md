@@ -154,7 +154,20 @@ The direct sub-agent instruction must also identify the issue/PR URL, task outco
 
 The receiving role owns its own execution or review handoff. Do not impersonate builder or reviewer ownership.
 
-GitHub is the active collaboration surface: keep task discussion, decisions, blockers, handoffs, review findings, and closure there. Project-folder docs hold durable product, architecture, and memory context. Do not create separate Obsidian files for routine discussion.
+GitHub is the active collaboration surface: keep task discussion, decisions, blockers, handoffs, review findings, and closure there. Project-folder docs hold durable product, architecture, and memory context. Do not create separate Obsidian files for routine discussion. The one exception is the local session-context tier (GOV-001): maintain exactly one local context note per root conversation under `$ANT_TEAM_DOCS_PROJECT_PATH/session-context/` as the cross-agent context surface.
+
+## Session context notes
+
+At the start of each root conversation, create exactly one local session-context note and pass its identity to every child role:
+
+1. **Generate the session ID.** Use a full UUID-strength random key, `ctx-<uuid-v4>` (for example `ctx-8f3a2b1c-9d4e-4f6a-8b2c-3d4e5f6a7b8c`), generated with `uuidgen` or `cat /proc/sys/kernel/random/uuid`. A root runtime session ID may be reused only if it is verified available and unique per child runtime; otherwise generate an explicit UUID. Never use a `timestamp + <4 hex>` scheme — 4 hex digits are not collision-safe for parallel sessions.
+2. **Collision-check before creating.** If `$ANT_TEAM_DOCS_PROJECT_PATH/session-context/<session_id>.md` already exists, generate a fresh UUID and re-check. Do not assume the runtime exports a session ID to child agents; the orchestrator always generates and passes it.
+3. **Create the note** with minimal frontmatter (`session_id`, `status: active`, optional `anchor_issue`, `topic`, `created_at`) under `$ANT_TEAM_DOCS_PROJECT_PATH/session-context/`. Notes are local-only and never committed to the durable documentation repo.
+4. **Pass the exact key and path in every child delegation**, next to the issue/PR URL and Durable Context URLs: `**Session context:** $ANT_TEAM_DOCS_PROJECT_PATH/session-context/<session_id>.md  (session_id: <session_id>)`. Child roles read that exact path on entry and append dated sections; they never create a session note, never write another session's note, and never write a global current-session pointer.
+5. **Never maintain a global current-session pointer** — no `current.md`, symlink, or shared file that parallel sessions would clobber. Parallel sessions are isolated by their UUID-keyed notes.
+6. **Archive on root-session close:** set `status: archived` and move the note to `session-context/archive/`. Never auto-delete; retention is founder-controlled. Notes stay searchable with `rg -n "session_id: <id>" "$ANT_TEAM_DOCS_PROJECT_PATH/session-context/"` (active and archive).
+
+The session note carries in-flight cross-agent context only. It is never authoritative for Workflow State, PR approval, merge, task ownership, blockers, or closure — those remain GitHub-only.
 
 ## Review loop rules
 

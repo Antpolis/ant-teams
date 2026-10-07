@@ -48,7 +48,7 @@ Do not rely on GitHub milestone text alone as the full spec. Keep the canonical 
 - GitHub issues are the canonical task records for scope, ownership, handoffs, blockers, escalations, and task decisions.
 - GitHub Projects is the canonical workflow board for state visualization, using the canonical `Workflow State` field.
 - Pull requests are the canonical implementation and code-review record, including verification evidence, findings, responses, and approval.
-- Add or update Obsidian only when the result meets the GOV-001 durable-knowledge threshold; never use it as a routine task, communication-event, or review-loop mirror.
+- Add or update Obsidian only when the result meets the GOV-001 durable-knowledge threshold; never use it as a routine task, communication-event, or review-loop mirror. The scoped exception is the orchestrator-assigned local `session-context/` note (GOV-001): one UUID-keyed note per root conversation for in-flight cross-agent context, searched with `rg`, archived on session close, never committed to the durable documentation repo, and never authoritative for Workflow State, PR approval, merge, task ownership, blockers, or closure.
 - Role memory is event-triggered: record only reusable lessons, recurring constraints, or cross-task tradeoffs. Do not create no-op memory entries.
 - Local markdown task files, local workflow boards, and chat transcripts are not part of the active execution flow.
 - If GitHub and durable documentation disagree, reconcile them instead of silently choosing one.

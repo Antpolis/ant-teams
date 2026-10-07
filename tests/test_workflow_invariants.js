@@ -19,7 +19,12 @@
  *          never mutates remote board options.
  *   INV-4  Record split: GitHub issue/PR comments and Project Workflow State
  *          are the operational collaboration record; Obsidian holds only
- *          curated durable knowledge and exceptional decisions.
+ *          curated durable knowledge and exceptional decisions. The one
+ *          scoped carve-out is the local session-context tier (INV-17):
+ *          orchestrator-assigned per-root-session notes under
+ *          `$ANT_TEAM_DOCS_PROJECT_PATH/session-context/`, which are never
+ *          authoritative for workflow state, approval, merge, ownership,
+ *          blockers, or closure.
  *   INV-5  Tech-lead owns merge and cleanup.
  *   INV-6  Operational scripts run through ANT_TEAM_SCRIPTS (sync-company
  *          prerequisite); the legacy local-markdown pm-lib script family is
@@ -37,7 +42,8 @@
  *          only in env-paired, no-JSON, or canonical-source contexts.
  *   INV-11 No active surface requires routine Obsidian communication-event
  *          records or no-op role-memory updates. GitHub remains the
- *          operational record (2026-09 GOV-001 migration).
+ *          operational record (2026-09 GOV-001 migration); session-scoped
+ *          local context notes are covered separately by INV-17.
  *   INV-11bc Canonical SPEC IDs are numeric-only (`SPEC-###`) and allocated
  *           through the GitHub helper before authoring a new specification.
  *   INV-11bd Completed specs use a gated closeout: GitHub Release/tag,
@@ -60,6 +66,19 @@
  *   INV-16 No ANT_TEAM_DOCS_PROJECT_PATH_TEMPLATE on any active surface: the
  *          concrete ANT_TEAM_DOCS_PROJECT_PATH is founder-set or derived as
  *          VAULT_PATH/02-Architecture-Landscape/projects/PROJECT_NAME.
+ *   INV-17 Session context is a local, per-root-session, non-authoritative
+ *          tier (GOV-001): notes live at
+ *          `$ANT_TEAM_DOCS_PROJECT_PATH/session-context/<session_id>.md`
+ *          keyed by a full UUID-strength `ctx-<uuid-v4>` session ID that the
+ *          orchestrator generates and collision-checks before file creation
+ *          (never `timestamp + <4 hex>`, no runtime session-ID assumption);
+ *          the orchestrator passes the exact ID and path in every child
+ *          delegation; child roles read/append only their own session's
+ *          note; there is no global current-session pointer; notes are
+ *          rg-searchable and archived (never auto-deleted) under
+ *          `session-context/archive/`; local-only, never committed to the
+ *          durable documentation repo; never authoritative for Workflow
+ *          State, PR approval, merge, task ownership, blockers, or closure.
  *
  * No external npm dependencies — Node built-ins only. No network access.
  */
@@ -105,6 +124,24 @@ function mustNotContain(content, needle, context) {
   }
 }
 
+// Role prompts live in markdown agent files since the opencode.json agent-key
+// migration (commit dab9fe4). These are the canonical prompt surfaces.
+const ROLE_AGENT_FILES = {
+  orchestrator: 'templates/opencode/agents/orchestrator.md',
+  strategist: 'templates/opencode/agents/strategist.md',
+  'tech-lead': 'templates/opencode/agents/tech-lead.md',
+  builder: 'templates/opencode/agents/builder.md',
+  reviewer: 'templates/opencode/agents/reviewer.md',
+};
+
+function roleAgentPrompt(role) {
+  return read(ROLE_AGENT_FILES[role]);
+}
+
+function roleAgentPrompts() {
+  return Object.entries(ROLE_AGENT_FILES).map(([role, file]) => ({ role, file, prompt: read(file) }));
+}
+
 // Active surfaces = guidance a runtime agent or operator actually consumes.
 // Historical docs (docs/, including docs/memory and superseded templates) are
 // append-only history and are deliberately NOT scanned.
@@ -122,6 +159,7 @@ function activeMarkdownSurfaces() {
     ...walkFiles('templates/opencode/skills', ['.md']),
     ...walkFiles('templates/opencode/commands', ['.md']),
     ...walkFiles('templates/opencode/prompts', ['.md']),
+    ...walkFiles('templates/opencode/agents', ['.md']),
     'README.md',
     'AGENTS.md',
     '.github/ISSUE_TEMPLATE/task.yml',
@@ -312,9 +350,12 @@ check('INV-3d: helper resolves option IDs by exact remote name or known local ID
 });
 
 check('INV-3e: role prompts use the centralized helper wrapper, never the skill source path', () => {
-  const oc = read('templates/opencode/opencode.json');
-  mustContain(oc, '$ANT_TEAM_SCRIPTS/gh_project_helper.sh', 'role prompts');
-  mustNotContain(oc, './.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh', 'role prompts');
+  for (const { file, prompt } of roleAgentPrompts()) {
+    mustNotContain(prompt, './.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh', file);
+    if (prompt.includes('gh_project_helper.sh')) {
+      mustContain(prompt, '$ANT_TEAM_SCRIPTS/gh_project_helper.sh', file);
+    }
+  }
 });
 
 // --- INV-4: GitHub operational record / Obsidian knowledge boundary ----------
@@ -332,12 +373,27 @@ check('INV-4b: communication skill requires GitHub for routine collaboration', (
 });
 
 check('INV-4c: agent prompts preserve the GitHub-first routine collaboration rule', () => {
-  const oc = JSON.parse(read('templates/opencode/opencode.json'));
-  const agents = Object.values(oc.agent || {});
+  const agents = roleAgentPrompts();
   assert.ok(agents.length >= 5, 'expected at least 5 role agents');
-  for (const a of agents) {
-    mustContain(a.prompt || '', 'GitHub Issues and PRs are the active collaboration and execution record', 'agent prompt');
+  for (const { role, file, prompt } of agents) {
+    if (role === 'orchestrator') {
+      mustContain(prompt, 'GitHub is the active collaboration surface: keep task discussion, decisions, blockers, handoffs, review findings, and closure there', file);
+    } else {
+      mustContain(prompt, 'GitHub Issues and PRs are the active collaboration and execution record', file);
+    }
   }
+});
+
+check('INV-4d: session-context carve-out stays scoped and non-authoritative', () => {
+  const flow = read('templates/opencode/skills/github-agentic-delivery-flow/SKILL.md');
+  mustContain(flow, 'orchestrator-assigned local `session-context/` note', 'flow skill');
+  mustContain(flow, 'never authoritative for Workflow State, PR approval, merge, task ownership, blockers, or closure', 'flow skill');
+  const conv = read('templates/opencode/skills/github-conventions/SKILL.md');
+  mustContain(conv, 'session-context/<session_id>.md', 'conventions skill');
+  mustContain(conv, 'never workflow state', 'conventions skill');
+  const log = read('templates/opencode/skills/agent-communication-log/SKILL.md');
+  mustContain(log, '$ANT_TEAM_DOCS_PROJECT_PATH/session-context/<session_id>.md', 'communication skill');
+  mustContain(log, 'never authoritative for Workflow State, PR approval, merge, task ownership, blockers, or closure', 'communication skill');
 });
 
 // --- INV-5: tech-lead owns merge and cleanup ---------------------------------
@@ -348,14 +404,10 @@ check('INV-5a: tech-lead merge gate stays exclusive', () => {
 });
 
 check('INV-5b: tech-lead owns post-merge cleanup', () => {
-  const oc = JSON.parse(read('templates/opencode/opencode.json'));
-  const agents = Object.values(oc.agent || {});
-  const techLead = agents.find((a) => (a.prompt || '').includes('technical gatekeeper'));
-  assert.ok(techLead, 'tech-lead agent prompt not found');
-  mustContain(techLead.prompt, 'clean up the task worktree and local branch with `$ANT_TEAM_SCRIPTS/cleanup-task-worktree.sh`', 'tech-lead prompt');
-  const builder = agents.find((a) => (a.prompt || '').includes('You implement approved work'));
-  assert.ok(builder, 'builder agent prompt not found');
-  mustNotContain(builder.prompt, 'clean up the task worktree and local branch once they are no longer needed', 'builder prompt');
+  const techLead = roleAgentPrompt('tech-lead');
+  mustContain(techLead, 'clean up the task worktree and local branch with `$ANT_TEAM_SCRIPTS/cleanup-task-worktree.sh`', 'tech-lead prompt');
+  const builder = roleAgentPrompt('builder');
+  mustNotContain(builder, 'clean up the task worktree and local branch once they are no longer needed', 'builder prompt');
   const doTask = read('templates/opencode/skills/do-task/SKILL.md');
   mustContain(doTask, '`tech-lead` cleans up the issue worktree and local branch', 'do-task skill');
 });
@@ -423,10 +475,10 @@ check('INV-7b: init engine has no --migrate-agent-md flag', () => {
 
 // --- INV-8: orchestrator model ------------------------------------------------
 
-check('INV-8: orchestrator agent model is openai/gpt-5.6-luna-fast', () => {
-  const oc = JSON.parse(read('templates/opencode/opencode.json'));
-  assert.ok(oc.agent && oc.agent.orchestrator, 'orchestrator agent not found');
-  assert.strictEqual(oc.agent.orchestrator.model, 'openai/gpt-5.6-luna-fast');
+check('INV-8: orchestrator agent model is openai/gpt-6-luna', () => {
+  const m = read('templates/opencode/agents/orchestrator.md').match(/^model:\s*(\S+)\s*$/m);
+  assert.ok(m, 'orchestrator agent frontmatter model not found');
+  assert.strictEqual(m[1], 'openai/gpt-6-luna');
 });
 
 // --- INV-9: project-init is env-only with NO JSON import/removal path --------
@@ -709,7 +761,7 @@ check('INV-11d: Ready issues provide deterministic builder documentation context
     'templates/opencode/skills/development-hygiene/SKILL.md',
     'templates/opencode/skills/pr-review-flow/SKILL.md',
     'templates/opencode/skills/task-completion/SKILL.md',
-    'templates/opencode/opencode.json',
+    'templates/opencode/agents/orchestrator.md',
   ];
   for (const f of files) {
     mustContain(read(f), 'Durable Context', f);
@@ -720,8 +772,8 @@ check('INV-11d: Ready issues provide deterministic builder documentation context
   mustContain(read('templates/opencode/skills/task-completion/SKILL.md'), 'do not approve completion', 'task-completion');
   mustContain(read('templates/opencode/skills/approval-or-escalation/SKILL.md'), 'updates the Obsidian SPEC only when it changes durable product intent', 'approval-or-escalation');
   mustContain(read('templates/opencode/skills/approval-or-escalation/SKILL.md'), 'updates ARCH, ADR, GOV, or runbook documentation only when the outcome is durable', 'approval-or-escalation');
-  mustContain(read('templates/opencode/opencode.json'), 'route product intent, scope, success criteria, or acceptance ambiguity to strategist', 'opencode builder routing');
-  mustContain(read('templates/opencode/opencode.json'), 'Route product intent, scope, success-criteria, or acceptance ambiguity to strategist', 'opencode reviewer routing');
+  mustContain(roleAgentPrompt('builder'), 'route product intent, scope, success criteria, or acceptance ambiguity to strategist', 'builder routing');
+  mustContain(roleAgentPrompt('reviewer'), 'Route product intent, scope, success-criteria, or acceptance ambiguity to strategist', 'reviewer routing');
   mustContain(read('templates/opencode/skills/agent-communication-log/SKILL.md'), '## Delegation — <source> → <target>', 'agent-communication-log delegation template');
   mustContain(read('templates/opencode/skills/do-task/SKILL.md'), 'direct runtime instruction', 'do-task delegation context');
   mustContain(read('templates/opencode/skills/pr-review-flow/SKILL.md'), '## Review Delegation — builder → reviewer', 'pr-review-flow review delegation');
@@ -925,6 +977,72 @@ check('INV-16: ANT_TEAM_DOCS_PROJECT_PATH_TEMPLATE is retired', () => {
     'the retired ANT_TEAM_DOCS_PROJECT_PATH_TEMPLATE key must not appear on active surfaces:\n' +
       offenders.join('\n')
   );
+});
+
+// --- INV-17: local session-context tier (GOV-001) ------------------------------
+
+check('INV-17a: orchestrator generates a UUID-strength session ID and collision-checks before creation', () => {
+  for (const f of ['templates/opencode/agents/orchestrator.md', 'templates/opencode/prompts/orchestrator.md']) {
+    const s = read(f);
+    mustContain(s, '`ctx-<uuid-v4>`', f);
+    mustContain(s, 'uuidgen', f);
+    mustContain(s, '/proc/sys/kernel/random/uuid', f);
+    mustContain(s, 'Collision-check before creating', f);
+    mustContain(s, 'Do not assume the runtime exports a session ID', f);
+    mustContain(s, 'Never use a `timestamp + <4 hex>` scheme', f);
+    mustNotContain(s, 'ctx-<timestamp>', f);
+  }
+});
+
+check('INV-17b: orchestrator passes the exact session ID and note path in every child delegation', () => {
+  for (const f of ['templates/opencode/agents/orchestrator.md', 'templates/opencode/prompts/orchestrator.md']) {
+    const s = read(f);
+    mustContain(s, 'Pass the exact key and path in every child delegation', f);
+    mustContain(s, '**Session context:** $ANT_TEAM_DOCS_PROJECT_PATH/session-context/<session_id>.md', f);
+  }
+  const log = read('templates/opencode/skills/agent-communication-log/SKILL.md');
+  mustContain(log, '**Session context:** $ANT_TEAM_DOCS_PROJECT_PATH/session-context/<session_id>.md', 'agent-communication-log delegation template');
+  const delegation = read('.github/delegation-template.md');
+  mustContain(delegation, '**Session context:** $ANT_TEAM_DOCS_PROJECT_PATH/session-context/<session_id>.md', 'delegation-template.md');
+  mustContain(delegation, 'session_id: <session_id>', 'delegation-template.md');
+});
+
+check('INV-17c: child roles read and append only their own session note', () => {
+  for (const role of ['strategist', 'tech-lead', 'builder', 'reviewer']) {
+    const p = roleAgentPrompt(role);
+    mustContain(p, 'read the exact note path passed in your delegation on entry', ROLE_AGENT_FILES[role]);
+    mustContain(p, 'append a dated `## <role> — <UTC timestamp>` section', ROLE_AGENT_FILES[role]);
+    mustContain(p, 'never write a global current-session pointer', ROLE_AGENT_FILES[role]);
+    mustContain(p, 'never authoritative for Workflow State, PR approval, merge, task ownership, blockers, or closure', ROLE_AGENT_FILES[role]);
+  }
+});
+
+check('INV-17d: no global current-session pointer on any active surface', () => {
+  const offenders = [];
+  for (const f of activeMarkdownSurfaces()) {
+    if (read(f).includes('session-context/current')) offenders.push(f);
+  }
+  assert.deepStrictEqual(offenders, [], 'no active surface may reference a shared current-session file:\n' + offenders.join('\n'));
+  mustContain(roleAgentPrompt('orchestrator'), 'Never maintain a global current-session pointer', 'orchestrator prompt');
+});
+
+check('INV-17e: notes are local-only, rg-searchable, and archived without auto-delete', () => {
+  const oc = roleAgentPrompt('orchestrator');
+  mustContain(oc, 'session-context/archive/', 'orchestrator prompt');
+  mustContain(oc, 'Never auto-delete', 'orchestrator prompt');
+  mustContain(oc, 'rg -n "session_id: <id>"', 'orchestrator prompt');
+  mustContain(oc, 'never committed to the durable documentation repo', 'orchestrator prompt');
+  const agents = read('AGENTS.md');
+  mustContain(agents, '`$ANT_TEAM_DOCS_PROJECT_PATH/session-context/<session_id>.md`', 'AGENTS.md');
+  mustContain(agents, 'never commit, stage, or push session-context notes', 'AGENTS.md');
+});
+
+check('INV-17f: documentation-standard and README scope the session-context carve-out', () => {
+  const docs = read('templates/opencode/skills/documentation-standard/SKILL.md');
+  mustContain(docs, 'is session context (GOV-001; local-only, never committed), not a vault note', 'documentation standard');
+  const readme = read('README.md');
+  mustContain(readme, 'session-context/', 'README');
+  mustContain(readme, 'never authoritative for workflow state, approval, merge, task ownership, or closure', 'README');
 });
 
 // --- summary -------------------------------------------------------------------

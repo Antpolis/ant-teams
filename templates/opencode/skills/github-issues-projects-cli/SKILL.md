@@ -548,7 +548,7 @@ When the workflow takes multiple commands, present them as a small sequence with
 - Avoid bulk edits without previewing targets first.
 - Avoid hard-coding IDs that were not freshly discovered.
 - Avoid acting on the wrong owner or repo because of local defaults.
-- Record routine agent handoffs, blockers, reasoning, and next actions in GitHub issue or PR comments. Link curated Obsidian documentation only when the outcome meets the GOV-001 durable-knowledge threshold; never create a routine communication-event mirror.
+- Record routine agent handoffs, blockers, reasoning, and next actions in GitHub issue or PR comments. Link curated Obsidian documentation only when the outcome meets the GOV-001 durable-knowledge threshold; never create a routine communication-event mirror. In-flight cross-agent context within one root session may instead be appended to the orchestrator-assigned local `session-context/<session_id>.md` note (GOV-001); this never replaces GitHub's authority over workflow state, approval, merge, task ownership, blockers, or closure.
 - If a mutation could affect many items, summarize the intended scope before executing.
 
 ## Reference File
