@@ -10,7 +10,7 @@
 #     skills + command-derived skills.
 #   - FR-12.2 init-company.sh invokes sync-managed-skills after the canonical
 #     install; exit code reflects the worst outcome (here 0).
-#   - AC-1.1 / AC-2.1 exactly 41 managed entries (33 source + 8 command-derived;
+#   - AC-1.1 / AC-2.1 exactly 42 managed entries (34 source + 8 command-derived;
 #     init-project became a native source skill and its command was retired by
 #     SPEC-005; 0 name collisions in the real source tree); unmanaged content
 #     untouched.
@@ -70,9 +70,9 @@ assert_file_contains_str "init-company reports Copilot agents" "$OUT" "Synced Op
 # managed count is verified via the manifest; the dir count is a lower bound.
 assert_ge "managed dir count >= skills + commands" \
   "$(sync_count_dirs "$HOME_DIR/.agents/skills")" "$EXPECTED_TOTAL"
-assert_eq "manifest records 41 managed entries" \
+assert_eq "manifest records 42 managed entries" \
   "$(sync_manifest_count_entries "$MANIFEST")" "$EXPECTED_TOTAL"
-assert_eq "expected total is 41 (33+8)" "$EXPECTED_TOTAL" "41"
+assert_eq "expected total is 42 (34+8)" "$EXPECTED_TOTAL" "42"
 assert_eq "manifest present" "$(sync_manifest_is_valid_json "$MANIFEST")" "yes"
 
 # A representative source skill and a command-derived skill are present.
