@@ -120,7 +120,7 @@ After tech-lead responds:
 For each task:
 
 1. Invoke tech-lead for ordering and guardrails.
-2. Before invoking builder, verify the issue is `Ready` with bounded scope, non-goals, acceptance criteria, dependencies, verification, and exact `Durable Context` links to the canonical SPEC and every applicable ARCH, ADR, GOV, and runbook. If any required context is missing, ambiguous, stale, or conflicting, keep it out of execution and request tech-lead clarification in the GitHub issue.
+2. Before invoking builder, verify the issue is `Ready`. Normal delivery requires bounded scope, non-goals, acceptance criteria, dependencies, verification, and exact `Durable Context` links to the canonical SPEC and every applicable ARCH, ADR, GOV, and runbook. A tech-lead-confirmed `fix-bug` or `hotfix` fast-lane issue may omit the canonical SPEC and milestone only when its GitHub issue explicitly records the SPEC/milestone-not-applicable rationale, every applicable Durable Context link and every non-applicable item with its reason, bounded scope and non-goals, acceptance criteria, risks and guardrails, verification plan and evidence, and tech-lead readiness confirmation. This exception does not apply to normal spec delivery. If any required context is missing, ambiguous, stale, or conflicting, keep it out of execution and request tech-lead clarification in the GitHub issue.
 3. Record the delegation in the GitHub issue or PR when status-critical; otherwise continue without creating a separate communication file.
 4. Invoke builder for implementation.
 5. Require builder to:
@@ -141,7 +141,7 @@ For each task:
 
 The orchestrator routes and coordinates only; it does not edit implementation files or implement/review in place of the named role. Builder owns code and test implementation; reviewer independently reviews. Tech-lead final check and merge are the default path.
 
-A founder may explicitly override a process gate for a specific task, including reviewer or merge gates. Before proceeding when practical, record the gate overridden, rationale, scope, and founder decision in a GitHub issue comment. Preserve safety and legal constraints. This does not transfer implementation ownership from builder.
+For a named task only, a founder may explicitly waive reviewer approval and/or the tech-lead final alignment check. Record the waived gate or gates, rationale, scope, and founder decision in a GitHub issue comment before proceeding when practical. Safety and legal constraints remain in force. Tech-lead remains the sole merge actor and must record the override, residual risk, verification performed or skipped, and merge confirmation on the PR.
 
 ## Communication record requirements
 
