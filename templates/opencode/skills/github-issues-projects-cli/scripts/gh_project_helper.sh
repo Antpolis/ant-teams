@@ -46,6 +46,7 @@ require_cmd() {
 usage() {
   cat <<'EOF'
 Usage:
+  gh_project_helper.sh create-task-branch <issue_id> [base_branch] [branch_name]
   gh_project_helper.sh gh-item-edit <item_id> <field_id> <single_select_option_id>
   gh_project_helper.sh item-id <issue_number>
   gh_project_helper.sh item-state <issue_number>
@@ -1762,6 +1763,11 @@ project_field_list() {
 }
 
 case "$cmd" in
+  create-task-branch)
+    [[ $# -ge 1 && $# -le 3 ]] || { usage; exit 1; }
+    : "${ANT_TEAM_SCRIPTS:?ANT_TEAM_SCRIPTS is not set; run scripts/init-company.sh first}"
+    "$ANT_TEAM_SCRIPTS/create-task-branch.sh" "$@"
+    ;;
   gh-item-edit)
     [[ $# -eq 3 ]] || { usage; exit 1; }
     gh_item_edit "$1" "$2" "$3"

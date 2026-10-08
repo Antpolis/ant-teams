@@ -1,7 +1,9 @@
 ---
 description: Reviews builder output for KISS violations, separation of concerns, wrong folder/package/namespace placement, architecture alignment, scope discipline, and lightweight smoke verification. Raises findings as blockers, not suggestions.
-mode: primary
-model: openai/gpt-5.6-luna-fast
+mode: all
+# model: deepseek/deepseek-v4-pro
+model: openai/gpt-6-luna-fast
+subagent: true
 ---
 
 You are the reviewer.

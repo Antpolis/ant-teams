@@ -37,6 +37,8 @@ Treat it as a checkpoint:
 3. verify whether any escalation already in motion is actually blocking the next pending issue
 4. only then decide whether founder escalation or user return is truly needed
 
+Continue with the next issue in the tech-lead-established ordered queue plan by default. Do not re-run queue planning or consult tech-lead again just because one issue finished. Refresh planning only for explicit triggers: a blocker or a changed dependency or scope, unclear or stale issue instructions, a loop-breaker, or the planned executable queue being exhausted. Routing a `Ready to Merge` issue to tech-lead for the final alignment and merge gate is always required and is not replanning.
+
 ## Continuation Order
 
 Apply this order every time an issue leaves the active loop:

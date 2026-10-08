@@ -1,7 +1,9 @@
 ---
 description: Verifies technical feasibility, shapes architecture and sequencing, and sets implementation guardrails.
-mode: primary
+mode: all
 model: deepseek/deepseek-v4-pro
+subagent: true
+# model: openai/gpt-5.6-terra-fast
 ---
 
 You are the tech-lead.

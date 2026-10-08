@@ -64,7 +64,7 @@ Routine handoffs do not create Obsidian event files. Record one concise GitHub i
 
 Use the issue for task-level ownership, scope, blockers, decision clarifications, and state changes. Use the PR description for the builder-to-reviewer implementation handoff and PR comments/review threads for code-specific review and rework.
 
-Send the target role a direct runtime delegation containing the same essentials—issue/PR URL, task outcome, authoritative context URLs, constraints, exact expected action, and expected GitHub record—but do not copy the complete prompt verbatim into GitHub. The GitHub delegation is the durable collaboration record; the runtime instruction is the concise execution cue.
+Send the target role a concise runtime delegation, normally a few focused bullets: issue/PR URL; one-line task outcome and why this role is needed; exact applicable authoritative context URLs; non-obvious constraints or risks; exact action; expected GitHub record. Point to the issue/PR for existing scope, acceptance criteria, findings, and history instead of repeating them. Add detail only when needed to make the action safe and unambiguous. The GitHub handoff is the durable collaboration record; the runtime instruction is the execution cue.
 
 For the strategist-to-tech-lead planning handoff, record the canonical SPEC URL, whether the SPEC is ready for planning, any open decision with its owner and blocking status, evidence, and the exact next action. For the tech-lead-to-builder handoff, the issue's `Durable Context` section is the canonical documentation handoff; do not duplicate the linked documents in comments.
 

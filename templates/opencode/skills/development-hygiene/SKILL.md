@@ -59,7 +59,7 @@ Avoid:
 
 If continuity is impossible because the worktree, branch, or PR is broken, stale beyond safe recovery, or otherwise unusable, record the reason clearly in GitHub before replacing it.
 
-When starting new implementation, prefer a dedicated git worktree per active issue. This keeps parallel issue work isolated and prevents one task from blocking another because they share the same checked-out workspace.
+When starting new implementation, tech-lead provisions a dedicated git worktree and task branch per active issue using the centralized helper. Builder verifies and uses the supplied workspace; it does not create or replace worktrees or branches in normal flow. If setup is missing or unusable, stop and route recovery to tech-lead. This keeps parallel issue work isolated without giving workspace ownership to the implementation role.
 
 After the issue PR is merged or the task is explicitly abandoned, clean up the now-unused issue worktree and local branch so stale workspaces do not pile up.
 

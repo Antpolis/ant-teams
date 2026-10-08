@@ -1,6 +1,6 @@
 ---
 description: Challenges new ideas, sharpens them into practical MVPs, and prepares implementation-ready specs for the user, who remains the final decision maker.
-mode: primary
+mode: all
 model: openai/gpt-6.1-sol
 ---
 

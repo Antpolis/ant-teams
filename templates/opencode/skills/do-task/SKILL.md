@@ -17,10 +17,10 @@ Use founder-escalation-preflight before asking the founder for a decision.
 
 Bundled helpers for issue-isolated development live in:
 
-- `$ANT_TEAM_SCRIPTS/create-task-branch.sh`
+- `$ANT_TEAM_SCRIPTS/gh_project_helper.sh create-task-branch`
 - `$ANT_TEAM_SCRIPTS/cleanup-task-worktree.sh`
 
-Use these helpers instead of inventing ad hoc `git worktree` commands when the builder needs to start or clean up issue workspaces. `ANT_TEAM_SCRIPTS` is installed and configured by `init-company.sh`.
+Use these helpers instead of inventing ad hoc `git worktree` commands. `tech-lead` owns creating or reusing the issue worktree and task branch before delegating new implementation to `builder`; `tech-lead` also owns post-merge cleanup. `ANT_TEAM_SCRIPTS` is installed and configured by `init-company.sh`.
 These helpers load `ANT_TEAM_WORKTREE_ROOT` from `.github-project.env` themselves; invoke them directly rather than prefixing each call with `source ./.github-project.env &&`.
 
 ## Issue Done Definition
@@ -43,8 +43,8 @@ The orchestrator must verify all three conditions are met before treating an iss
 ## Core Rule
 
 The `orchestrator` owns the queue pass and role-to-role control flow for execution.
-The `tech-lead` provides the ordered issue list, execution priorities, technical interpretation, and guardrails for each pass.
-The delegated execution roles own their own workflow side effects. Once `builder` takes an issue, `builder` is responsible for creating or switching to the issue worktree and task branch, moving the issue into the correct implementation state, opening or updating the PR, and leaving a durable implementation handover note in the issue or PR before `reviewer` takes over. `orchestrator` should coordinate and verify those handoff artifacts exist, not perform them on behalf of delegated agents.
+The `tech-lead` establishes the ordered issue list, dependencies, execution priorities, technical interpretation, and guardrails once at queue-plan initialization for each pass.
+`tech-lead` owns preparing the issue worktree and task branch before builder delegation, using the centralized helper for new work and reusing existing issue workspaces for continuation. `orchestrator` verifies that setup and records the location in the concise delegation. `builder` owns implementation, moving the issue into the correct implementation state, opening or updating the PR, and leaving a durable implementation handover note before `reviewer` takes over; builder must not create a competing workspace or branch during normal flow.
 
 Do not require strategist confirmation for every issue.
 Bring in `strategist` only when product intent, scope meaning, or execution meaning is unclear.
@@ -57,8 +57,8 @@ Bring in `tech-lead` when technical interpretation, sequencing, guardrails, or l
 3. Inspect any issues already in `In Progress`.
 4. Inspect any issues already in `In Review` before pulling fresh work so reviewer-gated work does not stall behind new execution.
 5. Inspect any issues in `Need attentions` before pulling fresh `Ready` work — `Need attentions` is founder-only, so confirm strategist and tech-lead review were both attempted, then surface the founder decision (see step 8 routing rules).
-6. Invoke `tech-lead` to produce the ordered issue list, current spec focus, sequencing rationale, and execution guardrails for this pass.
-7. Use the `tech-lead` ordered list as the execution plan unless a blocker, completed task, or new evidence requires refreshing the plan.
+6. Invoke `tech-lead` once at queue-plan initialization to produce the ordered issue list with dependencies, current spec focus, sequencing rationale, and execution guardrails for this pass.
+7. Treat that order as the initial plan, not authority over the live GitHub Collaboration Record. Before each action, reconcile planned issues against current Workflow State, linked PR and required artifacts, dependencies, and recent comments. The live state and workflow gates determine executability. If evidence conflicts with the plan, do not silently transition, skip, or reorder: record the discrepancy in the canonical GitHub location; route state/ownership issues by the current state; ask tech-lead to resolve conflicts affecting technical sequencing or priority, and strategist to resolve product/scope meaning. Continue with another independently executable issue only if this does not violate dependency or spec-group priority. Refresh the plan for a blocker or changed dependency/scope, stale or conflicting issue instructions, plan-versus-board discrepancy affecting priority, loop-breaker, or exhausted executable queue. No routine tech-lead consultation is needed when plan and live evidence agree.
 8. For each active issue in `Ready to Merge`, `In Progress`, `In Review`, or `Need attentions`:
    - if the issue is in `Ready to Merge`: route to `tech-lead` for final check and merge (see Tech-Lead Merge Gate)
    - if the issue is `In Progress`: review with `builder` whether implementation is done or still in flight; if done, verify builder left the required handover note and PR linkage, then delegate `reviewer`
@@ -122,20 +122,23 @@ For each issue:
 - if a required URL is missing, ambiguous, stale, or conflicts with the issue, do not invoke builder; request tech-lead clarification in a GitHub issue comment and keep the issue out of `Ready`
 - if product intent, scope meaning, or execution meaning is unclear, clear it with `strategist`
 - if technical interpretation, sequencing, or guardrails are unclear, resolve them with `tech-lead`
-- record each delegation, clarification, blocker, and resolution in a GitHub issue comment; use PR comments or review threads when it concerns code review
+- record one concise handoff at each meaningful role boundary or state change in the canonical location: issue/milestone comment for task ownership, scope, dependencies, clarification, blockers, escalation, or state changes; PR description for builder-to-reviewer implementation handoff; PR comments/review threads for code-specific findings, rework, responses, approval, and merge reasoning
+- do not add a separate issue comment when the canonical PR record already captures the handoff and issue ownership/state did not change; use the `agent-communication-log` handoff template, keeping only receiver-needed context and links
 - if the issue has a blocker or needs human intervention, record the blocker and required unblocking action in a GitHub issue comment and skip to the next executable issue
 - if the issue needs strategist or tech-lead resolution before safe execution can continue, request and record that resolution in an issue comment and keep the issue in its current state; `Need attentions` is reserved for founder decisions after both reviews were attempted
 - once the technical requirement is clear, invoke `builder` and record that delegation in GitHub
-- after delegating, expect `builder` to own issue worktree creation or reuse, branch creation or reuse inside that worktree, implementation-state transitions, PR creation or update, and the builder handover note
-- do not create the issue worktree, task branch, open the PR, or write the builder's implementation handover note unless the user explicitly asks the current role to do emergency manual recovery
+- before delegating new implementation, require `tech-lead` to create or reuse the issue worktree and task branch with `$ANT_TEAM_SCRIPTS/gh_project_helper.sh create-task-branch`, then record the branch and worktree path in the GitHub issue; for continuation, tech-lead verifies and reuses the existing issue worktree and branch
+- `orchestrator` verifies the setup and includes the worktree path and branch in the builder runtime delegation
+- `builder` owns implementation-state transitions, PR creation or update, and the builder handover note; builder verifies the supplied worktree and branch and stops to route any mismatch or unusable workspace to tech-lead rather than silently creating replacements
+- do not let orchestrator or builder create the issue worktree or task branch in normal flow; tech-lead alone owns setup, while tech-lead also owns cleanup after merge
 
 ## Builder And Reviewer Gate
 
 - `builder` works from the assigned GitHub issue first, then its exact Durable Context links, approved guardrails, and the shared build-review loop; the linked canonical SPEC is authoritative for durable product intent
-- when `builder` starts, `builder` must create or switch to the issue worktree, create or switch to the issue branch in that worktree, and move the issue into `In Progress`
+- before `builder` starts, `tech-lead` must create or verify the issue worktree and task branch; `builder` verifies it is operating in the supplied workspace and branch, then moves the issue into `In Progress`
 - after `builder` finishes implementation, `builder` must create or update the PR, move the issue into `In Review`, and leave a durable handover note in the issue or PR before `reviewer` review starts
 - builder-reviewer communication, findings, rework reasoning, and approvals must be recorded in PR comments or review threads; use issue comments for concise task-state summaries
-- `orchestrator` should only check that the worktree, branch, PR, state change, and handover note exist before delegating `reviewer`
+- `orchestrator` verifies tech-lead's worktree and branch setup before builder delegation, then checks that the PR, state change, and handover note exist before delegating `reviewer`
 - after the PR is ready, `reviewer` must review before the issue advances
 - if `reviewer` finds issues, `reviewer` returns the issue to `builder` in the same worktree and on the same branch and continues the loop through durable review findings
 - if `reviewer` approves with no blockers, `reviewer` posts an explicit approval comment on the PR and moves the issue to `Ready to Merge`
@@ -181,17 +184,17 @@ The repository ships optional Ponytail skills: `ponytail`, `ponytail-review`, `p
 
 - `orchestrator` owns queue selection, cross-role coordination, and verification that required GitHub artifacts exist.
 - `strategist` owns product framing, scope clarity, success criteria, and product-level resolution of ambiguous work.
-- `tech-lead` owns technical interpretation, architecture guardrails, sequencing, loop-breaker technical decisions, verifying `Need attentions` founder-decision readiness (routing back to `strategist` when internal resolution is still possible), the final spec-alignment check, the merge decision, the transition from `Ready to Merge` to `Done`, and post-merge cleanup of the task worktree and local branch.
-- `builder` owns the issue worktree, task branch, implementation, implementation-state transitions into active work and review, PR creation or update, and the builder handover comment in the issue or PR.
+- `tech-lead` owns technical interpretation, architecture guardrails, sequencing, loop-breaker technical decisions, verifying `Need attentions` founder-decision readiness (routing back to `strategist` when internal resolution is still possible), creating or reusing the issue worktree and task branch before builder delegation, recording their path/name in GitHub, the final spec-alignment check, the merge decision, the transition from `Ready to Merge` to `Done`, and post-merge cleanup.
+- `builder` owns implementation, implementation-state transitions into active work and review, PR creation or update, and the builder handover comment in the issue or PR.
 - `reviewer` owns review findings, review approvals, return-to-builder decisions, reviewer verification notes, and the transition from `In Review` to `Ready to Merge` on approval or back to `In Progress` on findings. Reviewer does not merge and does not move issues to `Done`.
 - A role should not perform another role's normal workflow mutation just because it has tool access. If recovery is necessary, record why the usual owner could not perform the action.
 
 ## Development Loop Ownership Rules
 
 - `builder` must not treat "code pushed" as equivalent to "ready for review"; review starts only after the PR and handover artifacts exist.
-- during `do-tasks`, `builder` should continue in the existing issue worktree, on the existing task branch, and on the existing PR when those artifacts already exist
-- during `do-tasks`, `builder` must not start a fresh worktree, fresh branch, or replacement PR as part of normal continuation work
-- if the existing worktree, branch, or PR is unusable, `builder` may create a replacement only after recording why recovery is necessary and linking the old and new artifacts in GitHub
+- before delegating implementation, `tech-lead` creates a dedicated issue worktree and task branch for new work; for continuation, tech-lead verifies and reuses the existing worktree, branch, and PR
+- `builder` implements in the workspace and branch supplied by tech-lead and updates the existing PR when one exists; builder must not create a fresh worktree, branch, or replacement PR during normal continuation
+- if the existing worktree, branch, or PR is unusable, builder stops and reports the issue to tech-lead; tech-lead records the recovery reason and old/new artifact links in GitHub before provisioning replacements
 - after merge or explicit task closure, `tech-lead` cleans up the issue worktree and local branch with `$ANT_TEAM_SCRIPTS/cleanup-task-worktree.sh` once they are no longer needed for review, rollback, or follow-up fixes
 - `reviewer` must not silently fix builder work as a substitute for findings unless the workflow explicitly assigns reviewer implementation for a special recovery case.
 - `orchestrator` should not close the loop based on verbal assurances; it should verify the branch, PR, state, and comments.
@@ -199,7 +202,7 @@ The repository ships optional Ponytail skills: `ponytail`, `ponytail-review`, `p
 
 ## Required Delegation Content
 
-Record each meaningful delegation using the `agent-communication-log` `## Delegation` template in the GitHub issue or PR location where the receiver acts. The direct runtime instruction to the delegated sub-agent must carry the same minimum context: issue/PR URL, task outcome, reason for the role, exact durable-context URLs, constraints, expected action, and expected GitHub record.
+Record each meaningful delegation using the `agent-communication-log` `## Delegation` template in the GitHub issue or PR location where the receiver acts. The direct runtime instruction must be a concise execution cue, normally a few focused bullets: issue/PR URL; one-line outcome and reason for the role; exact applicable durable-context URLs; only non-obvious constraints or risks; exact action; expected GitHub record. Link to existing scope, acceptance criteria, findings, and history instead of copying them. Add detail only when necessary for safe, unambiguous execution.
 
 Use placement deliberately:
 
@@ -242,6 +245,6 @@ If any artifact is missing at any gate, do not advance. Send the issue back to t
 
 During `do-tasks`, also verify continuity:
 
-- builder stayed in the existing issue worktree and on the existing task branch when they already existed
-- builder updated the existing PR when one already existed
-- any new worktree, branch, or PR creation has an explicit GitHub recovery note explaining why continuity was not possible
+- tech-lead provided the issue worktree and task branch before builder started; existing worktree, branch, and PR were reused for continuation
+- builder used the supplied worktree and branch and updated the existing PR when one already existed
+- any replacement worktree, branch, or PR was provisioned by tech-lead with an explicit GitHub recovery note explaining why continuity was not possible

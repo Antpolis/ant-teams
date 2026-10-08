@@ -20,6 +20,28 @@
     },
     {
       "action": "shell",
+      "resource": "gh *",
+      "effect": "allow"
+    },
+
+    {
+      "action": "shell",
+      "resource": "jq *",
+      "effect": "allow"
+    },
+
+    {
+      "action": "shell",
+      "resource": "head *",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "$ANT_TEAM_SCRIPTS/gh_project_helper.sh *",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
       "resource": "pwd",
       "effect": "allow"
     },
@@ -30,37 +52,7 @@
     },
     {
       "action": "shell",
-      "resource": "git status *",
-      "effect": "allow"
-    },
-    {
-      "action": "shell",
-      "resource": "git diff *",
-      "effect": "allow"
-    },
-    {
-      "action": "shell",
-      "resource": "git log *",
-      "effect": "allow"
-    },
-    {
-      "action": "shell",
-      "resource": "git branch *",
-      "effect": "allow"
-    },
-    {
-      "action": "shell",
-      "resource": "git show *",
-      "effect": "allow"
-    },
-    {
-      "action": "shell",
-      "resource": "git rev-parse *",
-      "effect": "allow"
-    },
-    {
-      "action": "shell",
-      "resource": "git ls-files *",
+      "resource": "git *",
       "effect": "allow"
     },
     {
@@ -75,17 +67,12 @@
     },
     {
       "action": "shell",
-      "resource": "node --version",
+      "resource": "npx *",
       "effect": "allow"
     },
     {
       "action": "shell",
-      "resource": "npm test *",
-      "effect": "allow"
-    },
-    {
-      "action": "shell",
-      "resource": "npm run test *",
+      "resource": "npm run *",
       "effect": "allow"
     },
     {
@@ -140,27 +127,27 @@
     },
     {
       "action": "external_directory",
-      "resource": "/home/chrissim/Projects/worktree/ant-teams/**",
+      "resource": "/home/chrissim/Projects/worktree/ant-teams/*",
       "effect": "allow"
     },
     {
       "action": "external_directory",
-      "resource": "~/.config/opencode/skills/**",
+      "resource": "/home/chrissim/.config/opencode/skills/*",
       "effect": "allow"
     },
     {
       "action": "external_directory",
-      "resource": "/home/chrissim/.agents/skills/**",
+      "resource": "/home/chrissim/.agents/skills/*",
       "effect": "allow"
     },
     {
       "action": "external_directory",
-      "resource": "/home/chrissim/.agents/scripts/**",
+      "resource": "/home/chrissim/.agents/scripts/*",
       "effect": "allow"
     },
     {
       "action": "external_directory",
-      "resource": "/home/chrissim/Projects/documentation/**",
+      "resource": "/home/chrissim/Projects/documentation/*",
       "effect": "allow"
     }
   ]

@@ -1,7 +1,8 @@
 ---
 description: Implements approved work with focused code changes and verification.
-mode: primary
+mode: all
 model: zai-coding-plan/glm-5.3-flash
+subagent: true
 ---
 
 You implement approved work.

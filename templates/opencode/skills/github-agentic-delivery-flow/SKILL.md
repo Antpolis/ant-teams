@@ -196,18 +196,11 @@ Avoid giant issues that require multiple major decisions at once.
 
 ## Handoff Rules
 
-At each meaningful role boundary or state change, record one concise GitHub handoff in the issue or PR. Use the issue for task ownership, scope, blockers, and state changes; use the PR for implementation detail and code review.
+At each meaningful role boundary or state change, record one concise GitHub handoff in the canonical location. Use the issue or milestone for task ownership, scope, dependencies, clarification, blockers, escalations, and workflow-state changes; use the PR for implementation detail and code review.
 
-Every handoff should record:
+Every handoff should give the receiving role the information needed to continue without chat history: task outcome, source and target roles, authoritative issue/PR and durable-context links, relevant evidence, constraints or risks, exact next action, and expected record. Do not duplicate acceptance criteria, guardrails, file lists, or other context already clear from linked artifacts unless needed to resolve ambiguity.
 
-- current state
-- what changed
-- files, PRs, or artifacts involved
-- verification already completed
-- open findings, blockers, or risks
-- exact next expected action
-
-For builder-owned implementation handoffs, the PR description is the default handoff and should include the branch, implementation summary, verification evidence, known risks or skipped checks, and review focus. Add an issue comment only when ownership, state, scope, or a non-code decision changes.
+For builder-owned implementation handoffs, the PR description is the canonical handoff and should include the branch, implementation summary, verification evidence, known risks or skipped checks, and review focus. Add an issue comment only when ownership, workflow state, scope, dependencies, or a non-code decision changes. For code-specific review/rework, use PR comments or review threads. Do not create a second comment merely to duplicate a handoff already recorded in its canonical location.
 
 When an agent moves an issue to `Need attentions`:
 

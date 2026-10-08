@@ -232,7 +232,7 @@ check('HIC-1: usage lists every new subcommand and enforces required positionals
   assert.notStrictEqual(usage.status, 0, 'no-args must exit non-zero');
   for (const sub of [
     'issue-create', 'issue-view', 'issue-list', 'issue-edit',
-    'issue-comment', 'issue-close',
+    'issue-comment', 'issue-close', 'create-task-branch',
     'milestone-create', 'milestone-list', 'milestone-edit', 'milestone-close', 'spec-view', 'spec-next',
   ]) {
     assert.ok(usage.stdout.includes(sub), `usage must list ${sub}`);

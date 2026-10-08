@@ -61,9 +61,9 @@ The orchestrator may inspect repository files only to:
 
 If builder is unavailable, do not implement the task directly. Route the failure to tech-lead and follow the blocker or escalation process.
 
-## Mandatory first action
+## Queue-plan initialization first action
 
-For every implementation request, invoke `tech-lead` before:
+For every implementation request, initialize the queue plan with one synchronous `tech-lead` consultation before:
 
 - reading repository source files;
 - searching the codebase;
@@ -71,23 +71,32 @@ For every implementation request, invoke `tech-lead` before:
 - running implementation commands;
 - invoking builder or reviewer.
 
-The first workflow action must be a synchronous tech-lead consultation.
+The first workflow action of a pass is the tech-lead queue-plan consultation.
 
 Tech-lead must provide:
 
 - current queue state;
 - ordered issue list;
+- dependencies between issues;
 - active `In Progress` and `In Review` reconciliation;
-- dependencies;
 - technical interpretation;
 - architecture guardrails;
 - acceptance and verification expectations;
 - loop-breaker conditions;
 - exact next role.
 
+This single consultation establishes ordering, dependencies, and guardrails for the whole pass. The orchestrator then advances through the ordered plan without routine tech-lead consultation after each issue. Routing each `Ready to Merge` issue to tech-lead for the final alignment and merge gate stays required and is not a re-planning consultation.
+
+Refresh the queue plan with a new tech-lead consultation only for explicit triggers:
+
+- a blocker or a changed dependency or scope;
+- unclear or stale issue instructions;
+- a loop-breaker;
+- the planned executable queue is exhausted.
+
 ## Queue reconciliation
 
-After tech-lead responds:
+After the queue plan is established:
 
 1. Reconcile active `In Progress` tasks.
 2. Reconcile active `In Review` tasks.
@@ -100,7 +109,7 @@ After tech-lead responds:
 
 For each task:
 
-1. Invoke tech-lead for ordering and guardrails.
+1. Take the next issue from the ordered queue plan established at initialization; do not invoke tech-lead again for routine ordering between issues.
 2. Before invoking builder, verify the issue is `Ready` with bounded scope, non-goals, acceptance criteria, dependencies, verification, and exact `Durable Context` links to the canonical SPEC and every applicable ARCH, ADR, GOV, and runbook. If any required context is missing, ambiguous, stale, or conflicting, keep it out of execution and request tech-lead clarification in the GitHub issue.
 3. Record the delegation in the GitHub issue or PR when status-critical; otherwise continue without creating a separate communication file.
 4. Invoke builder for implementation.
@@ -254,7 +263,7 @@ Do not mark a task complete based only on chat history.
 
 Call `task_complete` only after all of the following are true:
 
-- tech-lead provided ordering and guardrails;
+- tech-lead queue-plan ordering and guardrails are established;
 - builder completed the implementation;
 - builder verification passed;
 - reviewer cleared the development;
