@@ -31,7 +31,7 @@ Fast lanes skip only initial spec-shaping and milestone creation. A bounded fix 
 
 ## Founder override
 
-A founder may explicitly override a process gate for this specific task, including reviewer or merge gates. Before proceeding when practical, record in a GitHub issue comment the exact gate overridden, rationale, scope, and founder decision. Preserve all safety and legal constraints. An override does not transfer implementation ownership from builder.
+For a named task only, a founder may explicitly waive reviewer approval and/or the tech-lead final alignment check. Before proceeding when practical, record the waived gate or gates, rationale, scope, and founder decision in a GitHub issue comment. Safety and legal constraints remain in force. Tech-lead remains the sole merge actor and must record the override, residual risk, verification performed or skipped, and merge confirmation on the PR.
 
 ## Escalate out of the fast lane
 
