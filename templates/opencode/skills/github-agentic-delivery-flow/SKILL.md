@@ -59,8 +59,8 @@ Default roles in this workflow:
 
 - `orchestrator`: owns queue-driven execution, gets the ordered issue list from tech-lead, invokes the next role directly, verifies that delegated roles left the expected GitHub artifacts, and keeps the loop moving until a real human decision is required
 - `strategist`: pressure-tests the idea, sharpens the MVP, writes the business sections of the spec (problem statement, business value, success metrics, goals, non-goals, stakeholders, constraints), and confirms the issue set maps to business value before execution starts
-- `tech-lead`: verifies technical feasibility and architecture direction; writes the technical sections of the spec (functional requirements, technical requirements, architecture notes, acceptance criteria); is the sole owner of the GitHub milestone and every execution issue — no other role creates or modifies milestones or issues in normal flow; sequences all issues and sets per-issue guardrails before marking anything `Ready`; performs the final spec-alignment check and is the only role that merges PRs
-- `builder`: implements approved scoped work with focused code changes and verification, owns branch and PR lifecycle for the delegated task, updates task state during implementation, and leaves a durable review handover note
+- `tech-lead`: verifies technical feasibility and architecture direction; writes the technical sections of the spec (functional requirements, technical requirements, architecture notes, acceptance criteria); is the sole owner of the GitHub milestone and every execution issue — no other role creates or modifies milestones or issues in normal flow; sequences all issues and sets per-issue guardrails before marking anything `Ready`; performs the final spec-alignment check and is the only role that merges PRs. Tech-lead also creates or reuses the issue worktree and task branch before builder delegation and owns post-merge cleanup.
+- `builder`: implements approved scoped work with focused code changes and verification in the worktree and task branch supplied by tech-lead; owns commits, pushes, and PR creation/update for the delegated task; updates task state during implementation; and leaves a durable review handover note. Builder does not create or replace worktrees or task branches in normal flow.
 - `reviewer`: reviews builder output, checks scope and architecture alignment, flags unnecessary additions, performs lightweight smoke verification, and records clear findings or approval back into the GitHub workflow; routes product/scope/acceptance ambiguity to strategist and technical/architecture/verification ambiguity to tech-lead
 
 Use specialized skills beneath these roles when the task needs domain-specific handling. The orchestration roles should stay focused on flow ownership and decision quality.
@@ -115,9 +115,9 @@ Coverage gate (required before any issue moves to `Ready`):
 ### 5. Run the build-review loop
 
 - Use the `do-task` skill as the canonical execution loop.
-- `orchestrator` starts execution by reading the project queue, then invoking `tech-lead` to produce the ordered issue list, spec focus, sequencing rationale, and guardrails for the current pass.
+- `orchestrator` starts execution with a synchronous `tech-lead` consultation as the first workflow action. Tech-lead inspects the project queue and establishes the ordered issue list, dependencies, active-work reconciliation, spec focus, sequencing rationale, and guardrails for the pass. Orchestrator waits for the completed final response and verifies the required GitHub record before inspecting or advancing the queue itself.
 - `orchestrator` should work one spec group at a time unless a dependency, blocker, or required human intervention makes that impossible.
-- `orchestrator` uses the `tech-lead` ordered list as the execution plan, invokes `builder` for the next technically clear issue, checks that the builder-owned branch, PR, state transition, and handover artifacts exist, and then requires `reviewer` review before any issue advances.
+- `orchestrator` uses the `tech-lead` ordered list as the execution plan, verifies tech-lead's recorded worktree and task-branch setup, and invokes `builder` for the next technically clear issue. After builder finishes and returns its final response, orchestrator verifies the PR, state transition, and implementation handoff before invoking `reviewer`.
 - If reviewer finds issues, return the issue to `builder` on the same branch and continue the loop until the reviewer approves, a blocker appears, or 8 loops are reached.
 - When reviewer approves with no blockers, reviewer posts an explicit approval comment on the PR and moves the issue to `Ready to Merge`. The loop does not end here.
 - `orchestrator` routes every `Ready to Merge` issue to `tech-lead` for the final spec-alignment check. See step 5a.
@@ -219,6 +219,14 @@ Comments alone are not sufficient when the next action is "implement". That next
 
 Do not rely on chat memory alone for decisions that affect future work.
 
+Dependent role delegations are synchronous. Wait for the current agent to
+finish and return its final response, then verify its required GitHub records
+before invoking any dependent role. A posted handoff, workflow-state change,
+or launch acknowledgement alone is not agent completion. An interrupted or
+failed invocation does not satisfy this gate; reconcile its outcome before
+proceeding. “Invoke now” and “continue in the same execution pass” mean after
+these checks, never while the prerequisite role is still running.
+
 ## Review Loop Rules
 
 - Validation findings are the primary output of the reviewer.
@@ -255,7 +263,7 @@ Do not use that preflight as a gate on normal strategist-founder planning, spec 
 - `strategist` and `tech-lead` do not complete their phase by leaving advice in comments only. If the work should proceed, they must ensure task issues exist and the next builder-facing state is explicit.
 - `builder` does not self-approve implementation readiness.
 - `reviewer` decides whether builder output is approved for merge readiness, returned for rework, or blocked. Approval means: posting an explicit approval comment on the PR and moving the issue to `Ready to Merge`. The reviewer does not merge.
-- `tech-lead` owns the final spec-alignment check and the merge decision. Tech-lead is the only role that merges. Tech-lead either merges and marks the issue `Done`, or posts findings and moves the issue to `Need attentions` for builder to address.
+- `tech-lead` owns the final spec-alignment check and the merge decision. Tech-lead is the only role that merges. If alignment passes, tech-lead merges and marks the issue `Done`. Otherwise, tech-lead posts actionable findings and returns the issue to builder rework on the same task branch and PR, followed by reviewer review. `Need attentions` is reserved for a genuine founder decision after strategist and tech-lead resolution have both been attempted; it is not a builder-rework state.
 - Merge must not happen before reviewer approval (`Ready to Merge`) and tech-lead final check. No role bypasses this sequence.
 
 ## Optional Ponytail Simplification Tools

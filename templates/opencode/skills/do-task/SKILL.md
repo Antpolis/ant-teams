@@ -52,12 +52,23 @@ Bring in `tech-lead` when technical interpretation, sequencing, guardrails, or l
 
 ## Queue-Driven Flow
 
-1. Start from the GitHub project issue queue.
-2. First inspect any issues in `Ready to Merge` and route them immediately to `tech-lead` for the final spec-alignment check and merge decision. Do not pull fresh `Ready` work while a `Ready to Merge` issue is waiting.
+1. As the first workflow action of the pass, invoke `tech-lead` synchronously
+   to inspect the GitHub project queue and establish the ordered issue list,
+   dependencies, current spec focus, active-work reconciliation, sequencing
+   rationale, and execution guardrails. Wait for its completed final response
+   and verify its required GitHub record before proceeding.
+2. Inspect any issues in `Ready to Merge` and route them to `tech-lead` for
+   the final spec-alignment check and merge decision. Do not pull fresh
+   `Ready` work while a `Ready to Merge` issue is waiting.
 3. Inspect any issues already in `In Progress`.
-4. Inspect any issues already in `In Review` before pulling fresh work so reviewer-gated work does not stall behind new execution.
-5. Inspect any issues in `Need attentions` before pulling fresh `Ready` work — `Need attentions` is founder-only, so confirm strategist and tech-lead review were both attempted, then surface the founder decision (see step 8 routing rules).
-6. Invoke `tech-lead` once at queue-plan initialization to produce the ordered issue list with dependencies, current spec focus, sequencing rationale, and execution guardrails for this pass.
+4. Inspect any issues already in `In Review` before pulling fresh work so
+   reviewer-gated work does not stall behind new execution.
+5. Inspect any issues in `Need attentions` before pulling fresh `Ready`
+   work — `Need attentions` is founder-only, so confirm strategist and
+   tech-lead review were both attempted, then follow step 8 routing rules
+   for any genuine founder decision.
+6. Use the completed initialization consultation as the queue plan for this
+   pass; do not repeat it for routine ordering between issues.
 7. Treat that order as the initial plan, not authority over the live GitHub Collaboration Record. Before each action, reconcile planned issues against current Workflow State, linked PR and required artifacts, dependencies, and recent comments. The live state and workflow gates determine executability. If evidence conflicts with the plan, do not silently transition, skip, or reorder: record the discrepancy in the canonical GitHub location; route state/ownership issues by the current state; ask tech-lead to resolve conflicts affecting technical sequencing or priority, and strategist to resolve product/scope meaning. Continue with another independently executable issue only if this does not violate dependency or spec-group priority. Refresh the plan for a blocker or changed dependency/scope, stale or conflicting issue instructions, plan-versus-board discrepancy affecting priority, loop-breaker, or exhausted executable queue. No routine tech-lead consultation is needed when plan and live evidence agree.
 8. For each active issue in `Ready to Merge`, `In Progress`, `In Review`, or `Need attentions`:
    - if the issue is in `Ready to Merge`: route to `tech-lead` for final check and merge (see Tech-Lead Merge Gate)
@@ -135,7 +146,7 @@ For each issue:
 ## Builder And Reviewer Gate
 
 - `builder` works from the assigned GitHub issue first, then its exact Durable Context links, approved guardrails, and the shared build-review loop; the linked canonical SPEC is authoritative for normal durable product intent, while a tech-lead-confirmed `fix-bug` or `hotfix` issue that meets the recorded fast-lane readiness exception is valid `Ready` work without one
-- when `builder` starts, `builder` must create or switch to the issue worktree, create or switch to the issue branch in that worktree, and move the issue into `In Progress`
+- before `builder` starts, `tech-lead` must create or verify the issue worktree and task branch and record their path/name in GitHub. Builder verifies and uses the supplied workspace and branch, then moves the issue into `In Progress`. If the supplied workspace or branch is missing, mismatched, or unusable, builder stops and routes the problem to tech-lead; builder must not create replacements.
 - after `builder` finishes implementation, `builder` must create or update the PR, move the issue into `In Review`, and leave a durable handover note in the issue or PR before `reviewer` review starts
 - builder-reviewer communication, findings, rework reasoning, and approvals must be recorded in PR comments or review threads; use issue comments for concise task-state summaries
 - `orchestrator` verifies tech-lead's worktree and branch setup before builder delegation, then checks that the PR, state change, and handover note exist before delegating `reviewer`
@@ -179,6 +190,14 @@ The repository ships optional Ponytail skills: `ponytail`, `ponytail-review`, `p
 - if the current role can delegate to itself under another role context, do that rather than narrating what should happen next
 - do not stop after only posting a GitHub comment if `strategist`, `builder`, or `reviewer` can be invoked now
 - reserve the word `handoff` for founder-facing return, escalation, or final control transfer
+
+Dependent role delegations are synchronous. Wait for the current agent to
+finish and return its final response, then verify its required GitHub records
+before invoking any dependent role. A posted handoff, workflow-state change,
+or launch acknowledgement alone is not agent completion. An interrupted or
+failed invocation does not satisfy this gate; reconcile its outcome before
+proceeding. “Invoke now” and “continue in the same execution pass” mean after
+these checks, never while the prerequisite role is still running.
 
 ## Ownership Rules
 
