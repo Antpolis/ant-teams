@@ -5,6 +5,8 @@ description: Use when the GitHub delivery flow is already in place and the agent
 
 # Approval And Escalation
 
+These rules apply within an explicitly activated managed delivery workflow. The coordinator is normally Ant Agent (`ant`); each specialist keeps its assigned responsibilities. Loading this skill does not activate a workflow or transfer coordination ownership.
+
 Use this skill whenever the agent needs to decide whether work can move forward, must return for rework, should be blocked, or needs escalation.
 
 This skill defines the approval model for the multi-agent delivery loop. It helps prevent premature completion, unclear review ownership, and endless rework without decision.
@@ -15,7 +17,7 @@ Treat these as the minimum workflow approvals:
 
 1. Product direction approved by founder
 2. Technical direction approved by tech-lead
-3. Implementation reviewed by reviewer — all mandatory criteria satisfied (KISS, separation of concerns, correct folder/package/namespace per architecture docs)
+3. Implementation reviewed by reviewer — no blocking correctness, security, scope, documented architecture, or material maintenance findings remain; simplicity, separation, and placement assessed with evidence
 4. Lightweight smoke verification accepted by reviewer
 5. Reviewer posts an explicit approval comment on the PR stating the issue is clear with no blockers, then moves the issue to `Ready to Merge`
 
@@ -108,7 +110,7 @@ Use when:
 
 Before escalating to founder from delivery execution, use `founder-escalation-preflight`.
 That preflight must re-check repo docs, GitHub issue or spec history, relevant role memory, and remaining safe internal next steps.
-If the orchestrator owns the current queue pass, the orchestrator must run this preflight and confirm there is no safe remaining role invocation before founder escalation.
+If the active workflow coordinator owns the current queue pass, the active workflow coordinator must run this preflight and confirm there is no safe remaining role invocation before founder escalation.
 If the strategist is deciding that founder input is needed, the strategist must run this preflight and confirm the remaining blocker is a true product, scope, prioritization, or business decision.
 Do not escalate to founder if the answer is already recoverable from repo evidence or if another safe internal delegation step still exists.
 Do not treat this as a gate on normal founder collaboration during shaping or planning.

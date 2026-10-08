@@ -5,6 +5,8 @@ description: Use when tech-lead is creating, splitting, sequencing, or documenti
 
 # How To Create Tasks
 
+These rules apply within an explicitly activated managed delivery workflow. The coordinator is normally Ant Agent (`ant`); each specialist keeps its assigned responsibilities. Loading this skill does not activate a workflow or transfer coordination ownership.
+
 Use this skill when tech-lead is turning an approved, implementation-ready spec into a GitHub milestone and execution issues.
 
 Use the agentic-flow-terms skill as the canonical glossary for custom workflow metadata terms referenced by tasks.
@@ -16,7 +18,7 @@ Tech-lead is the sole owner of the GitHub milestone and every execution issue fo
 
 - No other role creates the milestone or any issue in normal flow.
 - No other role sets sequence positions, tech-lead guardrails, or moves issues to `Ready`.
-- If orchestrator or strategist needs a task created, they must request it from tech-lead, not create it themselves.
+- If the coordinator or strategist needs a task created, they must request it from tech-lead, not create it themselves.
 - Strategist confirms the issue set maps to business value after tech-lead creates it — strategist does not create or modify issues to make them fit.
 
 ## Core Rules

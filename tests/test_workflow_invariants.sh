@@ -129,7 +129,11 @@ OLD_STATUS_TERMS=( 'In Development' 'PR Open' 'QA Smoke' 'Architecture Review' )
 
 # role_agent_file ROLE — canonical prompt surface for a role.
 role_agent_file() {
-  printf 'templates/opencode/agents/%s.md' "$1"
+  if [[ "$1" == orchestrator ]]; then
+    printf '%s' 'templates/opencode/skills/github-agentic-delivery-flow/references/orchestration.md'
+  else
+    printf 'templates/opencode/skills/github-agentic-delivery-flow/references/%s-delivery.md' "$1"
+  fi
 }
 
 # yaml_dropdown_options FILE SELECTOR_ID — print the "- option" values of the
@@ -294,7 +298,7 @@ inv4c() {
     if [[ "$role" == "orchestrator" ]]; then
       must_contain "$prompt" 'GitHub is the active collaboration surface: keep task discussion, decisions, blockers, handoffs, review findings, and closure there' "$file"
     else
-      must_contain "$prompt" 'GitHub Issues and PRs are the active collaboration and execution record' "$file"
+      must_contain "$(read_file 'templates/opencode/skills/github-agentic-delivery-flow/references/specialist-context.md')" 'GitHub Issues and PRs are the active collaboration and execution record' "shared specialist context"
     fi
   done
 }
@@ -391,11 +395,11 @@ init_suite "INV-8 orchestrator model"
 
 inv8() {
   local model
-  model="$(sed -n 's/^model:[[:space:]]*\([^[:space:]]*\)[[:space:]]*$/\1/p' "$INIT_REPO_ROOT/templates/opencode/agents/orchestrator.md" | head -1)"
+  model="$(sed -n 's/^model:[[:space:]]*\([^[:space:]]*\)[[:space:]]*$/\1/p' "$INIT_REPO_ROOT/templates/opencode/agents/ant.md" | head -1)"
   [[ -n "$model" ]] || { printf 'orchestrator agent frontmatter model not found\n' >&2; return 1; }
-  [[ "$model" == "openai/gpt-6-luna" ]]
+  [[ "$model" == "openai/gpt-6-luna-fast" ]]
 }
-check_body 'INV-8: orchestrator agent model is openai/gpt-6-luna' inv8
+check_body 'INV-8: Ant Agent model is openai/gpt-6-luna-fast' inv8
 
 # --- INV-9: env-only project-init, no JSON import/removal path ------------------------------------------
 
@@ -459,9 +463,8 @@ inv10a() {
 inv10b() {
   local f content lineno line ok m
   local -a runtime_files=(
-    'templates/opencode/commands/plan-sprint.md'
     'templates/opencode/commands/sprint-clean.md'
-    'templates/opencode/commands/sync-spec.md'
+    'templates/opencode/skills/github-agentic-delivery-flow/references/sync-spec.md'
     'templates/opencode/skills/documentation-standard/SKILL.md'
     'templates/opencode/skills/agent-communication-log/SKILL.md'
     'templates/opencode/skills/role-memory/SKILL.md'
@@ -544,7 +547,7 @@ inv11bc() {
   helper="$(read_file 'templates/opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh')"
   docs="$(read_file 'templates/opencode/skills/documentation-standard/SKILL.md')"
   shaping="$(read_file 'templates/opencode/skills/product-shaping/SKILL.md')"
-  command="$(read_file 'templates/opencode/commands/new-spec.md')"
+  command="$(read_file 'templates/opencode/skills/github-agentic-delivery-flow/references/new-spec.md')"
   must_contain "$helper" 'spec-next' "GitHub helper"
   must_contain "$helper" 'spec_id: SPEC-\([0-9][0-9][0-9]*\)' "GitHub helper numeric SPEC matcher"
   for content in "$docs" "$shaping" "$command"; do
@@ -576,7 +579,7 @@ inv11be() {
   )
   for phrase in "${banned[@]}"; do
     if grep -qF -- "$phrase" "$INIT_REPO_ROOT/templates/opencode/opencode.json" 2>/dev/null; then return 1; fi
-    if grep -qF -- "$phrase" "$INIT_REPO_ROOT/templates/opencode/prompts/orchestrator.md" 2>/dev/null; then return 1; fi
+    if grep -qF -- "$phrase" "$INIT_REPO_ROOT/templates/opencode/skills/github-agentic-delivery-flow/references/orchestration.md" 2>/dev/null; then return 1; fi
   done
   while IFS= read -r f; do
     if [[ ! -f "$f" ]]; then continue; fi
@@ -587,7 +590,7 @@ inv11be() {
   return 0
 }
 inv11bf() {
-  local prompts; prompts="$(read_file 'templates/opencode/prompts/orchestrator.md')"
+  local prompts; prompts="$(read_file 'templates/opencode/skills/github-agentic-delivery-flow/references/orchestration.md')"
   must_contain "$prompts" 'Do not create no-op memory entries when no durable lesson exists' "orchestrator.md"
   must_contain "$prompts" 'Do not verify or require role-memory updates as a completion gate' "orchestrator.md"
 }
@@ -617,7 +620,7 @@ inv11d() {
     'templates/opencode/skills/development-hygiene/SKILL.md' \
     'templates/opencode/skills/pr-review-flow/SKILL.md' \
     'templates/opencode/skills/task-completion/SKILL.md' \
-    'templates/opencode/agents/orchestrator.md'; do
+    'templates/opencode/skills/github-agentic-delivery-flow/references/orchestration.md'; do
     must_contain "$(read_file "$f")" 'Durable Context' "$f"
   done
   must_contain "$(read_file 'templates/opencode/skills/state-transitions/SKILL.md')" 'Do not move work to `Ready`' "state-transitions"
@@ -712,7 +715,7 @@ inv12c() {
 }
 inv12d() {
   local f s
-  for f in 'templates/opencode/commands/new-spec.md' 'templates/opencode/commands/sync-spec.md' 'templates/opencode/commands/plan-sprint.md'; do
+  for f in 'templates/opencode/skills/github-agentic-delivery-flow/references/new-spec.md' 'templates/opencode/skills/github-agentic-delivery-flow/references/sync-spec.md'; do
     s="$(read_file "$f")"
     must_not_contain "$s" '`Shaping`' "$f"
     must_not_contain "$s" '`Inbox`' "$f"
@@ -839,11 +842,10 @@ check_body 'INV-16: ANT_TEAM_DOCS_PROJECT_PATH_TEMPLATE is retired' inv16
 
 init_suite "INV-17 session context tier"
 
-ORCH_PROMPT="$(read_file 'templates/opencode/agents/orchestrator.md')"
-ORCH_PROMPTS="$(read_file 'templates/opencode/prompts/orchestrator.md')"
+ORCH_PROMPT="$(read_file 'templates/opencode/skills/github-agentic-delivery-flow/references/orchestration.md')"
 inv17a() {
   local f s
-  for f in 'templates/opencode/agents/orchestrator.md' 'templates/opencode/prompts/orchestrator.md'; do
+  for f in 'templates/opencode/skills/github-agentic-delivery-flow/references/orchestration.md'; do
     s="$(read_file "$f")"
     must_contain "$s" '`ctx-<uuid-v4>`' "$f"
     must_contain "$s" 'uuidgen' "$f"
@@ -856,7 +858,7 @@ inv17a() {
 }
 inv17b() {
   local f s
-  for f in 'templates/opencode/agents/orchestrator.md' 'templates/opencode/prompts/orchestrator.md'; do
+  for f in 'templates/opencode/skills/github-agentic-delivery-flow/references/orchestration.md'; do
     s="$(read_file "$f")"
     must_contain "$s" 'Pass the exact key and path in every child delegation' "$f"
     must_contain "$s" '**Session context:** $ANT_TEAM_DOCS_PROJECT_PATH/session-context/<session_id>.md' "$f"
@@ -868,7 +870,7 @@ inv17b() {
 inv17c() {
   local role p
   for role in strategist tech-lead builder reviewer; do
-    p="$(read_file "$(role_agent_file "$role")")"
+    p="$(read_file 'templates/opencode/skills/github-agentic-delivery-flow/references/specialist-context.md')"
     must_contain "$p" 'read the exact note path passed in your delegation on entry' "$(role_agent_file "$role")"
     must_contain "$p" 'append a dated `## <role> — <UTC timestamp>` section' "$(role_agent_file "$role")"
     must_contain "$p" 'never write a global current-session pointer' "$(role_agent_file "$role")"

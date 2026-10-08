@@ -1,6 +1,6 @@
 ---
 name: fix-bug
-description: Run the full fast-lane workflow for a bounded bug fix or regression. Use when reproducing and correcting an existing defect without expanding product behavior, including when the user invokes /fix-bug.
+description: Execute an explicitly requested /fix-bug or managed bounded-fix workflow. Ordinary debugging or direct fixes do not activate this delivery lane.
 disable-model-invocation: true
 argument-hint: <bug description or GitHub issue>
 ---
@@ -8,6 +8,15 @@ argument-hint: <bug description or GitHub issue>
 # Fix a bug
 
 Use this skill for the complete delivery of a bounded bug fix. It does not replace the repository's role ownership, GitHub delivery flow, communication governance, approval gates, or documentation policy. Read the assigned GitHub issue and its Durable Context first. Use `agentic-flow-terms` as the canonical glossary for development loop, review loop, loop-breaker, stopper, hard blocker, defer task, role memory, collaboration record, and approval gate.
+
+
+## Standalone readiness record
+
+This playbook owns its issue readiness and execution; do not load `do-task` or the spec-queue coordination procedure to run it. Shared ownership, handoff, review, and merge references do not activate spec delivery.
+
+Before implementation, the issue records why a canonical SPEC and milestone are not applicable; every applicable Durable Context URL and each non-applicable item with its reason; bounded scope and non-goals; acceptance criteria; risks and guardrails; verification plan and reproduction evidence; and tech-lead's readiness confirmation. Missing or conflicting required context must be resolved before builder starts. The task uses a tech-lead-provisioned worktree and branch, independent reviewer approval, and tech-lead final alignment and merge under the shared gates.
+
+If the scope requires planned spec delivery, record the mismatch and request an explicit workflow change. Do not automatically start shaping or queue execution.
 
 ## Fast-lane boundary
 

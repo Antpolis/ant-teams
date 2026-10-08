@@ -7,7 +7,7 @@ description: Use when implementing, refactoring, reviewing, or planning code cha
 
 Use this skill whenever code work should be kept simple, consistent, and aligned with the architecture patterns that already exist in the repository.
 
-This skill applies to both builder and reviewer. Builder uses it to write clean implementations. Reviewer uses it to evaluate whether the implementation is acceptably simple, well-separated, and correctly placed — and to raise mandatory findings when it is not.
+This skill applies to both builder and reviewer. Builder uses it to write clean implementations. Reviewer uses it to evaluate whether the implementation is acceptably simple, well-separated, and correctly placed and to assess concerns using evidence and concrete impact.
 
 This skill is not for inventing a new architecture style. It is for helping the model fit new work into the repo cleanly, with minimal moving parts and minimal surprise for future maintainers.
 
@@ -21,13 +21,9 @@ This skill is not for inventing a new architecture style. It is for helping the 
 
 ## Read Before Changing Code
 
-Before making strong implementation decisions:
+Start from the user's request or supplied task context. Read the relevant repository guidance and nearby code before making strong implementation decisions. Follow repository documentation routing and prefer project-specific constraints over generic conventions. Ordinary direct work does not require an issue, SPEC, or formal readiness state.
 
-1. Start with the assigned GitHub issue: read its scope, non-goals, acceptance criteria, dependencies, verification, and `Durable Context` section.
-2. Open the issue's canonical SPEC and every applicable linked ARCH, ADR, GOV, and runbook from the central Obsidian project folder. Do not reconstruct requirements from chat or broad-search the vault unless a required link is missing.
-3. If a required durable-context URL is missing, ambiguous, stale, or conflicts with the issue, stop and request tech-lead clarification in the issue; do not guess.
-4. Read the nearest existing code in the same feature or module area.
-5. Prefer project-specific guidance over generic best-practice instincts.
+For an explicitly active managed delivery assignment, read the issue's scope, non-goals, acceptance criteria, dependencies, verification, and exact `Durable Context` links, including the canonical SPEC and applicable ARCH, ADR, GOV, and runbooks. Follow the recorded fast-lane exceptions when applicable. Resolve missing, ambiguous, stale, or conflicting required context through the responsible role before the affected action; do not guess. A reference to this skill does not activate delivery.
 
 Useful repo guidance often lives in:
 
@@ -57,11 +53,11 @@ Avoid:
 - opening a replacement PR just because the current one is inconvenient
 - discarding review context that future roles still need
 
-If continuity is impossible because the worktree, branch, or PR is broken, stale beyond safe recovery, or otherwise unusable, record the reason clearly in GitHub before replacing it.
+If continuity is impossible because the worktree, branch, or PR is broken, stale beyond safe recovery, or otherwise unusable, explain the reason before replacing it; record it in GitHub when the task is managed there.
 
-When starting new implementation, tech-lead provisions a dedicated git worktree and task branch per active issue using the centralized helper. Builder verifies and uses the supplied workspace; it does not create or replace worktrees or branches in normal flow. If setup is missing or unusable, stop and route recovery to tech-lead. This keeps parallel issue work isolated without giving workspace ownership to the implementation role.
+During managed delivery, tech-lead provisions a dedicated git worktree and task branch per active issue using the centralized helper. Builder verifies and uses the supplied workspace; it does not create or replace worktrees or branches in normal flow. If setup is missing or unusable, stop and route recovery to tech-lead. This keeps parallel issue work isolated without giving workspace ownership to the implementation role.
 
-After the issue PR is merged or the task is explicitly abandoned, clean up the now-unused issue worktree and local branch so stale workspaces do not pile up.
+Outside managed delivery, choose workspace isolation proportional to the task and preserve existing user work. During managed delivery, tech-lead owns safe cleanup after merge or abandonment.
 
 ### 1. Start with the simplest change that can work
 
@@ -178,7 +174,7 @@ If the answer exposes unnecessary complexity, simplify before finishing.
 5. Are any two concerns mixed in a single file, class, or function that should be separated?
 6. Was architecture or cleanup bundled into a feature change without being explicitly called out?
 
-If yes to any of these, raise it as a finding — not a suggestion. Leniency on these principles is a reviewer failure.
+These questions identify concerns to investigate, not automatic blockers. For each concern, state evidence, concrete impact, severity, and the smallest practical correction. Required fixes address demonstrated correctness, security, scope, documented architecture violations, or material maintainability risk. Optional improvements and preferences do not block approval. One caller, mixed operations, or a different possible file layout alone does not prove a violation.
 
 ## Optional Ponytail Tools
 

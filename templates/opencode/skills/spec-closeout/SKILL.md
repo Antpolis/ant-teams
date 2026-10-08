@@ -1,9 +1,12 @@
 ---
 name: spec-closeout
-description: Use when a completed SPEC or GitHub milestone needs final delivery closeout: validate the remaining issues and board state, create the GitHub Release and tag, close the milestone, and safely clean merged issue worktrees and branches.
+description: "Use for explicitly requested /close-spec or managed SPEC closeout: validate the remaining issues and board state, create the GitHub Release and tag, close the milestone, and safely clean merged issue worktrees and branches."
+disable-model-invocation: true
 ---
 
 # SPEC Closeout
+
+These rules apply within an explicitly activated managed delivery workflow. The coordinator is normally Ant Agent (`ant`); each specialist keeps its assigned responsibilities. Loading this skill does not activate a workflow or transfer coordination ownership.
 
 Use this skill only after delivery work for one canonical `SPEC-###` is complete and ready to ship. It closes a **spec**, not an individual issue. Use `task-completion` for individual issue completion and `release-management` for release-note and release-readiness details.
 
@@ -11,7 +14,7 @@ GitHub remains the operational closeout record. The canonical Obsidian SPEC, ARC
 
 ## Ownership
 
-- **Orchestrator** drives the closeout pass and keeps the next safe action moving.
+- **Coordinator (Ant Agent)** drives the closeout pass and keeps the next safe action moving.
 - **Tech-lead** owns the technical release decision, GitHub Release/tag, milestone closure, and safe cleanup of merged worktrees and local branches.
 - **Strategist** confirms that the delivered scope satisfies the SPEC's business acceptance criteria when that has not already been recorded.
 - **Builder** supplies missing implementation or verification evidence only; it does not self-close the spec.

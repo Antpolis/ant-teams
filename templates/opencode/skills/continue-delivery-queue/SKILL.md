@@ -1,11 +1,13 @@
 ---
-name: orchestrator-task-done
-description: Use when the orchestrator has just seen one issue reach done, blocked, or another local stopping point during `do-task` execution and must decide whether to continue with the next pending issue, resolve `Need attentions`, or escalate. This skill is specifically for preventing queue passes from ending early after one issue is finished. Trigger whenever the orchestrator is about to end a `do-task` pass because a single issue looks complete, because an escalation happened mid-pass, or because the queue state needs a post-completion continuation decision.
+name: continue-delivery-queue
+description: Decide the next action after an issue reaches a stopping point within an explicitly activated managed queue pass. Does not start queue execution.
 ---
 
-# Orchestrator Task Done
+# Continue Delivery Queue
 
-Use this skill when the orchestrator reaches the end of one issue's active loop and needs to decide whether the overall queue pass should continue.
+These rules apply within an explicitly activated managed delivery workflow. The coordinator is normally Ant Agent (`ant`); each specialist keeps its assigned responsibilities. Loading this skill does not activate a workflow or transfer coordination ownership.
+
+Use this skill when the active workflow coordinator reaches the end of one issue's active loop and needs to decide whether the overall queue pass should continue.
 
 The goal is simple: finishing one issue is not the same as finishing the pass.
 
@@ -17,7 +19,7 @@ Use GitHub Issues, Pull Requests, milestone comments, and Project Workflow State
 
 ## Optional Ponytail Checkpoint
 
-The orchestrator may use `ponytail-review`, `ponytail-audit`, and `ponytail-debt` as optional read-only cleanup checks after an issue reaches a local stopping point. These checks never replace queue reconciliation, required verification, reviewer approval, tech-lead merge authority, or founder-escalation rules, and they add no workflow state or approval gate.
+The active workflow coordinator may use `ponytail-review`, `ponytail-audit`, and `ponytail-debt` as optional read-only cleanup checks after an issue reaches a local stopping point. These checks never replace queue reconciliation, required verification, reviewer approval, tech-lead merge authority, or founder-escalation rules, and they add no workflow state or approval gate.
 
 - Use `ponytail-review` for a task diff when complexity may affect whether the issue is truly settled.
 - Use `ponytail-audit` for broader spec or milestone cleanup when the queue is otherwise ready to continue or close.
@@ -25,9 +27,15 @@ The orchestrator may use `ponytail-review`, `ponytail-audit`, and `ponytail-debt
 - If a result affects routing, completion, or a follow-up decision, record it in the relevant issue, PR, or milestone comments. Standalone reports do not block continuation.
 - Run this checkpoint only after higher-priority `Ready to Merge`, executable pending work, and `Need attentions` checks are handled; Ponytail must not become a reason to stop a runnable queue.
 
+## Scope and Completion
+
+Use the selected spec/milestone and any explicit narrowed issue scope supplied by `do-task`. All queue checks below refer only to that authorized scope. Another spec's ready issues, open tasks, or attention items do not extend this run. If scope is missing, recover it from the current queue plan or clarify it before dispatching work.
+
+Continue until every required scoped issue is done with evidence or no safe scoped action remains. When required issues and acceptance coverage are complete, return the spec completion report; do not keep searching the project for unrelated work. Release/tag creation and milestone closure are separate actions.
+
 ## Core Rule
 
-When one issue is done, blocked, or paused, the orchestrator must explicitly decide what happens to the rest of the queue before ending the pass.
+When one issue is done, blocked, or paused, the active workflow coordinator must explicitly decide what happens to the rest of the queue before ending the pass.
 
 Do not treat issue completion as permission to return to the user.
 Treat it as a checkpoint:
@@ -53,7 +61,7 @@ Apply this order every time an issue leaves the active loop:
    - Confirm the founder decision is genuinely pending; if strategist or tech-lead resolution was actually still possible, route it back to that role instead.
    - Founder-facing: run `founder-escalation-preflight` then escalate if confirmed.
 7. After the founder responds, decide whether the issue can return to its prior state (`Ready`, `In Review`, or `Backlog`), must move to `Blocked`, or still needs the founder decision tracked.
-8. Only after `Ready to Merge`, pending issues, and `Need attentions` issues are all exhausted should the orchestrator consider ending the pass.
+8. Only after `Ready to Merge`, pending issues, and `Need attentions` issues are all exhausted should the active workflow coordinator consider ending the pass.
 
 ## Pending-Issue Rule
 
@@ -103,7 +111,7 @@ Then apply this rule:
 - if the founder escalation does not block another pending issue, continue with the pending issue and keep the escalation tracked separately
 - if the founder escalation does block the next pending issue or the active spec path, run founder-escalation-preflight and then escalate
 
-The orchestrator should prefer continued internal execution whenever a safe pending issue still exists.
+The active workflow coordinator should prefer continued internal execution whenever a safe pending issue still exists.
 
 ## Blocking Test For Escalations
 
@@ -116,12 +124,12 @@ Treat an escalation as blocking only when one of these is true:
 Treat an escalation as non-blocking when:
 
 - it affects only a later issue
-- it affects a different spec group that is not currently the best executable path
+- it affects a different spec outside the authorized scope
 - the remaining queue still contains safe work that can proceed under current approvals and guardrails
 
 ## Pre-Return Checklist
 
-Before ending the call or returning control to the user, the orchestrator must explicitly confirm:
+Before ending the call or returning control to the user, the active workflow coordinator must explicitly confirm:
 
 1. no issue is in `Ready to Merge` awaiting tech-lead final check
 2. no executable pending issue remains (`Ready`, `In Progress`, `In Review`)

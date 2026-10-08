@@ -1,16 +1,19 @@
 ---
 name: do-task
-description: Use when the orchestrator should drive execution from the GitHub project queue, invoke tech-lead for technical interpretation, invoke builder for implementation, and require reviewer review before any issue is treated as done.
+description: Drive an explicitly requested approved spec through its required GitHub issues, builder implementation, independent review, and tech-lead merge. Do not stop after one issue or pull another spec automatically.
+disable-model-invocation: true
 ---
 
 # Do Task
 
-Use this skill whenever execution should start from the current GitHub project issue queue rather than from a single already-picked task.
+Ant Agent (`ant`) takes the orchestrator role for this queue pass. Read the `github-agentic-delivery-flow` skill and its Delivery Orchestration reference before executing the pass.
+
+This procedure owns whole-spec execution requested through `/do-tasks`. The shared delivery-flow skill supplies conventions; reading it does not start this procedure.
 
 Use the agentic-flow-terms skill as the canonical glossary for custom workflow metadata terms referenced by this skill.
 Use github-agentic-delivery-flow for the top-level GitHub operating model.
 Use github-conventions, state-transitions, approval-or-escalation, and agent-communication-log for GitHub workflow mechanics.
-Use orchestrator-task-done whenever one issue reaches done, blocked, or another local stopping point and the orchestrator needs to decide whether the queue pass continues.
+Use continue-delivery-queue whenever one issue reaches done, blocked, or another local stopping point and the orchestrator needs to decide whether the queue pass continues.
 Use pr-review-flow when builder work is ready for reviewer review so the PR becomes the canonical review surface.
 Use role-memory for durable cross-loop continuity.
 Use founder-escalation-preflight before asking the founder for a decision.
@@ -22,6 +25,18 @@ Bundled helpers for issue-isolated development live in:
 
 Use these helpers instead of inventing ad hoc `git worktree` commands. `tech-lead` owns creating or reusing the issue worktree and task branch before delegating new implementation to `builder`; `tech-lead` also owns post-merge cleanup. `ANT_TEAM_SCRIPTS` is installed and configured by `init-company.sh`.
 These helpers load `ANT_TEAM_WORKTREE_ROOT` from `.github-project.env` themselves; invoke them directly rather than prefixing each call with `source ./.github-project.env &&`.
+
+## Selected Spec and Run Scope
+
+Resolve the selected canonical SPEC and milestone from the user's argument or an unambiguous existing execution context. A supplied issue can identify its parent spec; respect an explicit issue-only or otherwise narrowed request. If multiple specs are plausible or no spec is identified, ask which approved spec to execute before dispatching work. Do not choose a different spec because it has runnable issues.
+
+Record the selected spec/milestone and scoped issue set in the queue plan and pass that scope to every delegate and continuation check. Every queue query, reconciliation, priority rule, readiness check, triage, and next-action decision below is limited to that scope. Outside issues may be read as dependency evidence; they are not execution candidates without an explicit scope change.
+
+Continue through implementation, independent review, and tech-lead merge for every required scoped issue. One merged issue is a checkpoint, not completion. A blocked issue does not stop independent executable work in the same scope; record it and continue safely. If no scoped action remains, report the actual blocking decision or dependency.
+
+The run is complete when every required scoped issue is `Done` with the required merge or approved non-code completion evidence and no unresolved scope or acceptance gap remains. Deferred or removed work counts only when its explicit approved disposition is recorded in GitHub. An empty `Ready` queue alone does not prove completion.
+
+Report final spec acceptance/verification evidence, issue disposition, PR/merge evidence, and remaining risks. Completion does not create a release/tag, close the milestone, select the next spec, or start shaping. Those actions require an explicit request.
 
 ## Issue Done Definition
 
@@ -53,7 +68,7 @@ Bring in `tech-lead` when technical interpretation, sequencing, guardrails, or l
 ## Queue-Driven Flow
 
 1. As the first workflow action of the pass, invoke `tech-lead` synchronously
-   to inspect the GitHub project queue and establish the ordered issue list,
+   to inspect the selected spec’s GitHub issue queue and establish the ordered issue list,
    dependencies, current spec focus, active-work reconciliation, sequencing
    rationale, and execution guardrails. Wait for its completed final response
    and verify its required GitHub record before proceeding.
@@ -80,55 +95,25 @@ Bring in `tech-lead` when technical interpretation, sequencing, guardrails, or l
    - if `builder` has questions about product intent or scope, invoke `strategist` as needed and record the discussion in GitHub comments
    - if `builder` has questions about technical direction or guardrails, invoke `tech-lead` and continue the pass after the answer
    - if the issue is blocked for any reason, move it to `Blocked`, add a GitHub comment explaining the blocker, and notify the user
-9. After reconciling active issues, read the remaining issues in the project with their milestone/spec, status, dependencies, prior comments, and linked docs.
-10. Group issues by spec or milestone.
-11. Prioritize within the current spec group before moving to another spec, using the ordered list from `tech-lead`.
-12. Only switch away from the current spec group when:
-   - an issue is blocked by a real dependency
-   - human intervention is required
-   - there are no more executable issues in that spec group
-13. Process issues one by one according to the ordered list from `tech-lead`.
-14. Each time one issue reaches done, blocked, or another local stopping point, run `orchestrator-task-done` before deciding whether to end the pass, escalate, or move to the next issue.
-15. If there are no executable issues after reconciliation:
-   - do not stop at queue reporting alone
-   - inspect open repo issues that are not on the project board or are on the board in a non-executable state but may be ready for triage
-   - check whether open repo issues or spec work exist outside the current executable queue that can be triaged into the project
-   - if tasks exist but are not builder-usable, invoke `tech-lead` to create or request the missing technical delegation details needed to make one issue executable
-   - if product/spec direction is needed, invoke `strategist` to clarify or prepare the next actionable spec/issue path
-   - only return to the user without internal delegation when no safe next internal action exists or explicit human direction is required
+9. After reconciling active scoped issues, read the remaining selected-spec issues with their status, dependencies, prior comments, and linked docs.
+10. Verify each issue belongs to the selected milestone and authorized scope; record discrepancies and ask tech-lead to resolve missing coverage or readiness gaps.
+11. Use the tech-lead ordering to continue within the selected spec; do not dispatch another spec automatically.
+12. If an issue is blocked, record its unblocking condition and continue another independently executable scoped issue. Work on an external dependency requires an explicit scope extension.
+13. Process required scoped issues through implementation, review, and merge.
+14. At each local stopping point, run `continue-delivery-queue` with the selected scope before ending the pass.
+15. If no executable scoped issue remains, reconcile all required issues and acceptance coverage. Ask tech-lead to resolve incomplete scoped readiness or technical instructions, and strategist to clarify product acceptance when needed. If all required work is complete, report completion. Otherwise report the exact remaining blocker; do not triage unrelated repository work or start another spec.
 
-## Return-To-User Gate
+## Empty Scoped Queue
 
-Do not return control to the user merely because the current project queue looks empty.
+An empty executable queue is a reconciliation point. Check scoped `Ready to Merge`, `In Progress`, `In Review`, `Need attentions`, `Ready`, and `Blocked` issues against their required evidence and dependency records. Resolve safe internal gaps within the selected spec before escalating. Check planned acceptance coverage for missing work through tech-lead.
 
-Before ending a `do-task` pass, explicitly exhaust this checklist:
-
-1. route any `Ready to Merge` issues to `tech-lead` for final check and merge
-2. reconcile any `In Progress` issues with `builder`
-3. reconcile any `In Review` issues with `reviewer`
-4. reconcile any `Need attentions` issues: verify strategist and tech-lead review were attempted, route anything still internally resolvable back to those roles, and surface genuine founder decisions
-5. process any `Ready` issues in the current spec group
-6. inspect open repo issues or milestone work that may need project-board triage
-7. decide whether a missing executable task can be created or clarified safely through `tech-lead` or `strategist`
-8. after each issue-level completion point, run `orchestrator-task-done` so the queue pass does not end early while safe internal work remains
-
-If any checklist item still has a safe internal next step, take that step before replying to the user.
-
-Only stop and report back when:
-
-- every safe internal delegation path has been attempted, and
-- the remaining blocker is a real human decision, missing approval, missing credential, or missing external input
-
-When you do return to the user, say which checklist items were exhausted and name the exact blocking decision.
-If the orchestrator owns the current pass, the orchestrator must be the role that runs founder-escalation-preflight and decides whether the founder is actually needed for execution blockers.
-If product intent, scope meaning, prioritization, or business direction becomes the blocking question, invoke `strategist`; `strategist` may run founder-escalation-preflight and decide whether founder input is actually needed for that product-level decision.
-Before returning for a founder decision, run founder-escalation-preflight and include its result.
+If every required scoped issue is done with evidence, report completion. If required work remains and no safe scoped action is possible, apply `founder-escalation-preflight` for a genuine founder decision or report the external dependency. Do not search for another spec or unrelated tasks merely to keep the pass running.
 
 ## Per-Issue Rules
 
 For each issue:
 
-- confirm the issue is genuinely builder-ready: normal delivery requires bounded scope, non-goals, acceptance criteria, dependencies, verification, owner, and a `Durable Context` section with the exact canonical SPEC and every applicable ARCH, ADR, GOV, and runbook URL; a tech-lead-confirmed `fix-bug` or `hotfix` fast-lane issue may omit the canonical SPEC and milestone only when its GitHub issue records the SPEC/milestone-not-applicable rationale, every applicable Durable Context link and every non-applicable item with its reason, bounded scope and non-goals, acceptance criteria, risks and guardrails, verification plan and evidence, and the tech-lead readiness confirmation. This exception applies only to bounded bug fixes and hotfixes, not normal spec delivery.
+- confirm the issue is genuinely builder-ready for spec-based delivery: require bounded scope, non-goals, acceptance criteria, dependencies, verification, owner, its milestone, and a `Durable Context` section with the exact canonical SPEC and every applicable ARCH, ADR, GOV, and runbook URL. Standalone defect playbooks own their issue readiness and execution; do not pull their issues into this spec queue.
 - read the issue first, then open every Durable Context URL; do not reconstruct requirements from chat or perform a broad vault search
 - if a required URL is missing, ambiguous, stale, or conflicts with the issue, do not invoke builder; request tech-lead clarification in a GitHub issue comment and keep the issue out of `Ready`
 - if product intent, scope meaning, or execution meaning is unclear, clear it with `strategist`
@@ -145,7 +130,7 @@ For each issue:
 
 ## Builder And Reviewer Gate
 
-- `builder` works from the assigned GitHub issue first, then its exact Durable Context links, approved guardrails, and the shared build-review loop; the linked canonical SPEC is authoritative for normal durable product intent, while a tech-lead-confirmed `fix-bug` or `hotfix` issue that meets the recorded fast-lane readiness exception is valid `Ready` work without one
+- `builder` works from the assigned GitHub issue first, then its exact Durable Context links, approved guardrails, and the shared build-review loop; the linked canonical SPEC is authoritative for this planned delivery slice
 - before `builder` starts, `tech-lead` must create or verify the issue worktree and task branch and record their path/name in GitHub. Builder verifies and uses the supplied workspace and branch, then moves the issue into `In Progress`. If the supplied workspace or branch is missing, mismatched, or unusable, builder stops and routes the problem to tech-lead; builder must not create replacements.
 - after `builder` finishes implementation, `builder` must create or update the PR, move the issue into `In Review`, and leave a durable handover note in the issue or PR before `reviewer` review starts
 - builder-reviewer communication, findings, rework reasoning, and approvals must be recorded in PR comments or review threads; use issue comments for concise task-state summaries
@@ -237,8 +222,8 @@ Do not paste entire specs or chat transcripts into a delegation. The issue and i
 - if an issue needs human intervention, record it and skip to the next executable issue
 - if an active issue is blocked after tech-lead and strategist resolution was attempted, move it to `Blocked`, add a concise GitHub issue comment stating the blocker and required unblocking action, and notify the user
 - if a spec is too unclear to proceed safely, record the clarification need in GitHub before pausing or switching
-- if the executable queue is empty, treat that as a triage trigger, not as completion of the pass
-- do not start a new spec unless the remaining work changes scope
+- if the scoped executable queue is empty, reconcile required scoped work and evidence before deciding completion or blockage
+- do not start a new spec or broaden execution without an explicit user request
 
 ## Orchestrator Verification Rule
 

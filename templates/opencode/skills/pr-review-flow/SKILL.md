@@ -5,7 +5,7 @@ description: Use when creating pull requests, starting code review, responding t
 
 # PR Review Flow
 
-Use this skill whenever development is ready for reviewer review.
+Use this skill for PR preparation and review within an explicitly active managed delivery assignment. A standalone code review can use its quality criteria without entering the delivery loop, requiring an issue, updating workflow state, or claiming managed approval.
 
 If `agentic-flow-terms` is available, use it as the canonical glossary for development loop, review loop, approval gate, task branch, GitHub collaboration record, and role memory. If it is not available, the definitions below are sufficient to execute this skill.
 
@@ -122,11 +122,11 @@ Builder fills this in before requesting review.
 
 ## Review Criteria
 
-Reviewer must check all of the following on every pass. These are not optional opinions — they are mandatory findings if violated. Leniency here is a reviewer failure, not discretion.
+Reviewer checks these areas on every managed review pass. Classify concerns using evidence and concrete impact. Demonstrated correctness, security, scope, documented architecture, or material maintenance risks can block approval. Optional improvements and preferences do not.
 
 ### KISS — Keep It Simple
 
-Flag as a finding if:
+Investigate these potential concerns:
 
 - the implementation is more complex than the simplest change that solves the problem
 - a new abstraction has only one caller or one use case at the time of review
@@ -135,11 +135,11 @@ Flag as a finding if:
 - speculative generalization or future-proofing was added that the task did not require
 - cleanup or architectural redesign was bundled silently into a feature change
 
-The test: can a reviewer understand the change without asking what the author was thinking? If not, it is not simple enough.
+Explain any concrete comprehension or maintenance cost. A one-caller abstraction or an alternative implementation shape alone does not establish a blocker.
 
 ### Separation of Concerns
 
-Flag as a finding if:
+Investigate these potential concerns:
 
 - a single file or class accumulates unrelated responsibilities
 - a shared utility contains feature-specific logic
@@ -151,7 +151,7 @@ When raising a concern about separation, name the two concerns that are mixed an
 
 ### Folder, Package, and Namespace Structure
 
-Flag as a finding if new code is placed in the wrong layer, namespace, or package.
+Check placement against documented project boundaries and existing patterns. Cite a documented violation when blocking; convention-based preferences alone are suggestions.
 
 Before judging placement, read the central Obsidian project architecture documents under `ANT_TEAM_DOCS_PROJECT_PATH`; source `./.github-project.env` once only if a direct command needs that variable. The project-defined structure takes precedence over generic language conventions. Do not apply Java, .NET, or TypeScript defaults if the project has its own documented layer definitions.
 
@@ -172,7 +172,7 @@ When raising this finding, state: where the file lives now, where the architectu
 - Name the concrete impact: harder to test, misleading location, responsibility creep, etc.
 - Suggest the simplest fix that resolves the violation.
 
-Do not soften these findings with "consider" or "might want to." If it violates a principle, state it as a finding. Builder may disagree and argue for keeping it — that disagreement should be explicit and recorded, not avoided by the reviewer hedging.
+State demonstrated blockers clearly. Label optional improvements separately, and explain uncertainty rather than assuming a violation. Resolve disagreements against requirements and evidence in the PR.
 
 ## Optional Over-Engineering Check (ponytail-review)
 

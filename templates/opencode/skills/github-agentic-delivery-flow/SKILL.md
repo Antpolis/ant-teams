@@ -1,19 +1,44 @@
 ---
 name: github-agentic-delivery-flow
-description: Use whenever work should move from idea or spec to shipped product through a multi-agent loop using GitHub Milestones as specs, GitHub Issues as tasks, GitHub Projects as the kanban board, and orchestration across strategist, tech-lead, builder, and reviewer. This is the top-level GitHub delivery workflow skill. Trigger on requests to design, run, improve, or govern the continuous delivery flow, especially when the user mentions delegation, agent collaboration, orchestration, review loops, GitHub workflow, milestones, issues, project boards, blockers, approvals, or spec-to-release execution.
+description: "Shared GitHub development operating model: issue and milestone ownership, communication, workflow states, independent review, and merge gates. Consult for managed delivery, bugfix, or hotfix; loading guidance does not start execution."
+disable-model-invocation: true
 ---
 
 # GitHub Agentic Delivery Flow
 
-Use this skill when the user wants a continuous multi-agent workflow that starts from a spec and ends with validated product delivery.
+## Guidance and execution boundaries
 
-This skill defines the top-level operating model. It does not replace lower-level skills such as `agentic-flow-terms`, `agent-communication-log`, `role-memory`, `do-task`, `task-completion`, `github-conventions`, `state-transitions`, or `approval-or-escalation`. Use those for the detailed mechanics they already own.
+This skill defines how managed development uses GitHub and role collaboration. It does not own or start an execution loop. Managed development starts only through an explicit command or a clear user request to start or resume a named procedure. Loading this skill for reference or discussing its rules does not activate any procedure. Ordinary questions, coding, debugging, direct edits, and standalone reviews do not enter delivery because they mention GitHub, specs, issues, or urgency.
+
+`ant` (Ant Agent) is the primary runtime agent. The coordinator (historically called the orchestrator) is a responsibility Ant takes within an active workflow, not a separate agent to invoke. Shared rules below define ownership and evidence for all managed development playbooks; they do not authorize execution or progression into another stage.
+
+Procedure owners and entry points (consult only the explicitly requested procedure):
+
+| Explicit workflow | Procedure | Boundary |
+|---|---|---|
+| `/new-spec` | [Shape and plan](references/new-spec.md) | Ends with planned issues; does not start implementation. |
+| `/sync-spec` | [Sync existing specs](references/sync-spec.md) | Tech-lead syncs milestones/issues; does not start implementation. |
+| `/do-tasks` | `do-task` and [Queue coordination](references/orchestration.md) | Owns execution of all required issues in the selected spec through review and merge. |
+| `/sprint-clean` | [Reconcile delivery](references/sprint-clean.md) | Reconciles records and docs; does not start fresh implementation. |
+| `/close-spec` | `spec-closeout` | Closes an explicitly requested completed spec. |
+
+Continue the selected stage through its required handoffs and gates. Requesting one stage does not select another. Use `agentic-flow-terms`, `github-conventions`, `state-transitions`, and `approval-or-escalation` for detailed rules when needed. Do not load queue coordination for shaping, sync, reconciliation, or closeout.
+
+## Standalone alternatives
+
+`fix-bug` and `hotfix` are separate playbooks. Their own skills define qualification, readiness, and execution. This skill supplies their shared GitHub ownership, handoff, review, and merge rules; reading those rules does not enter shaping or the `do-tasks` spec queue.
+
+If investigation reveals a defect that warrants another playbook, report the reason and proposed alternative. Switching requires the user's explicit request; do not select or execute it automatically.
+
+## Specialist assignments
+
+Before delegating, name the active stage, assigned role, exact requested action, and applicable context. Each specialist reads [Shared Specialist Context](references/specialist-context.md) plus only its role reference: [builder](references/builder-delivery.md), [reviewer](references/reviewer-delivery.md), [strategist](references/strategist-delivery.md), or [tech-lead](references/tech-lead-delivery.md). Direct specialist assistance does not require these delivery procedures. Delegation does not transfer the coordinator's queue ownership.
 
 ## Purpose
 
-Create a durable, inspectable, repeatable delivery loop where:
+Define a durable, inspectable operating model where:
 
-- a spec becomes the governing container for a deliverable
+- planned work uses a spec as its governing container; standalone fix playbooks define their own scope
 - work is split into small executable tasks
 - different agents own different stages of the loop
 - state changes are visible in GitHub
@@ -65,90 +90,17 @@ Default roles in this workflow:
 
 Use specialized skills beneath these roles when the task needs domain-specific handling. The orchestration roles should stay focused on flow ownership and decision quality.
 
-## End-To-End Flow
+## Procedure Ownership
 
-### 1. Shape the work
+These conventions are references, not commands to execute every stage:
 
-- `strategist` clarifies the problem, urgency, constraints, and desired outcome.
-- Challenge weak assumptions and reduce the scope to the smallest practical MVP.
-- Produce a spec draft that is concrete enough for technical review.
-- `strategist` is also the product-level review gate and should confirm the work is worth doing, the intended outcome is clear, and major business constraints are captured before technical planning continues.
-- Record shaping discussion and the strategist-to-tech-lead handoff in GitHub. Promote the stable result to the canonical Obsidian SPEC, with open decisions and applicable durable-document links; routine shaping does not create Obsidian event records.
+- `new-spec` owns shaping and planning. Strategist clarifies business intent; tech-lead verifies feasibility, defines the milestone and issues using `how-to-create-task`, and establishes readiness. Required decisions and requirement coverage must be resolved before tasks enter `Ready`.
+- `do-tasks`, backed by `do-task`, owns the selected spec's development loop: plan the issue order, dispatch implementation, verify handoffs, obtain independent review, route merges to tech-lead, and continue until all required scoped issues are done or no safe scoped action remains. Detailed sequencing lives in that procedure.
+- `fix-bug` and `hotfix` own their standalone issue procedures and artifact requirements. They use the same role ownership, communication, review, and merge conventions without inheriting whole-spec execution.
+- `sprint-clean` owns explicitly requested reconciliation; it does not pull fresh implementation.
+- For explicitly requested release or milestone closeout, run `spec-closeout`. `do-tasks` completion does not create a release/tag or close the milestone automatically. Keep completed Project items in `Done` as audit history.
 
-### 2. Validate the technical direction
-
-- `tech-lead` reviews the spec for feasibility, coupling, migration risk, operational burden, and security concerns.
-- Add architecture constraints, sequencing notes, and guardrails.
-- Decide whether the work is ready, needs scope adjustment, or should stop.
-- `tech-lead` is the technical review gate and should confirm the requested change is technically viable and implementable before tasks are created.
-- Tech-lead may start milestone and issue creation only after the canonical SPEC has a GitHub planning handoff, explicit open-decision status, and the required business and technical content.
-
-### 3. Create the execution container
-
-Tech-lead creates the GitHub milestone. No other role creates or modifies the milestone in normal flow.
-
-- Tech-lead creates the GitHub milestone linked to the spec document.
-- Tech-lead adds a milestone description: summary, spec link, delivery intent, and sequencing overview.
-- If the spec is not yet implementation-ready (missing any required business or technical section), tech-lead must not create the milestone yet — return to shaping.
-
-### 4. Split the work
-
-Tech-lead creates all execution issues using the `how-to-create-task` skill. No other role creates issues in normal flow.
-
-- Break the spec into small GitHub issues, each representing one scoped unit of execution.
-- Every issue must include: Why, Outcome, Scope, Durable Context (canonical SPEC plus applicable ARCH, ADR, GOV, and runbook URLs), Dependencies and open-decision status, Tech-Lead Guardrails, Acceptance Criteria traceable to spec, Verification, Owner, and Sequence Position.
-- Record the full sequence in a durable milestone comment before marking any issue `Ready`.
-- Strategy and tech-lead work is incomplete until the full task set exists in GitHub issues and every spec acceptance criterion is covered.
-- If the work is approved to proceed, create all task issues before advancing — do not leave only guidance in comments.
-
-Coverage gate (required before any issue moves to `Ready`):
-- every spec acceptance criterion maps to at least one issue
-- every functional and technical requirement maps to at least one issue
-- strategist has confirmed the issue set maps to the spec's business value
-
-### 4.5 Activate execution
-
-- Tech-lead sets `Current role: builder` and Sequence Position on each issue.
-- Tech-lead moves issues to `Ready` only after the sequencing and coverage gate passes, every required Durable Context URL is exact, and no unresolved decision blocks implementation.
-- If no task is actually ready, leave the work in `Backlog` or `Blocked` with an explicit reason and next action in the relevant GitHub issue or milestone comment. Do not pretend the flow has advanced.
-
-### 5. Run the build-review loop
-
-- Use the `do-task` skill as the canonical execution loop.
-- `orchestrator` starts execution with a synchronous `tech-lead` consultation as the first workflow action. Tech-lead inspects the project queue and establishes the ordered issue list, dependencies, active-work reconciliation, spec focus, sequencing rationale, and guardrails for the pass. Orchestrator waits for the completed final response and verifies the required GitHub record before inspecting or advancing the queue itself.
-- `orchestrator` should work one spec group at a time unless a dependency, blocker, or required human intervention makes that impossible.
-- `orchestrator` uses the `tech-lead` ordered list as the execution plan, verifies tech-lead's recorded worktree and task-branch setup, and invokes `builder` for the next technically clear issue. After builder finishes and returns its final response, orchestrator verifies the PR, state transition, and implementation handoff before invoking `reviewer`.
-- If reviewer finds issues, return the issue to `builder` on the same branch and continue the loop until the reviewer approves, a blocker appears, or 8 loops are reached.
-- When reviewer approves with no blockers, reviewer posts an explicit approval comment on the PR and moves the issue to `Ready to Merge`. The loop does not end here.
-- `orchestrator` routes every `Ready to Merge` issue to `tech-lead` for the final spec-alignment check. See step 5a.
-- An apparently empty executable queue is not the end of the pass by itself. `orchestrator` should next reconcile `Ready to Merge` work, triage open repo issues into the board when safe, or invoke `strategist` to clarify the next actionable spec path before returning to the user.
-
-### 5a. Tech-lead final check and merge
-
-After an issue reaches `Ready to Merge`, `tech-lead` performs the final spec-alignment check:
-
-- Read the linked spec, GitHub issue, and PR diff.
-- Verify that the implementation matches the approved scope and does not violate architecture or guardrails.
-- Check that KISS, separation of concerns, and folder/package/namespace placement (per architecture docs) are satisfied.
-
-If the check passes:
-- `tech-lead` merges the PR.
-- Moves the issue to `Done`.
-- Posts a merge confirmation comment on the PR.
-- Cleans up the task worktree and local branch once they are no longer needed for review, rollback, or follow-up fixes, using `$ANT_TEAM_SCRIPTS/cleanup-task-worktree.sh`.
-
-If the check fails:
-- `tech-lead` posts specific findings on the PR as comments.
-- Moves the issue back to `Need attentions` only when a founder decision is required; otherwise records the findings and next action in the PR or issue and returns the issue to builder rework on the same branch.
-- Builder picks up the findings, fixes them on the same branch, and the review loop restarts from `In Review`.
-
-### 6. Close the work
-
-- An issue is `Done` only after the PR is merged by tech-lead following a passed final check.
-- Close the milestone only when all required issues are done or explicitly deferred.
-- Record follow-up debt, defer items, and unresolved risks before closing the milestone.
-- When the milestone represents a shipped SPEC, run `spec-closeout`: reconcile the completed issues and acceptance criteria, create the GitHub Release/tag through `release-management`, post the closeout evidence, close the milestone, and remove only merged local task worktrees and branches.
-- Keep completed GitHub Project items in `Done`; do not archive or remove them as part of closeout. They are the auditable execution history.
+Tech-lead is the only role that merges under the managed approval rules below. An issue is not complete merely because implementation ended or reviewer approved; merge and completion evidence must exist.
 
 ## State Machine
 
@@ -173,12 +125,12 @@ Use them like this:
 Additional rule:
 
 - A spec-level milestone should not be treated as execution-ready until it has concrete child issues, and at least one non-blocked child issue is in `Ready` when execution can begin.
-- During execution, prioritize issues by spec group before jumping across specs. Break that rule only for explicit dependencies, blockers, or human-intervention waits.
+- During `do-tasks`, execution stays within the selected spec or an explicitly narrowed scope. A dependency or blocker does not authorize work on another spec; request an explicit scope change when needed.
 - During sprint planning, inspect issues in `Need attentions` before pulling fresh `Ready` work. Confirm strategist and tech-lead review were both attempted, surface the founder decision if one is genuinely pending, then move resolved issues back to their prior state.
 
 ## Required Issue Quality Bar
 
-Every GitHub issue used as a task should include:
+The selected playbook determines required artifacts. Planned spec work requires the linked milestone and canonical SPEC; standalone fix playbooks may record them as not applicable with a reason. Every managed task issue should include:
 
 - problem or task outcome
 - in-scope work
@@ -186,9 +138,9 @@ Every GitHub issue used as a task should include:
 - dependencies
 - acceptance criteria
 - verification steps or expected evidence
-- linked milestone
+- linked milestone when required by the selected playbook
 - owner role or current responsible agent
-- exact links to the canonical SPEC and every applicable ARCH, ADR, GOV, and runbook; mark non-applicable references with a reason
+- exact links to applicable durable context: canonical SPEC for spec-based work, plus applicable ARCH, ADR, GOV, and runbooks; mark non-applicable references with a reason
 
 If the issue is intended for a builder next, it must be actionable without requiring the builder to reinterpret strategist or tech-lead comments into a new plan.
 
@@ -212,7 +164,7 @@ When `tech-lead` asks `strategist` to clarify a spec or issue during execution:
 
 - record the clarification request, resolution, and next action in the relevant GitHub issue or PR
 - update an Obsidian document only if the result changes durable product intent, architecture, governance, a runbook, or reusable cross-task knowledge
-- keep the issue in the current spec group unless it is blocked
+- keep execution within the selected spec; record external dependencies as blockers rather than treating them as permission to switch specs
 - skip to another issue only when waiting on a real blocker or human input
 
 Comments alone are not sufficient when the next action is "implement". That next action must point to an actual task issue, not just a discussion thread.
@@ -283,7 +235,7 @@ When a ponytail tool invocation affects an existing task or decision, record the
 
 ## Usage Guidance
 
-- Use this skill first when designing or adjusting the overall workflow.
+- Consult this skill when designing or interpreting managed GitHub development conventions; discussion does not activate execution.
 - Use this skill to interpret how GitHub milestones, issues, projects, comments, branches, PRs, and agent roles fit together.
 - Use lower-level workflow skills for detailed execution mechanics after the top-level flow is clear.
 - If the workflow starts to feel heavy, reduce issue size and simplify state transitions before adding more agent roles.

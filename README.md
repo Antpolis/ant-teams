@@ -25,7 +25,7 @@ Tech-lead is the only role that merges. After merge, tech-lead owns cleanup: rem
 
 ## Roles
 
-- `orchestrator` — owns queue-driven execution orchestration across the roles
+- `ant` (Ant Agent) — versatile primary assistant; takes the orchestrator role when the GitHub delivery workflow is active
 - `strategist` — challenges new ideas, sharpens them into practical MVPs, prepares implementation-ready specs
 - `tech-lead` — verifies technical feasibility, shapes architecture and sequencing, sets builder guardrails, owns milestones, issues, merge, and cleanup
 - `builder` — implements approved work with focused code changes and verification
@@ -35,13 +35,13 @@ Tech-lead is the only role that merges. After merge, tech-lead owns cleanup: rem
 
 Slash command sources live in `templates/opencode/commands/` and are installed to `.opencode/commands/` and `~/.config/opencode/commands`:
 
-- `deliver` — run the full spec, architecture, planning, development, review, and validation flow
 - `new-spec` — collaborative spec shaping with founder, strategist, and tech-lead, then GitHub milestone and task setup
 - `sync-spec` — sync Obsidian specs and plans into GitHub milestones and task issues
-- `plan-sprint` — review attention items and milestones with the founder to choose the next sprint issues
 - `sprint-clean` — reconcile recent delivered work against specs, tasks, board state, and docs before sprint planning
-- `do-tasks` — continue or finish existing approved tasks
+- `do-tasks` — execute the selected approved spec through implementation, review, and merge
 - `fix-bug` — investigate and fix bugs or regressions
+
+Ant handles ordinary requests directly. Managed workflows start only through an explicit command or an explicit request to start or resume that stage. Reading workflow rules does not start execution.
 
 ## Start Here
 
@@ -49,10 +49,10 @@ Slash command sources live in `templates/opencode/commands/` and are installed t
 2. In a project repo, run `"$ANT_TEAM_SCRIPTS/init-project.sh"` to initialize the local agent runtime and seed `.github-project.env`.
 3. Restart opencode after any config changes.
 4. Source `./.github-project.env` before GitHub API/project operations, documentation access, or worktree operations.
-5. Run a delivery request with the `deliver` command, for example:
+5. Start managed shaping with `new-spec`, then explicitly request execution with `do-tasks`, for example:
 
 ```text
-opencode deliver "add user activity reporting"
+opencode new-spec "add user activity reporting"
 ```
 
 ## Environment-Only Project Config
@@ -103,7 +103,7 @@ See the central Obsidian project folder for the managed-skill sync runbook, arch
 ```text
 scripts/init-company.sh
 "$ANT_TEAM_SCRIPTS/init-project.sh"
-opencode deliver "<your request>"
+opencode new-spec "<your request>"
 bash templates/scripts/validate-agents-md.sh AGENTS.md
 "$ANT_TEAM_SCRIPTS/ant-team-help.sh"
 ```

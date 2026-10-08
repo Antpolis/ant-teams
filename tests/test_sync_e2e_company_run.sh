@@ -57,7 +57,7 @@ assert_file_contains_str "zsh config exports team scripts" \
 assert_file_contains_str "init-company reports canonical sync" "$OUT" "Synced"
 
 # Copilot agents are generated from the inline OpenCode role definitions.
-for agent in orchestrator strategist tech-lead builder reviewer; do
+for agent in ant strategist tech-lead builder reviewer; do
   assert_exists "Copilot agent installed ($agent)" \
     "$HOME_DIR/.copilot/agents/$agent.agent.md"
 done

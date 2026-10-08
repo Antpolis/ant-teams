@@ -5,6 +5,8 @@ description: Use when the GitHub delivery flow is already in place and the agent
 
 # State Transitions
 
+These rules apply within an explicitly activated managed delivery workflow. The coordinator is normally Ant Agent (`ant`); each specialist keeps its assigned responsibilities. Loading this skill does not activate a workflow or transfer coordination ownership.
+
 Use this skill whenever the agent needs to decide how work should move through the delivery workflow.
 
 This skill defines the default project-board state machine and the conditions for each transition. It helps keep status changes meaningful and prevents work from drifting through the board without meeting entry or exit conditions.
@@ -118,7 +120,7 @@ Reviewer should record durable findings and return the issue to builder on the s
 
 Typical owner:
 
-- any role, after strategist and tech-lead review; usually routed by orchestrator or tech-lead
+- any role, after strategist and tech-lead review; usually routed by the active coordinator or tech-lead
 
 Internal strategist or tech-lead questions must not use `Need attentions`. Resolve them in GitHub issue comments and keep the issue in its current state (or return it to `Ready`) while internal resolution happens.
 

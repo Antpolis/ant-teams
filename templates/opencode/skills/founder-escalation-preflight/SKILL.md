@@ -1,13 +1,15 @@
 ---
 name: founder-escalation-preflight
-description: Use when the orchestrator, strategist, or another execution-role agent is about to interrupt the founder with a blocker, escalation, or approval request during delivery work. Run this skill before founder escalation to re-check repository docs, GitHub issue or spec conversation history, relevant role memory, prior handoffs, and safe internal next steps so agents do not escalate early when the answer is already in the repo or can still be resolved internally. Do not use this for normal founder collaboration during spec shaping, planning, or sprint discussion.
+description: Use when the active workflow coordinator, strategist, or another execution-role agent is about to interrupt the founder with a blocker, escalation, or approval request during delivery work. Run this skill before founder escalation to re-check repository docs, GitHub issue or spec conversation history, relevant role memory, prior handoffs, and safe internal next steps so agents do not escalate early when the answer is already in the repo or can still be resolved internally. Do not use this for normal founder collaboration during spec shaping, planning, or sprint discussion.
 ---
 
 # Founder Escalation Preflight
 
+These rules apply within an explicitly activated managed delivery workflow. The coordinator is normally Ant Agent (`ant`); each specialist keeps its assigned responsibilities. Loading this skill does not activate a workflow or transfer coordination ownership.
+
 Use this skill immediately before escalating to the founder from orchestrated delivery execution, blocker resolution, or approval flow.
 
-The goal is to prevent avoidable founder interruptions. Treat founder escalation as the last step after repository guidance, GitHub history, memory, and safe internal delegation paths have been re-checked by the orchestrator, strategist, or current execution role.
+The goal is to prevent avoidable founder interruptions. Treat founder escalation as the last step after repository guidance, GitHub history, memory, and safe internal delegation paths have been re-checked by the active workflow coordinator, strategist, or current execution role.
 
 Do not use this skill to police normal founder collaboration during shaping or planning. Founder participation in spec review, planning, prioritization, and sprint discussion is expected and should stay conversational.
 
@@ -26,7 +28,7 @@ This is a delivery-execution guardrail, not a planning-session gate.
 This preflight should answer:
 
 - Is the blocker really product-level, or is it already answered in repo docs?
-- Is the blocker really human-only, or can orchestrator, strategist, tech-lead, builder, or reviewer still act safely?
+- Is the blocker really human-only, or can the coordinator, strategist, tech-lead, builder, or reviewer still act safely?
 - Is the current issue/spec history already enough to choose the next step?
 - Has relevant role memory been read before escalating?
 
@@ -48,7 +50,7 @@ Before escalating, do all of the following:
    - architect memory before architecture, loop-breaker, or repeated-conflict escalation
 5. List the safe internal next steps that have already been attempted.
 6. Decide whether any safe internal next step still remains.
-7. If the orchestrator owns this pass, confirm the orchestrator has no safe remaining role invocation to attempt before escalating.
+7. If the active workflow coordinator owns this pass, confirm the active workflow coordinator has no safe remaining role invocation to attempt before escalating.
 8. If the strategist is deciding whether founder input is needed, confirm the strategist has narrowed the request to a true product, scope, prioritization, or business decision rather than an answer already recoverable from docs, GitHub history, or another safe internal role.
 
 Do not escalate until this pass is complete.
@@ -57,7 +59,7 @@ Do not escalate until this pass is complete.
 
 Before founder escalation, actively check whether one of these is still possible:
 
-- continue the queue pass through `orchestrator`
+- return the resolution to the coordinator of the active queue pass
 - clarify product meaning through `strategist`
 - clarify technical direction through `tech-lead`
 - continue implementation through `builder`
@@ -89,7 +91,7 @@ Do not escalate for:
 Do not run this skill for:
 
 - strategist-founder spec exploration
-- plan-spec or plan-sprint collaboration
+- spec-shaping or sprint discussion
 - normal prioritization discussion
 - early shaping conversations where gathering more founder context is the point
 
@@ -116,7 +118,7 @@ Good preflight outcomes are:
 
 - specific about what was checked
 - explicit about why internal options are exhausted
-- explicit that the orchestrator has no safe remaining role invocation to attempt when the orchestrator owns the pass
+- explicit that the active workflow coordinator has no safe remaining role invocation to attempt when the active workflow coordinator owns the pass
 - explicit that strategist-originated escalation is truly about product, scope, prioritization, or business direction
 - narrow about the founder decision requested
 - grounded in repo evidence instead of chat memory
