@@ -32,7 +32,7 @@ If investigation reveals a defect that warrants another playbook, report the rea
 
 ## Specialist assignments
 
-Before delegating, name the active stage, assigned role, exact requested action, and applicable context. Each specialist reads [Shared Specialist Context](references/specialist-context.md) plus only its role reference: [builder](references/builder-delivery.md), [reviewer](references/reviewer-delivery.md), [strategist](references/strategist-delivery.md), or [tech-lead](references/tech-lead-delivery.md). Direct specialist assistance does not require these delivery procedures. Delegation does not transfer the coordinator's queue ownership.
+Before delegating, follow [Context Relay](references/context-relay.md): read and consolidate the upstream result, relevant founder corrections, decisions and rationale, and unresolved questions into the actual runtime brief. Name the active stage, assigned role, exact requested action, and applicable context. Each specialist reads [Shared Specialist Context](references/specialist-context.md) plus only its role reference: [builder](references/builder-delivery.md), [reviewer](references/reviewer-delivery.md), [strategist](references/strategist-delivery.md), or [tech-lead](references/tech-lead-delivery.md). Direct specialist assistance does not require these delivery procedures. Delegation does not transfer the coordinator's queue ownership.
 
 ## Purpose
 
@@ -150,7 +150,7 @@ Avoid giant issues that require multiple major decisions at once.
 
 At each meaningful role boundary or state change, record one concise GitHub handoff in the canonical location. Use the issue or milestone for task ownership, scope, dependencies, clarification, blockers, escalations, and workflow-state changes; use the PR for implementation detail and code review.
 
-Every handoff should give the receiving role the information needed to continue without chat history: task outcome, source and target roles, authoritative issue/PR and durable-context links, relevant evidence, constraints or risks, exact next action, and expected record. Do not duplicate acceptance criteria, guardrails, file lists, or other context already clear from linked artifacts unless needed to resolve ambiguity.
+Every handoff should give the receiving role the information needed to continue without chat history: task outcome, source and target roles, authoritative issue/PR and durable-context links, relevant evidence, constraints or risks, exact next action, and expected record. Include the actionable upstream decisions, rationale, and constraints in the runtime brief even when recorded in linked artifacts. Link full acceptance criteria, file lists, and evidence rather than copying whole documents. Concision must not remove the information the next role needs to act.
 
 For builder-owned implementation handoffs, the PR description is the canonical handoff and should include the branch, implementation summary, verification evidence, known risks or skipped checks, and review focus. Add an issue comment only when ownership, workflow state, scope, dependencies, or a non-code decision changes. For code-specific review/rework, use PR comments or review threads. Do not create a second comment merely to duplicate a handoff already recorded in its canonical location.
 

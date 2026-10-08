@@ -206,8 +206,11 @@ these checks, never while the prerequisite role is still running.
 
 ## Required Delegation Content
 
-Record each meaningful delegation using the `agent-communication-log` `## Delegation` template in the GitHub issue or PR location where the receiver acts. The direct runtime instruction must be a concise execution cue, normally a few focused bullets: issue/PR URL; one-line outcome and reason for the role; exact applicable durable-context URLs; only non-obvious constraints or risks; exact action; expected GitHub record. Link to existing scope, acceptance criteria, findings, and history instead of copying them. Add detail only when necessary for safe, unambiguous execution.
+Record each meaningful delegation using the `agent-communication-log` `## Delegation` template in the GitHub issue or PR location where the receiver acts. Follow `github-agentic-delivery-flow/references/context-relay.md` for the direct runtime instruction. Read and consolidate the upstream role's completed findings, accepted decisions and rationale, user corrections, and unresolved questions. Send that actionable summary with exact issue/PR and handoff links, applicable durable-context URLs, execution context, verification expectations, and expected record.
 
+Before builder delegation, relay tech-lead's selected approach, architecture decisions and rationale, guardrails, dependencies, acceptance/verification expectations, and readiness record alongside the worktree and branch. Before reviewer delegation, relay builder's implementation summary, checks and evidence, deviations, risks, and exact PR/head. Return reviewer findings and resolved technical/product answers to builder explicitly; do not assume sibling memory.
+
+Keep briefs concise by omitting full transcripts and document copies, not by omitting consequential decisions or context.
 Use placement deliberately:
 
 - strategist ↔ tech-lead planning, tech-lead → builder, and any task-level clarification: issue or milestone comment;

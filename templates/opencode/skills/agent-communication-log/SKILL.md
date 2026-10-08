@@ -58,6 +58,9 @@ Routine handoffs do not create Obsidian event files. Record one concise GitHub i
 - ARCH / ADR / GOV / runbook: <exact applicable URLs or Not applicable — reason>
 - GitHub evidence: <relevant issue comment, PR thread, check, or none>
 
+**Upstream context:** <source role, actionable findings, accepted decisions and rationale, exact handoff link>
+**User direction:** <relevant confirmations or corrections, or none>
+**Open questions:** <decision, owner, blocking status, or none>
 **Constraints / open risk:** <none or specific risk>
 **Expected action:** <exact action and owner>
 **Expected record:** <issue comment, PR description/review thread, state change, or durable-doc update if required>
@@ -65,8 +68,7 @@ Routine handoffs do not create Obsidian event files. Record one concise GitHub i
 
 Use the issue for task-level ownership, scope, blockers, decision clarifications, and state changes. Use the PR description for the builder-to-reviewer implementation handoff and PR comments/review threads for code-specific review and rework.
 
-Send the target role a concise runtime delegation, normally a few focused bullets: issue/PR URL; one-line task outcome and why this role is needed; exact applicable authoritative context URLs; non-obvious constraints or risks; exact action; expected GitHub record. Point to the issue/PR for existing scope, acceptance criteria, findings, and history instead of repeating them. Add detail only when needed to make the action safe and unambiguous. The GitHub handoff is the durable collaboration record; the runtime instruction is the execution cue.
-
+Send the target a concise runtime brief under `github-agentic-delivery-flow/references/context-relay.md`. Relay upstream findings, accepted decisions and rationale, relevant founder confirmations/corrections, unresolved questions, and execution constraints alongside exact source and handoff links. Link full documents rather than copying transcripts, but do not omit the actionable summary. The GitHub handoff is the durable record; Ant must also deliver the relevant context in the actual invocation.
 For the strategist-to-tech-lead planning handoff, record the canonical SPEC URL, whether the SPEC is ready for planning, any open decision with its owner and blocking status, evidence, and the exact next action. For the tech-lead-to-builder handoff, the issue's `Durable Context` section is the canonical documentation handoff; do not duplicate the linked documents in comments.
 
 ## Role memory

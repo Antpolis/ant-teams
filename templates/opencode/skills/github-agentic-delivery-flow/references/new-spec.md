@@ -9,16 +9,16 @@ Before interpreting workflow metadata terms, use the agentic-flow-terms skill as
 Role ownership — non-negotiable:
 - Strategist owns the business sections of the spec and must produce them in enough depth that any future business question can be answered from the spec alone without re-interviewing the founder.
 - Tech-lead owns the technical sections of the spec, the GitHub milestone, and every execution issue. No other role creates or modifies milestones or issues in normal flow.
-- Ant Agent drives the loop and verifies each gate before the flow advances.
+- Ant Agent drives the loop, relays each completed upstream result under `context-relay.md`, and verifies each gate before the flow advances.
 
 Flow:
-1. Ant Agent drives the full shaping loop from start to stop. Do not treat the founder's first prompt as a complete spec.
+1. Ant Agent creates or reuses the root conversation's single local session-context note under `$ANT_TEAM_DOCS_PROJECT_PATH/session-context/ctx-<uuid-v4>.md` before the first delegation, following `context-relay.md`. Record the founder brief there, maintain it through corrections and agent findings, and pass its exact ID/path plus relevant summary to every delegate. No issue or milestone is required for this context continuity. Ant Agent drives the full shaping loop from start to stop. Do not treat the founder's first prompt as a complete spec.
 2. Start with understanding, not solution creation. Strategist reads the existing project folder and relevant repository/GitHub context, then summarizes the current state, founder problem, desired outcome, assumptions, and open questions. Do not propose an MVP, spec, milestone, or issue set yet.
 3. Run centralized GitHub and worktree helpers directly; they load `.github-project.env` themselves. Source it once only when a direct command needs an `ANT_TEAM_*` value, such as resolving the project-folder documentation path. Read the project README, SPEC, ARCHITECTURE, and MEMORY files when present, then inspect relevant code, issues, PRs, and project state. Search by topic, feature name, domain terms, paths, module names, and synonyms. Do not rely on document numbering or event-file links.
 4. Strategist discusses the understanding with the founder. Ask focused clarification questions. Challenge assumptions only after the current problem and desired outcome are clear. Do not create an MVP proposal prematurely.
-5. After the founder confirms the problem framing, tech-lead pressure-tests the proposed direction before the spec is finalized: feasibility, architecture fit, integration points, sequencing, operational burden, technical tradeoffs, and risk. Tech-lead must identify gaps, not rubber-stamp the draft.
+5. After the founder confirms the problem framing, Ant reads strategist’s completed findings and sends tech-lead the confirmed problem/outcome, scope/non-goals, success criteria, product constraints, rationale, founder corrections, and unresolved questions with exact available sources. Do not assume shared history or require a SPEC that has not been written yet. Tech-lead pressure-tests the proposed direction before the spec is finalized: feasibility, architecture fit, integration points, sequencing, operational burden, technical tradeoffs, and risk. Tech-lead must identify gaps, not rubber-stamp the draft.
 6. Keep routine shaping discussion in the active GitHub issue or founder conversation. Consolidate only durable changes into the project-folder SPEC or ARCHITECTURE. Use the communication log only for exceptional decisions, blockers, or loop-breakers.
-7. Synthesize back to the founder with:
+7. Ant relays technical findings and proposed product tradeoffs back to strategist when they affect the framing, then synthesizes the reconciled result back to the founder with:
    - problem statement and business value
    - recommended MVP scope and explicit non-goals
    - success metrics
