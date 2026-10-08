@@ -27,10 +27,9 @@
 #      code path byte-for-byte.
 #   2. Real repo (TEST-3 E2E): the real repo script + real
 #      `templates/opencode/` are exercised directly with `$HOME` overridden,
-#      validating the real install counts (30 source skills + 8
-#      command-derived = 38 entries; the project-initialization skill was
-#      removed and the init-project command added by the 2026-08
-#      tooling-path migration).
+#      validating the real install counts (33 source skills + 8
+#      command-derived = 41 entries; init-project became a native source
+#      skill and its command was retired by SPEC-005).
 #
 
 # Resolve repo root from this lib path: tests/lib/sync_helpers.sh -> repo root

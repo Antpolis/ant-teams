@@ -14,6 +14,7 @@ Do not paste the full runtime prompt, chat transcript, or full SPEC. Link the au
 **State:** <Workflow State>
 **GitHub issue:** <URL>
 **PR:** <URL or none>
+**Session context:** $ANT_TEAM_DOCS_PROJECT_PATH/session-context/<session_id>.md  (session_id: <session_id>; orchestrator omits this line only when no session note exists)
 **Task outcome:** <one sentence>
 **Why this role:** <decision or action owned by target>
 

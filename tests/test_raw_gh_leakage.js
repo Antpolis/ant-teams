@@ -58,13 +58,16 @@ const GRAPHQL_RE = /\bgh\b[\s\\]*api[\s\\]*graphql\b/;
 
 // Explicitly documented internal GraphQL notes — exact literal phrases only.
 // Each phrase excuses only the named file, and only that literal text; every
-// other `gh api graphql` occurrence outside the engine is a leak.
+// other `gh api graphql` occurrence outside the engine is a leak. The helper-
+// routing fallback sentence moved from opencode.json to the role agent files
+// when agent prompts migrated out of opencode.json (commit dab9fe4).
+const ROLE_FALLBACK_PHRASE =
+  'Prefer common `gh` workflows such as `gh repo`, `gh issue`, `gh project`, and `gh api graphql` only when the simpler commands or repo wrapper do not cover the need.';
 const DOCUMENTED_GRAPHQL_NOTES = {
-  'templates/opencode/opencode.json': [
-    // Helper-routing fallback sentence shared by the five role prompts,
-    // routed by SPEC-003-T4 (PR #42).
-    'Prefer common `gh` workflows such as `gh repo`, `gh issue`, `gh project`, and `gh api graphql` only when the simpler commands or repo wrapper do not cover the need.',
-  ],
+  'templates/opencode/agents/builder.md': [ROLE_FALLBACK_PHRASE],
+  'templates/opencode/agents/reviewer.md': [ROLE_FALLBACK_PHRASE],
+  'templates/opencode/agents/strategist.md': [ROLE_FALLBACK_PHRASE],
+  'templates/opencode/agents/tech-lead.md': [ROLE_FALLBACK_PHRASE],
   'templates/opencode/skills/github-issues-projects-cli/SKILL.md': [
     '4. `gh api graphql` when GitHub Projects v2 mutations or richer joins are needed',
     'item updates often require `gh api graphql`',
@@ -217,8 +220,7 @@ check('LG-5: allowlist phrases are exact, file-scoped, and not stale', () => {
   }
 
   // A documented phrase does not excuse the same text in a different file.
-  const [opencodePhrase] = DOCUMENTED_GRAPHQL_NOTES['templates/opencode/opencode.json'];
-  const alien = scanContent('templates/opencode/skills/other/SKILL.md', opencodePhrase);
+  const alien = scanContent('templates/opencode/skills/other/SKILL.md', ROLE_FALLBACK_PHRASE);
   assert.ok(alien.graphql.length === 1, 'phrase must not excuse any file but its own');
 
   // Inside an allowlisted file, only the exact phrase is excused.
@@ -229,7 +231,7 @@ check('LG-5: allowlist phrases are exact, file-scoped, and not stale', () => {
   assert.ok(mutated.graphql.length === 1, 'non-phrase graphql text must stay a leak');
 
   // The documented sentence itself stays clean in its own file.
-  const clean = scanContent('templates/opencode/opencode.json', opencodePhrase);
+  const clean = scanContent('templates/opencode/agents/builder.md', ROLE_FALLBACK_PHRASE);
   assert.strictEqual(clean.graphql.length, 0);
 
   // Legal raw fallbacks remain ungated (spec: gh repo/issue/project fallback).

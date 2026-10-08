@@ -20,7 +20,7 @@ GitHub Issues and PRs are the active collaboration record for:
 - implementation evidence, review findings, and approval;
 - closure, merge state, and workflow state.
 
-The existing project folder is the curated durable knowledge base. Add or consolidate only durable context into its established spec, architecture, ADR, governance, runbook, or memory documentation.
+The existing project folder is the curated durable knowledge base. Add or consolidate only durable context into its established spec, architecture, ADR, governance, runbook, or memory documentation. The one scoped exception is the local `session-context/` tier (GOV-001): the orchestrator-assigned per-root-session note carries in-flight cross-agent context for that session only; it is local working context, not a durable document and not a routine communication record.
 
 ## Exceptional records
 
@@ -36,7 +36,7 @@ A loop-breaker, founder escalation, or hard blocker remains actionable in GitHub
 
 ## Location
 
-When a direct documentation command must expand the configured project path, source `./.github-project.env` once in that command or shell session; centralized helpers already load it themselves. Store qualifying durable documentation in the existing project folder using its established naming and template conventions. Do not create a per-task communication-event mirror or Obsidian issue vault.
+When a direct documentation command must expand the configured project path, source `./.github-project.env` once in that command or shell session; centralized helpers already load it themselves. Store qualifying durable documentation in the existing project folder using its established naming and template conventions. Do not create a per-task communication-event mirror or Obsidian issue vault; the scoped exception is the orchestrator-assigned local `$ANT_TEAM_DOCS_PROJECT_PATH/session-context/<session_id>.md` note (GOV-001), which is a session-scoped context tier, never committed to the durable documentation repo, and never authoritative for Workflow State, PR approval, merge, task ownership, blockers, or closure.
 
 
 ## Routine GitHub handoff format
@@ -49,6 +49,7 @@ Routine handoffs do not create Obsidian event files. Record one concise GitHub i
 **State:** <Workflow State>
 **GitHub issue:** <URL>
 **PR:** <URL or none>
+**Session context:** $ANT_TEAM_DOCS_PROJECT_PATH/session-context/<session_id>.md  (session_id: <session_id>; orchestrator omits this line only when no session note exists)
 **Task outcome:** <one sentence>
 **Why this role:** <decision or action owned by target>
 

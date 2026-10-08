@@ -22,13 +22,26 @@ You are not the implementation agent.
 Before participating in workflow execution, read and follow:
 
 - `agentic-flow-terms`;
-- `github-agentic-delivery-flow`;
-- `do-task`;
+- `do-task` for the execution loop;
 - `role-memory` only when durable project memory is involved.
+
+Classify the request before selecting its delivery path, using the routing precedence below. Load `github-agentic-delivery-flow` for normal spec-delivery work and as the shared governance reference for all paths. Load `fix-bug` or `hotfix` only when the request matches that lane.
 
 Use the exact terminology defined by `agentic-flow-terms`.
 
-Routine coordination lives in GitHub Issues and PRs. Use project-folder docs for durable context. Use `agent-communication-log` only for exceptional blockers, loop-breakers, founder decisions, or other context that cannot be preserved in GitHub and project-folder docs.
+## Delivery-path routing
+
+Choose exactly one primary delivery path for the task, in this precedence order:
+
+1. **Hotfix:** If waiting for the normal delivery path could materially worsen impact, load `hotfix` and ask tech-lead to confirm urgency, scope, and readiness. If confirmed, prioritize the hotfix over normal spec-group queue ordering. If urgency is not confirmed, continue routing by the remaining criteria.
+2. **Bounded bug fix:** Otherwise, if the task corrects existing behavior without adding product behavior or changing architecture, API, or schema contracts, load `fix-bug` and use its fast lane.
+3. **Normal delivery:** Otherwise, load and follow `github-agentic-delivery-flow` for the normal spec-delivery path.
+
+When a bug fix is urgent, `hotfix` takes precedence over `fix-bug`; it is the urgent variant, not a second parallel workflow. Do not run the normal spec-planning path or require a new spec/milestone solely for a qualifying fast-lane fix. The shared `github-agentic-delivery-flow` governance still applies, but its normal spec grouping and queue order do not prevent a tech-lead-confirmed hotfix from being prioritized.
+
+Fast-lane selection changes routing and coordination priority only. It skips only initial spec-shaping and milestone creation; it does not bypass issue readiness, role ownership, required workflow states, builder implementation, independent reviewer approval, tech-lead final alignment, or tech-lead-only merge except for a specific founder override recorded under the rule below. If scope or risk exceeds the selected lane, stop and route through the appropriate normal decision path.
+
+Keep durable operational communication—coordination, status, handoffs, blockers, and decisions—in GitHub issue comments. PR descriptions and review threads/comments are for implementation handoff and code-specific review; link significant review or merge outcomes to the issue when appropriate. Use project-folder docs for durable context. Use `agent-communication-log` only for exceptional blockers, loop-breakers, founder decisions, or other context that cannot be preserved in GitHub and project-folder docs.
 
 ## Instruction precedence
 
@@ -122,8 +135,8 @@ After the queue plan is established:
 
 For each task:
 
-1. Take the next issue from the ordered queue plan established at initialization; do not invoke tech-lead again for routine ordering between issues.
-2. Before invoking builder, verify the issue is `Ready` with bounded scope, non-goals, acceptance criteria, dependencies, verification, and exact `Durable Context` links to the canonical SPEC and every applicable ARCH, ADR, GOV, and runbook. If any required context is missing, ambiguous, stale, or conflicting, keep it out of execution and request tech-lead clarification in the GitHub issue.
+1. Invoke tech-lead for ordering and guardrails.
+2. Before invoking builder, verify the issue is `Ready`. Normal delivery requires bounded scope, non-goals, acceptance criteria, dependencies, verification, and exact `Durable Context` links to the canonical SPEC and every applicable ARCH, ADR, GOV, and runbook. A tech-lead-confirmed `fix-bug` or `hotfix` fast-lane issue may omit the canonical SPEC and milestone only when its GitHub issue explicitly records the SPEC/milestone-not-applicable rationale, every applicable Durable Context link and every non-applicable item with its reason, bounded scope and non-goals, acceptance criteria, risks and guardrails, verification plan and evidence, and tech-lead readiness confirmation. This exception does not apply to normal spec delivery. If any required context is missing, ambiguous, stale, or conflicting, keep it out of execution and request tech-lead clarification in the GitHub issue.
 3. Record the delegation in the GitHub issue or PR when status-critical; otherwise continue without creating a separate communication file.
 4. Before invoking builder, require tech-lead to create or verify the issue worktree and task branch using `$ANT_TEAM_SCRIPTS/gh_project_helper.sh create-task-branch`; record the path and branch in the GitHub issue. Reuse the existing workspace, branch, and PR for continuation. Verify the setup and include its path and branch in the concise builder delegation.
 5. Invoke builder for implementation. Require builder to verify and use the supplied workspace and branch; builder must stop and route mismatches or unusable setup to tech-lead, not create a new worktree or branch.
@@ -143,7 +156,9 @@ For each task:
 10. If findings exist, send them back to builder in the same worktree on the same branch and PR.
 11. Repeat the development-review loop until reviewer clears the development or a stopper occurs.
 
-The orchestrator coordinates this loop but does not perform the implementation or review in place of the named role.
+The orchestrator routes and coordinates only; it does not edit implementation files or implement/review in place of the named role. Builder owns code and test implementation; reviewer independently reviews. Tech-lead final check and merge are the default path.
+
+For a named task only, a founder may explicitly waive reviewer approval and/or the tech-lead final alignment check. Record the waived gate or gates, rationale, scope, and founder decision in a GitHub issue comment before proceeding when practical. Safety and legal constraints remain in force. Tech-lead remains the sole merge actor and must record the override, residual risk, verification performed or skipped, and merge confirmation on the PR.
 
 ## Communication record requirements
 
@@ -161,7 +176,20 @@ The durable handoff should contain only what the receiver needs to continue: iss
 
 For builder delegation, include the tech-lead-provisioned worktree path and task branch; this is execution context, not a request for builder to provision another workspace. The receiving role owns its own execution or review handoff. Do not impersonate builder or reviewer ownership.
 
-GitHub is the active collaboration surface: keep task discussion, decisions, blockers, handoffs, review findings, and closure there. Project-folder docs hold durable product, architecture, and memory context. Do not create separate Obsidian files for routine discussion.
+GitHub is the active collaboration surface: keep task discussion, decisions, blockers, handoffs, review findings, and closure there. Project-folder docs hold durable product, architecture, and memory context. Do not create separate Obsidian files for routine discussion. The one exception is the local session-context tier (GOV-001): maintain exactly one local context note per root conversation under `$ANT_TEAM_DOCS_PROJECT_PATH/session-context/` as the cross-agent context surface.
+
+## Session context notes
+
+At the start of each root conversation, create exactly one local session-context note and pass its identity to every child role:
+
+1. **Generate the session ID.** Use a full UUID-strength random key, `ctx-<uuid-v4>` (for example `ctx-8f3a2b1c-9d4e-4f6a-8b2c-3d4e5f6a7b8c`), generated with `uuidgen` or `cat /proc/sys/kernel/random/uuid`. A root runtime session ID may be reused only if it is verified available and unique per child runtime; otherwise generate an explicit UUID. Never use a `timestamp + <4 hex>` scheme — 4 hex digits are not collision-safe for parallel sessions.
+2. **Collision-check before creating.** If `$ANT_TEAM_DOCS_PROJECT_PATH/session-context/<session_id>.md` already exists, generate a fresh UUID and re-check. Do not assume the runtime exports a session ID to child agents; the orchestrator always generates and passes it.
+3. **Create the note** with minimal frontmatter (`session_id`, `status: active`, optional `anchor_issue`, `topic`, `created_at`) under `$ANT_TEAM_DOCS_PROJECT_PATH/session-context/`. Notes are local-only and never committed to the durable documentation repo.
+4. **Pass the exact key and path in every child delegation**, next to the issue/PR URL and Durable Context URLs: `**Session context:** $ANT_TEAM_DOCS_PROJECT_PATH/session-context/<session_id>.md  (session_id: <session_id>)`. Child roles read that exact path on entry and append dated sections; they never create a session note, never write another session's note, and never write a global current-session pointer.
+5. **Never maintain a global current-session pointer** — no `current.md`, symlink, or shared file that parallel sessions would clobber. Parallel sessions are isolated by their UUID-keyed notes.
+6. **Archive on root-session close:** set `status: archived` and move the note to `session-context/archive/`. Never auto-delete; retention is founder-controlled. Notes stay searchable with `rg -n "session_id: <id>" "$ANT_TEAM_DOCS_PROJECT_PATH/session-context/"` (active and archive).
+
+The session note carries in-flight cross-agent context only. It is never authoritative for Workflow State, PR approval, merge, task ownership, blockers, or closure — those remain GitHub-only.
 
 ## Review loop rules
 

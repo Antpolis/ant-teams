@@ -117,7 +117,7 @@ Before returning for a founder decision, run founder-escalation-preflight and in
 
 For each issue:
 
-- confirm the issue is genuinely builder-ready: bounded scope, non-goals, acceptance criteria, dependencies, verification, owner, and a `Durable Context` section with exact canonical SPEC and applicable ARCH, ADR, GOV, and runbook URLs
+- confirm the issue is genuinely builder-ready: normal delivery requires bounded scope, non-goals, acceptance criteria, dependencies, verification, owner, and a `Durable Context` section with the exact canonical SPEC and every applicable ARCH, ADR, GOV, and runbook URL; a tech-lead-confirmed `fix-bug` or `hotfix` fast-lane issue may omit the canonical SPEC and milestone only when its GitHub issue records the SPEC/milestone-not-applicable rationale, every applicable Durable Context link and every non-applicable item with its reason, bounded scope and non-goals, acceptance criteria, risks and guardrails, verification plan and evidence, and the tech-lead readiness confirmation. This exception applies only to bounded bug fixes and hotfixes, not normal spec delivery.
 - read the issue first, then open every Durable Context URL; do not reconstruct requirements from chat or perform a broad vault search
 - if a required URL is missing, ambiguous, stale, or conflicts with the issue, do not invoke builder; request tech-lead clarification in a GitHub issue comment and keep the issue out of `Ready`
 - if product intent, scope meaning, or execution meaning is unclear, clear it with `strategist`
@@ -134,8 +134,8 @@ For each issue:
 
 ## Builder And Reviewer Gate
 
-- `builder` works from the assigned GitHub issue first, then its exact Durable Context links, approved guardrails, and the shared build-review loop; the linked canonical SPEC is authoritative for durable product intent
-- before `builder` starts, `tech-lead` must create or verify the issue worktree and task branch; `builder` verifies it is operating in the supplied workspace and branch, then moves the issue into `In Progress`
+- `builder` works from the assigned GitHub issue first, then its exact Durable Context links, approved guardrails, and the shared build-review loop; the linked canonical SPEC is authoritative for normal durable product intent, while a tech-lead-confirmed `fix-bug` or `hotfix` issue that meets the recorded fast-lane readiness exception is valid `Ready` work without one
+- when `builder` starts, `builder` must create or switch to the issue worktree, create or switch to the issue branch in that worktree, and move the issue into `In Progress`
 - after `builder` finishes implementation, `builder` must create or update the PR, move the issue into `In Review`, and leave a durable handover note in the issue or PR before `reviewer` review starts
 - builder-reviewer communication, findings, rework reasoning, and approvals must be recorded in PR comments or review threads; use issue comments for concise task-state summaries
 - `orchestrator` verifies tech-lead's worktree and branch setup before builder delegation, then checks that the PR, state change, and handover note exist before delegating `reviewer`
