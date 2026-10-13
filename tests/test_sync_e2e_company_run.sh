@@ -64,6 +64,10 @@ done
 assert_file_contains_str "Copilot reviewer agent remains read-only" \
   "$HOME_DIR/.copilot/agents/reviewer.agent.md" "tools: [read, search, execute, agent, web]"
 assert_file_contains_str "init-company reports Copilot agents" "$OUT" "Synced OpenCode agents"
+assert_exists "repo AGENTS.md installed as Copilot instructions" \
+  "$HOME_DIR/.copilot/AGENTS.md"
+assert_file_contains_str "Copilot AGENTS.md matches repo source" \
+  "$HOME_DIR/.copilot/AGENTS.md" "## Repository Identity"
 
 # FR-2 / AC-2.1: managed skills populated with the expected entry count.
 # Raw dir count includes any unmanaged sibling (my-custom-skill), so the exact

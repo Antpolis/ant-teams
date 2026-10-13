@@ -7,10 +7,12 @@ Usage:
   scripts/init-company.sh [--target-dir PATH] [--reset] [--force]
 
 Copy the repository .opencode configuration into the target config directory,
-then sync repository-owned skills, scripts, and agent definitions. The managed
-skill sync always runs with --force: a company install is an operator-initiated
-refresh of repository-owned content, so locally modified managed entries are
-replaced from source.
+then sync repository-owned skills, scripts, and agent definitions. Copilot
+  agents under ~/.copilot/agents are regenerated from opencode.json; stale
+  .agent.md files whose agent was removed from the source are deleted. The
+  managed skill sync always runs with --force: a company install is an
+  operator-initiated refresh of repository-owned content, so locally modified
+  managed entries are replaced from source.
 
 Defaults:
   target-dir: ~/.config/opencode
@@ -111,32 +113,31 @@ merge_provider_config() {
 }
 
 sync_copilot_agents() {
-  local source_config="$1"
+  # Agent definitions live as OpenCode markdown files under
+  # templates/opencode/agents/<id>.md (YAML frontmatter + body). They are
+  # converted to Copilot .agent.md files. Existing targets are updated in
+  # place — only name, description, and the body are refreshed; user-managed
+  # frontmatter fields (model, mode, tools, ...) are preserved. New targets
+  # get full generated frontmatter with role-based default tools.
   local agents_dir="${HOME%/}/.copilot/agents"
+  local agents_source="$script_root/templates/opencode/agents"
 
   mkdir -p "$agents_dir"
 
-  # Extract agent definitions from opencode.json and write .agent.md files.
-  # Behavioral parity with the prior Node implementation:
-  #   - Only agents whose prompt is a JSON string are emitted (objects, numbers,
-  #     booleans, arrays, and null are silently skipped).
-  #   - Prompts are trimmed of leading/trailing whitespace (matches .trim()).
-  #   - name and description are JSON-quoted (@json) so YAML-significant
-  #     characters (colons, quotes, newlines) cannot corrupt the frontmatter.
-  jq -r '
-    .agent // {} | to_entries[] |
-    select(.value.prompt | type == "string") |
-    {
-      key: .key,
-      description: (.value.description // "Use when acting as the \(.key) role."),
-      prompt: (.value.prompt | gsub("^\\s+|\\s+$"; ""))
-    } | @json
-  ' "$source_config" 2>/dev/null | while IFS= read -r agent_json; do
-    local id desc prompt tools
-    id=$(printf '%s' "$agent_json" | jq -r '.key')
-    desc=$(printf '%s' "$agent_json" | jq -r '.description | @json')
-    prompt=$(printf '%s' "$agent_json" | jq -r '.prompt')
+  # Track emitted agent ids so stale managed .agent.md files (agents removed
+  # from the source) can be deleted afterwards. Only ids recorded in the
+  # previous manifest are eligible for deletion — user-created .agent.md
+  # files are never touched.
+  local emitted_dir
+  emitted_dir="$(mktemp -d)"
+  local manifest="$agents_dir/.managed-agents"
 
+  local src id desc tools
+  for src in "$agents_source"/*.md; do
+    [[ -f "$src" ]] || continue
+    id="$(basename "$src" .md)"
+    # description is the first frontmatter key; take the rest of its line.
+    desc="$(awk '/^---$/{c++; next} c==1 && /^description:/ {sub(/^description:[[:space:]]*/, ""); print; exit}' "$src")"
     if [[ "$id" == "reviewer" ]]; then
       tools="read, search, execute, agent, web"
     else
@@ -145,20 +146,79 @@ sync_copilot_agents() {
 
     local target="$agents_dir/${id}.agent.md"
     local temporary="${target}.tmp-$$"
-    local name_json
-    name_json=$(printf '%s' "$agent_json" | jq -r '.key | @json')
-    {
-      printf '%s\n' "---"
-      printf 'name: %s\n' "$name_json"
-      printf 'description: %s\n' "$desc"
-      printf 'tools: [%s]\n' "$tools"
-      printf '%s\n' "---"
-      printf '%s\n' "$prompt"
-    } > "$temporary"
+    local body
+    # Body: everything after the closing frontmatter delimiter in the source.
+    body="$(awk 'BEGIN{c=0} /^---$/{c++; next} c>=2{print}' "$src")"
+
+    if [[ -f "$target" && "$(head -n1 "$target")" == "---" ]]; then
+      # Update in place: keep all user-managed frontmatter fields (model,
+      # mode, tools, ...) and only refresh name, description, and the body.
+      awk -v id="$id" -v desc="$desc" '
+        NR==1 && $0=="---" { print; fm=1; next }
+        fm==1 {
+          if ($0=="---") {
+            printf "name: %s\n", id
+            printf "description: %s\n", desc
+            print
+            exit
+          }
+          if ($0 ~ /^name:/ || $0 ~ /^description:/) next
+          print
+          next
+        }
+      ' "$target" > "$temporary"
+      printf '%s\n' "$body" >> "$temporary"
+    else
+      {
+        printf '%s\n' "---"
+        printf 'name: %s\n' "$id"
+        printf 'description: %s\n' "$desc"
+        printf 'tools: [%s]\n' "$tools"
+        printf '%s\n' "---"
+        printf '%s\n' "$body"
+      } > "$temporary"
+    fi
     mv "$temporary" "$target"
+    touch "$emitted_dir/${id}.agent.md"
   done
 
+  # Orphan cleanup: remove managed .agent.md files recorded in the previous
+  # manifest whose agent no longer exists in the source. User files (never
+  # managed) are left untouched.
+  local stale
+  if [[ -f "$manifest" ]]; then
+    while IFS= read -r stale; do
+      [[ -n "$stale" ]] || continue
+      if [[ ! -e "$emitted_dir/$stale" && -e "$agents_dir/$stale" ]]; then
+        rm -f "$agents_dir/$stale"
+        echo "Removed stale Copilot agent: $agents_dir/$stale"
+      fi
+    done < "$manifest"
+  fi
+  printf '%s\n' "$emitted_dir"/* 2>/dev/null | while IFS= read -r f; do
+    [[ -e "$f" ]] || continue
+    basename "$f"
+  done | LC_ALL=C sort > "${manifest}.tmp-$$"
+  mv "${manifest}.tmp-$$" "$manifest"
+  rm -rf "$emitted_dir"
+
   echo "Synced OpenCode agents -> $agents_dir"
+}
+
+sync_copilot_agents_md() {
+  # Install the repository AGENTS.md as Copilot's global custom instructions
+  # so every Copilot session picks up the repo guidance.
+  local repo_agents_md="$script_root/AGENTS.md"
+  local target="${HOME%/}/.copilot/AGENTS.md"
+
+  [[ -f "$repo_agents_md" ]] || {
+    echo "[WARNING] No AGENTS.md found at repo root: $repo_agents_md" >&2
+    return 0
+  }
+
+  mkdir -p "$(dirname "$target")"
+  cp "$repo_agents_md" "$target"
+  echo "Synced AGENTS.md -> $target"
 }
 
 # --reset moves the installed trees aside (see reset_installed_trees); the
@@ -243,7 +303,8 @@ sync_repo_opencode() {
 
 echo "Synced $source_dir -> $target_dir"
 sync_team_scripts
-sync_copilot_agents "$source_dir/opencode.json"
+sync_copilot_agents
+sync_copilot_agents_md
 sync_repo_opencode
 
 # SPEC-002 FR-12.2 / INT-3.2 (amended by the 2026-08-25 founder-direct

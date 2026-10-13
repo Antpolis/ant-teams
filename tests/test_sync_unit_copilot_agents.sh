@@ -1,73 +1,61 @@
 #!/usr/bin/env bash
 #
-# test_sync_unit_copilot_agents.sh — SPEC-004 behavioral parity regression for
-# the jq migration of sync_copilot_agents in init-company.sh.
+# test_sync_unit_copilot_agents.sh — regression tests for sync_copilot_agents
+# in init-company.sh after the source of truth moved from inline .agent
+# objects in opencode.json to markdown files under templates/opencode/agents/.
 #
-# Traceability (reviewer P1 finding, PR #60, review loop 1):
-#   - P1a: only agents whose prompt is a JSON string are emitted (objects,
-#     numbers, booleans, null, and missing prompt are silently skipped).
-#   - P1b: prompts are trimmed of leading/trailing whitespace (matches the
-#     prior Node implementation's agent.prompt.trim()).
-#   - P1c: name and description are JSON-quoted (@json) so YAML-significant
-#     characters (colons, double-quotes, newlines) cannot corrupt the
-#     frontmatter block.
-#
-# Strategy: build a minimal opencode.json fixture with edge-case agent
-# definitions, invoke init-company.sh with an overridden HOME/OPENCODE_CONFIG_DIR,
-# then inspect the generated .agent.md files.
+# Coverage:
+#   - Every templates/opencode/agents/<id>.md becomes ~/.copilot/agents/<id>.agent.md.
+#   - Frontmatter is Copilot-compatible: name, description (from the source
+#     frontmatter), and role-appropriate tools (reviewer is read-only).
+#   - The source body is preserved after the frontmatter block.
+#   - Stale managed .agent.md files (removed from source) are deleted, but
+#     user-created .agent.md files are never touched.
 #
 set -euo pipefail
 
 source "$(dirname "$0")/lib/sync_helpers.sh"
 
-sync_begin "TEST-1.x copilot agents jq migration parity"
+sync_begin "TEST-1.x copilot agents markdown-source conversion"
 
 FIX="$(sync_make_fixture_repo_with_company)"
 HOME_DIR="$(sync_make_home)"
 trap 'rm -rf "$FIX" "$HOME_DIR"' EXIT
 
-# Build a fixture opencode.json with edge-case agent definitions.
-mkdir -p "$FIX/templates/opencode" "$FIX/templates/scripts"
-cat > "$FIX/templates/opencode/opencode.json" <<'JSON'
-{
-  "agent": {
-    "valid-agent": {
-      "description": "A normal agent.",
-      "prompt": "Do the thing.\n"
-    },
-    "whitespace-agent": {
-      "description": "Trim test.",
-      "prompt": "  \n  trimmed prompt  \n  "
-    },
-    "yaml-special-agent": {
-      "description": "Has: \"quotes\" and\ncolons",
-      "prompt": "Run it."
-    },
-    "null-prompt-agent": {
-      "description": "Should be skipped.",
-      "prompt": null
-    },
-    "object-prompt-agent": {
-      "description": "Should be skipped.",
-      "prompt": {"nested": "object"}
-    },
-    "number-prompt-agent": {
-      "description": "Should be skipped.",
-      "prompt": 42
-    },
-    "bool-prompt-agent": {
-      "description": "Should be skipped.",
-      "prompt": true
-    },
-    "missing-prompt-agent": {
-      "description": "Should be skipped."
-    },
-    "no-desc-agent": {
-      "prompt": "Fallback description test."
-    }
-  }
-}
-JSON
+# Build fixture agent markdown sources.
+AGENTS_SRC="$FIX/templates/opencode/agents"
+mkdir -p "$AGENTS_SRC" "$FIX/templates/scripts"
+
+cat > "$AGENTS_SRC/valid-agent.md" <<'MD'
+---
+description: A normal agent.
+mode: all
+model: test/model
+subagent: true
+---
+
+Do the thing.
+MD
+
+cat > "$AGENTS_SRC/reviewer.md" <<'MD'
+---
+description: Reviews changes.
+mode: all
+subagent: true
+---
+
+Review carefully.
+MD
+
+cat > "$AGENTS_SRC/describe-colon.md" <<'MD'
+---
+description: Uses: colons and "quotes"
+mode: all
+subagent: true
+---
+
+Body with: colons.
+MD
 
 SCRIPT="$FIX/scripts/init-company.sh"
 OUT="$(mktemp)"
@@ -77,73 +65,74 @@ AGENTS_DIR="$HOME_DIR/.copilot/agents"
 sync_capture "$OUT" "$SCRIPT" "$HOME_DIR" --target-dir "$HOME_DIR/.config/opencode"
 assert_exit_zero "init-company exit code" "$SYNC_RC"
 
-# --- P1a: non-string prompts are silently skipped ---
-for bad_agent in null-prompt-agent object-prompt-agent number-prompt-agent bool-prompt-agent missing-prompt-agent; do
-  if [[ -f "$AGENTS_DIR/${bad_agent}.agent.md" ]]; then
-    check FAIL "${bad_agent}.agent.md should NOT exist (non-string prompt)"
-  else
-    check OK "${bad_agent}.agent.md absent (non-string prompt skipped)"
-  fi
+# --- Conversion: each source .md becomes a Copilot .agent.md -----------------
+for agent in valid-agent reviewer describe-colon; do
+  assert_exists "Copilot agent generated ($agent)" "$AGENTS_DIR/$agent.agent.md"
 done
 
-# --- P1a: valid string prompts ARE emitted ---
-for good_agent in valid-agent whitespace-agent yaml-special-agent no-desc-agent; do
-  if [[ -f "$AGENTS_DIR/${good_agent}.agent.md" ]]; then
-    check OK "${good_agent}.agent.md exists (string prompt)"
-  else
-    check FAIL "${good_agent}.agent.md should exist (string prompt)"
-  fi
-done
+# --- Frontmatter: name and description derived from the source ---------------
+assert_file_contains_str "name derived from file stem" \
+  "$AGENTS_DIR/valid-agent.agent.md" "name: valid-agent"
+assert_file_contains_str "description carried from source frontmatter" \
+  "$AGENTS_DIR/valid-agent.agent.md" "description: A normal agent."
+assert_file_contains_str "description with YAML-significant characters is carried verbatim" \
+  "$AGENTS_DIR/describe-colon.agent.md" 'description: Uses: colons and "quotes"'
 
-# --- P1b: prompt whitespace is trimmed ---
-if [[ -f "$AGENTS_DIR/whitespace-agent.agent.md" ]]; then
-  # The prompt is the first non-empty line after the second "---" (closing frontmatter fence).
-  prompt_body="$(awk '/^---$/{c++; next} c==2 && NF{print; exit}' "$AGENTS_DIR/whitespace-agent.agent.md")"
-  if [[ "$prompt_body" == "trimmed prompt" ]]; then
-    check OK "whitespace-agent prompt trimmed correctly"
-  else
-    check FAIL "whitespace-agent prompt NOT trimmed (got: '$prompt_body')"
-  fi
+# --- Tools: reviewer stays read-only, others get the full set ---------------
+assert_file_contains_str "reviewer agent remains read-only" \
+  "$AGENTS_DIR/reviewer.agent.md" "tools: [read, search, execute, agent, web]"
+assert_file_contains_str "non-reviewer agent gets edit tools" \
+  "$AGENTS_DIR/valid-agent.agent.md" "tools: [read, search, edit, execute, agent, web, todo]"
+
+# --- Body preserved -----------------------------------------------------------
+assert_file_contains_str "body preserved (valid-agent)" \
+  "$AGENTS_DIR/valid-agent.agent.md" "Do the thing."
+
+# --- Manifest written ---------------------------------------------------------
+if [[ -f "$AGENTS_DIR/.managed-agents" ]]; then
+  check OK "managed-agents manifest written"
 else
-  check FAIL "whitespace-agent.agent.md missing (cannot check trim)"
+  check FAIL "managed-agents manifest missing"
 fi
 
-# --- P1c: YAML-significant characters in description are JSON-quoted ---
-if [[ -f "$AGENTS_DIR/yaml-special-agent.agent.md" ]]; then
-  desc_line="$(grep '^description:' "$AGENTS_DIR/yaml-special-agent.agent.md")"
-  # The description should be JSON-quoted: "Has: \"quotes\" and\ncolons"
-  # @json produces a JSON string with escaped quotes and \n for newlines.
-  if printf '%s' "$desc_line" | grep -qF '"Has:'; then
-    check OK "yaml-special-agent description is JSON-quoted (starts with quote)"
-  else
-    check FAIL "yaml-special-agent description NOT JSON-quoted (got: '$desc_line')"
-  fi
-else
-  check FAIL "yaml-special-agent.agent.md missing (cannot check quoting)"
-fi
+# --- Stale cleanup: managed agents removed, user files untouched -------------
+rm "$AGENTS_SRC/describe-colon.md"
+printf 'user content\n' > "$AGENTS_DIR/user-agent.agent.md"
 
-# --- P1c: name is also JSON-quoted (though simple names are safe, the contract requires it) ---
-if [[ -f "$AGENTS_DIR/valid-agent.agent.md" ]]; then
-  name_line="$(grep '^name:' "$AGENTS_DIR/valid-agent.agent.md")"
-  if printf '%s' "$name_line" | grep -qF '"valid-agent"'; then
-    check OK "valid-agent name is JSON-quoted"
-  else
-    check FAIL "valid-agent name NOT JSON-quoted (got: '$name_line')"
-  fi
-else
-  check FAIL "valid-agent.agent.md missing (cannot check name quoting)"
-fi
+sync_capture "$OUT" "$SCRIPT" "$HOME_DIR" --target-dir "$HOME_DIR/.config/opencode"
+assert_exit_zero "second init-company exit code" "$SYNC_RC"
 
-# --- P1c: fallback description (no description provided) uses default and is JSON-quoted ---
-if [[ -f "$AGENTS_DIR/no-desc-agent.agent.md" ]]; then
-  desc_line="$(grep '^description:' "$AGENTS_DIR/no-desc-agent.agent.md")"
-  if printf '%s' "$desc_line" | grep -qF '"Use when acting as the no-desc-agent role."'; then
-    check OK "no-desc-agent fallback description is JSON-quoted"
-  else
-    check FAIL "no-desc-agent fallback description NOT JSON-quoted (got: '$desc_line')"
-  fi
+assert_not_exists "stale managed agent removed" "$AGENTS_DIR/describe-colon.agent.md"
+assert_exists "user agent file untouched" "$AGENTS_DIR/user-agent.agent.md"
+assert_exists "surviving agent still present" "$AGENTS_DIR/valid-agent.agent.md"
+
+# --- Update-in-place: existing files keep user frontmatter fields -----------
+mkdir -p "$AGENTS_DIR"
+cat > "$AGENTS_DIR/valid-agent.agent.md" <<'MD'
+---
+description: Old description.
+model: user/custom-model
+tools: [read, web]
+---
+
+Old body that must be replaced.
+MD
+
+sync_capture "$OUT" "$SCRIPT" "$HOME_DIR" --target-dir "$HOME_DIR/.config/opencode"
+assert_exit_zero "third init-company exit code" "$SYNC_RC"
+
+assert_file_contains_str "update preserves user tools" \
+  "$AGENTS_DIR/valid-agent.agent.md" "tools: [read, web]"
+assert_file_contains_str "update preserves user model" \
+  "$AGENTS_DIR/valid-agent.agent.md" "model: user/custom-model"
+assert_file_contains_str "update refreshes description" \
+  "$AGENTS_DIR/valid-agent.agent.md" "description: A normal agent."
+assert_file_contains_str "update refreshes body" \
+  "$AGENTS_DIR/valid-agent.agent.md" "Do the thing."
+if grep -q "Old body" "$AGENTS_DIR/valid-agent.agent.md"; then
+  check FAIL "update replaced old body"
 else
-  check FAIL "no-desc-agent.agent.md missing (cannot check fallback)"
+  check OK "update replaced old body"
 fi
 
 rm -f "$OUT"

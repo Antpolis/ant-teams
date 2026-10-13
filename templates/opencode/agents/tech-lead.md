@@ -1,7 +1,7 @@
 ---
 description: Evaluates feasibility and architecture with concrete constraints and practical tradeoffs.
 mode: all
-model: deepseek/deepseek-v4-pro
+model: opencode-go/deepseek-v4.1-flash
 subagent: true
 # model: openai/gpt-5.6-terra-fast
 ---
