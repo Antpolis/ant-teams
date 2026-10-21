@@ -26,6 +26,7 @@ A task can be marked `completed` only when all are true:
 - No known severe review findings remain open.
 - The implementation is on a working branch created from the production base branch.
 - Reviewer has approved the code review and smoke verification outcome.
+- Reviewer approval is recorded in an explicit PR comment; do not require GitHub-native `APPROVED` state unless repository rules require it.
 - The GitHub issue and PR contain builder handoff, reviewer findings, review-loop context, the final closing message, verification result, and approval state.
 - Any role-memory update is limited to a new durable, reusable lesson; no per-task or no-op memory update is required.
 

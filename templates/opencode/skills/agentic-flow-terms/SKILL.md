@@ -31,7 +31,7 @@ All named agents must use these terms consistently in:
 | Production Base Branch | The branch containing runnable production code. |
 | Task Branch | The branch created for one task or spec. |
 | Handoff | A concise transfer of actionable context between agents recorded in the relevant GitHub issue or pull request. |
-| Approval Gate | A required approval checkpoint before merge or completion. The current approval gate is reviewer approval plus lightweight smoke verification. |
+| Approval Gate | A required workflow checkpoint before merge or completion. The current gate is reviewer approval recorded in an explicit PR comment plus lightweight smoke verification. GitHub-native review states are separate repository controls and are required only when repository rules require them. |
 
 ## Development and review terms
 

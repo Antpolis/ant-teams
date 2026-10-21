@@ -61,6 +61,8 @@ The `orchestrator` owns the queue pass and role-to-role control flow for executi
 The `tech-lead` establishes the ordered issue list, dependencies, execution priorities, technical interpretation, and guardrails once at queue-plan initialization for each pass.
 `tech-lead` owns preparing the issue worktree and task branch before builder delegation, using the centralized helper for new work and reusing existing issue workspaces for continuation. `orchestrator` verifies that setup and records the location in the concise delegation. `builder` owns implementation, moving the issue into the correct implementation state, opening or updating the PR, and leaving a durable implementation handover note before `reviewer` takes over; builder must not create a competing workspace or branch during normal flow.
 
+**Serialize builder ownership per issue.** Dispatch only one builder for an issue/worktree/branch at a time; do not launch a duplicate builder or reviewer while implementation, verification, or a task-owned background process is still active. A progress-only response is not completion. Require the same builder session to finish or explicitly reconcile its process, worktree, branch, PR head, and GitHub handoff before any continuation or role change. Parallel builders are permitted only for independent issues with separate tech-lead-provisioned worktrees/branches and no shared mutable resources.
+
 Do not require strategist confirmation for every issue.
 Bring in `strategist` only when product intent, scope meaning, or execution meaning is unclear.
 Bring in `tech-lead` when technical interpretation, sequencing, guardrails, or loop-breaker judgment is needed.
@@ -137,7 +139,7 @@ For each issue:
 - `orchestrator` verifies tech-lead's worktree and branch setup before builder delegation, then checks that the PR, state change, and handover note exist before delegating `reviewer`
 - after the PR is ready, `reviewer` must review before the issue advances
 - if `reviewer` finds issues, `reviewer` returns the issue to `builder` in the same worktree and on the same branch and continues the loop through durable review findings
-- if `reviewer` approves with no blockers, `reviewer` posts an explicit approval comment on the PR and moves the issue to `Ready to Merge`
+- if `reviewer` approves with no blockers, `reviewer` posts an explicit approval comment on the PR and moves the issue to `Ready to Merge`. This comment is the workflow's approval record; do not require GitHub's native review state for this gate.
 - builder completion is not final completion; reviewer approval is not final completion
 
 ## Optional Ponytail Simplification Passes
@@ -153,7 +155,8 @@ The repository ships optional Ponytail skills: `ponytail`, `ponytail-review`, `p
 
 - every issue in `Ready to Merge` must be routed to `tech-lead` by `orchestrator` before it is considered done
 - `tech-lead` reads the linked central Obsidian project documentation, GitHub issue, and PR diff to verify that implementation matches approved scope and satisfies architecture guardrails (KISS, separation of concerns, folder/package/namespace)
-- if the check passes: `tech-lead` merges the PR, moves the issue to `Done`, and posts a merge confirmation comment on the PR
+- if the check passes: `tech-lead` merges the PR, moves the issue to `Done`, and posts a merge confirmation comment on the PR. The reviewer approval comment plus the passed tech-lead check authorize this workflow merge; do not wait for a GitHub-native `APPROVED` review state unless repository rules explicitly require one.
+- If `pr-merge` is rejected by GitHub, inspect the actual error and PR checks/rules. Do not claim that the approval comment is a native approval or repeatedly retry. If a repository rule specifically requires a native approval from a distinct account, this workflow cannot satisfy that rule with the same account: record the exact blocker in the PR and issue, move the issue to `Blocked`, and notify the user to provide an authorized reviewer or change the repository rule. Otherwise resolve the reported failing check or permission issue and continue.
 - if the check fails: `tech-lead` posts the code-specific findings and rework reasoning in PR comments, with a concise issue-comment summary; builder picks the findings up on the same branch and the review loop continues through `In Progress` and `In Review`; `tech-lead` moves the issue to `Need attentions` only when a founder decision is required before the findings can be addressed
 - a tech-lead final check failure that results in builder rework counts as a continuation of the same review loop — the 8-loop cap applies across all review passes for the issue including those triggered by tech-lead findings; if the cap is hit, treat it as a loop-breaker and escalate to founder
 - `tech-lead` is the only role that merges; no other role may merge without an explicit recovery exception recorded in GitHub
@@ -241,6 +244,8 @@ Do not paste entire specs or chat transcripts into a delegation. The issue and i
 
 - explicit reviewer approval comment on the PR stating no blockers remain
 - issue state moved to `Ready to Merge` by reviewer
+
+Do not require a native GitHub approval review as an additional workflow artifact. Native approval is only an external repository-rule requirement, which must be verified from GitHub's actual merge-block reason.
 
 **Before treating an issue as `Done`** — verify these tech-lead artifacts exist:
 

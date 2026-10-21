@@ -41,13 +41,13 @@ When a direct documentation command must expand the configured project path, sou
 
 ## Routine GitHub handoff format
 
-Routine handoffs do not create Obsidian event files. Record one concise GitHub issue or PR comment at each meaningful role boundary or state change:
+Routine handoffs do not create Obsidian event files. For issue-backed managed work, record one concise GitHub issue or PR comment at each meaningful role boundary or state change. For ad hoc assistance with no issue/PR, do not create GitHub artifacts solely to record a delegation; the runtime brief and returned response carry that coordination, with the root session note preserving cross-agent context when applicable.
 
 ```md
 ## Delegation — <source> → <target>
 
-**State:** <Workflow State>
-**GitHub issue:** <URL>
+**State:** <Workflow State or Not applicable — ad hoc>
+**GitHub issue:** <URL or none — ad hoc work>
 **PR:** <URL or none>
 **Session context:** $ANT_TEAM_DOCS_PROJECT_PATH/session-context/<session_id>.md  (session_id: <session_id>; orchestrator omits this line only when no session note exists)
 **Task outcome:** <one sentence>
@@ -56,19 +56,20 @@ Routine handoffs do not create Obsidian event files. Record one concise GitHub i
 **Authoritative context:**
 - SPEC: <URL or none>
 - ARCH / ADR / GOV / runbook: <exact applicable URLs or Not applicable — reason>
-- GitHub evidence: <relevant issue comment, PR thread, check, or none>
+- GitHub evidence: <direct links to relevant issue comments, PR threads, checks, or none>
+- Ad hoc source: <user request/conversation decision or Not applicable>
 
 **Upstream context:** <source role, actionable findings, accepted decisions and rationale, exact handoff link>
 **User direction:** <relevant confirmations or corrections, or none>
 **Open questions:** <decision, owner, blocking status, or none>
 **Constraints / open risk:** <none or specific risk>
 **Expected action:** <exact action and owner>
-**Expected record:** <issue comment, PR description/review thread, state change, or durable-doc update if required>
+**Expected record:** <issue comment, PR description/review thread, state change, durable-doc update if required, or runtime response — ad hoc>
 ```
 
 Use the issue for task-level ownership, scope, blockers, decision clarifications, and state changes. Use the PR description for the builder-to-reviewer implementation handoff and PR comments/review threads for code-specific review and rework.
 
-Send the target a concise runtime brief under `github-agentic-delivery-flow/references/context-relay.md`. Relay upstream findings, accepted decisions and rationale, relevant founder confirmations/corrections, unresolved questions, and execution constraints alongside exact source and handoff links. Link full documents rather than copying transcripts, but do not omit the actionable summary. The GitHub handoff is the durable record; Ant must also deliver the relevant context in the actual invocation.
+Send the target a detailed-but-concise, communication-specific runtime brief using `github-agentic-delivery-flow/references/context-relay.md`. Relay upstream findings, accepted decisions and rationale, relevant founder confirmations/corrections, unresolved questions, and execution constraints alongside exact source and handoff links. For reviewer, tech-lead, or founder findings, link the exact comment/thread and state its implication; identify superseded guidance. Link full documents rather than copying transcripts, but do not omit the actionable summary. For issue-backed work, GitHub is the durable operational record and Ant must also deliver the relevant context in the actual invocation. For ad hoc work, the user request and relevant conversation decisions are the task context; do not fabricate a GitHub handoff or create an issue only to support delegation.
 For the strategist-to-tech-lead planning handoff, record the canonical SPEC URL, whether the SPEC is ready for planning, any open decision with its owner and blocking status, evidence, and the exact next action. For the tech-lead-to-builder handoff, the issue's `Durable Context` section is the canonical documentation handoff; do not duplicate the linked documents in comments.
 
 ## Role memory

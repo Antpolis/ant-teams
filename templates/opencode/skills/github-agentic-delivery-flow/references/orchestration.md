@@ -132,7 +132,7 @@ For a named task only, a founder may explicitly waive reviewer approval and/or t
 
 ## Communication record requirements
 
-Use the `agent-communication-log` routine GitHub handoff format and `github-conventions` for placement. Record one concise durable handoff at each meaningful role boundary or state change; do not add a separate issue comment when the PR description or review thread already records the handoff in the canonical location and the issue state/ownership did not change.
+Use the `agent-communication-log` handoff format and `github-conventions` for placement. In this managed queue, record one concise durable GitHub handoff at each meaningful role boundary or state change; do not add a separate issue comment when the PR description or review thread already records the handoff in the canonical location and the issue state/ownership did not change. For ad hoc assistance outside managed delivery, use the runtime delegation guidance in `context-relay.md`; do not create an issue solely to record the delegation.
 
 Placement:
 
@@ -142,7 +142,7 @@ Placement:
 
 Before invoking the next role, verify that the required record exists in the correct canonical location. Missing a required handoff is a stop condition; request it from the role that owns it rather than writing it on that role's behalf.
 
-The durable handoff and direct runtime brief follow [Context Relay](context-relay.md). Ant reads the completed upstream result and relevant recorded evidence, incorporates founder corrections, and sends the target the actionable findings, decisions and rationale, constraints, and unresolved questions with exact source links. A bare issue/spec URL or generic "implement" instruction is insufficient. Link full documents and evidence without dropping the summary needed for safe execution.
+The durable handoff and direct runtime brief follow [Context Relay](context-relay.md). Ant reads the completed upstream result and relevant recorded evidence, incorporates founder corrections, and sends the target the actionable findings, decisions and rationale, constraints, and unresolved questions with exact source links. A bare issue/spec URL or generic "implement" instruction is insufficient. For ad hoc work without an issue, identify the user's request and relevant conversation decisions as the source of truth. Link full documents and evidence without dropping the summary needed for safe execution.
 For builder delegation, include the tech-lead-provisioned worktree path and task branch; this is execution context, not a request for builder to provision another workspace. The receiving role owns its own execution or review handoff. Do not impersonate builder or reviewer ownership.
 
 GitHub is the active collaboration surface: keep task discussion, decisions, blockers, handoffs, review findings, and closure there. Project-folder docs hold durable product, architecture, and memory context. Do not create separate Obsidian files for routine discussion. The one exception is the local session-context tier (GOV-001): maintain exactly one local context note per root conversation under `$ANT_TEAM_DOCS_PROJECT_PATH/session-context/` as the cross-agent context surface.

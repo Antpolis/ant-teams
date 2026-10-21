@@ -59,7 +59,7 @@ Use this GitHub mapping consistently:
 | Workflow State | GitHub Project item status (canonical `Workflow State` field) |
 | Implementation branch / PR | GitHub Branch + Pull Request |
 | Collaboration Record | GitHub issue + linked pull request + GitHub Project `Workflow State` |
-| Handoffs, blockers, escalations, and task decisions | GitHub issue comments; use PR comments for code-specific discussion |
+| Handoffs, blockers, escalations, and task decisions | GitHub issue comments for issue-backed work; use PR comments for code-specific discussion. Ad hoc work without an issue is coordinated in the runtime delegation and response. |
 | Product, architecture, and governance knowledge | Curated central Obsidian project documentation linked from the milestone or issue |
 | Canonical implementation detail | Repository and linked pull request |
 
@@ -70,7 +70,7 @@ Do not rely on GitHub milestone text alone as the full spec. Keep the canonical 
 - The central Obsidian project documentation is the canonical source for curated specs, architecture, ADRs, governance, runbooks, and exceptional durable decisions.
 - The GitHub milestone is the tracking container for a deliverable and links to its applicable durable documentation.
 - The Collaboration Record is the GitHub issue, linked pull request, and GitHub Project `Workflow State` together.
-- GitHub issues are the canonical task records for scope, ownership, handoffs, blockers, escalations, and task decisions.
+- GitHub issues are the canonical task records for scope, ownership, handoffs, blockers, escalations, and task decisions when the work is issue-backed. Ad hoc assistance does not require an issue; the user's request and relevant conversation decisions are its task context unless it is explicitly moved into managed delivery.
 - GitHub Projects is the canonical workflow board for state visualization, using the canonical `Workflow State` field.
 - Pull requests are the canonical implementation and code-review record, including verification evidence, findings, responses, and approval.
 - Add or update Obsidian only when the result meets the GOV-001 durable-knowledge threshold; never use it as a routine task, communication-event, or review-loop mirror. The scoped exception is the orchestrator-assigned local `session-context/` note (GOV-001): one UUID-keyed note per root conversation for in-flight cross-agent context, searched with `rg`, archived on session close, never committed to the durable documentation repo, and never authoritative for Workflow State, PR approval, merge, task ownership, blockers, or closure.
@@ -148,7 +148,7 @@ Avoid giant issues that require multiple major decisions at once.
 
 ## Handoff Rules
 
-At each meaningful role boundary or state change, record one concise GitHub handoff in the canonical location. Use the issue or milestone for task ownership, scope, dependencies, clarification, blockers, escalations, and workflow-state changes; use the PR for implementation detail and code review.
+For issue-backed managed work, record one concise GitHub handoff at each meaningful role boundary or state change. Use the issue or milestone for task ownership, scope, dependencies, clarification, blockers, escalations, and workflow-state changes; use the PR for implementation detail and code review. For ad hoc assistance outside managed delivery, the runtime delegation and response are the communication record; do not create GitHub artifacts solely to log the delegation.
 
 Every handoff should give the receiving role the information needed to continue without chat history: task outcome, source and target roles, authoritative issue/PR and durable-context links, relevant evidence, constraints or risks, exact next action, and expected record. Include the actionable upstream decisions, rationale, and constraints in the runtime brief even when recorded in linked artifacts. Link full acceptance criteria, file lists, and evidence rather than copying whole documents. Concision must not remove the information the next role needs to act.
 

@@ -116,7 +116,8 @@ Builder fills this in before requesting review.
 
 ## Approval Gates
 
-- [ ] Reviewer approved
+- [ ] Reviewer recorded a clear approval comment on the PR; this is the workflow approval record
+- [ ] Repository merge requirements are satisfied
 - [ ] Merge allowed
 ```
 
@@ -189,7 +190,8 @@ After or beside the mandatory correctness, architecture, security, scope, and KI
 Use PR comments and review threads for the full code-review conversation:
 
 - Reviewer submits blocking findings with `$ANT_TEAM_SCRIPTS/gh_project_helper.sh pr-review <PR> --request-changes --body-file <file>` when appropriate, or uses PR review threads/comments for individual code-specific findings.
-- Reviewer submits a GitHub-native approval with `$ANT_TEAM_SCRIPTS/gh_project_helper.sh pr-review <PR> --approve --body-file <file>`, then moves the issue to `Ready to Merge`. The review body must state that no blockers remain.
+- Reviewer posts an explicit approval comment on the PR stating that review is complete, no blockers remain, and the PR is ready to merge. This comment is the workflow approval record; do not require or attempt a GitHub-native approval review as part of the normal loop.
+- A PR comment documents the workflow's independent review decision; it does not satisfy GitHub branch-protection or ruleset requirements for an approving review. If repository settings require a native approval from another account, stop before merge and obtain an authorized distinct reviewer or have the repository owner change the requirement. Never represent an approval comment as a GitHub-native approval.
 - Hard blockers and loop-breaker outcomes are summarized in PR comments and cross-linked from the GitHub issue.
 
 - builder records the implementation handover and each fix summary in the PR, with commit references
@@ -202,12 +204,10 @@ Use PR comments and review threads for the full code-review conversation:
 - Creating the PR starts the review loop.
 - Each reviewer pass increments the loop count.
 - If findings remain, builder fixes them on the same task branch and comments on the PR with the response.
-- Repeat until reviewer approves, a hard blocker appears, or 8 loops are reached. (The cap prevents unbounded rework; 8 passes is enough for any well-scoped task.)
+- Repeat until reviewer records approval in an explicit PR comment, a hard blocker appears, or 8 loops are reached. (The cap prevents unbounded rework; 8 passes is enough for any well-scoped task.)
 - If 8 loops are reached without approval, treat it as a loop-breaker: record the state in the PR and GitHub issue, and escalate to `tech-lead` to decide whether to continue, reframe, or close the task.
-- When reviewer approves with no blockers, reviewer must:
-  1. Post an explicit approval comment on the PR stating the issue is clear with no blockers and the PR is ready to merge.
-  2. Move the GitHub issue to `Ready to Merge`.
-- Do not merge until the issue is in `Ready to Merge` and the approval comment is on the PR.
+- When reviewer approves with no blockers, record the decision in an explicit PR comment and move the GitHub issue to `Ready to Merge`.
+- Do not merge until the issue is in `Ready to Merge`, the review decision is recorded on the PR, and all repository-required merge checks/approvals are satisfied. An approval comment alone does not override GitHub's merge restrictions.
 - If the PR or issue needs founder input before it can proceed or merge, confirm strategist and tech-lead review were both attempted, record the reasoning in the PR and a founder-addressed GitHub issue comment, then move the issue to `Need attentions` instead of posting an approval.
 
 ## Development Loop Rules
