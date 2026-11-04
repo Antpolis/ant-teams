@@ -1,6 +1,6 @@
 # Managed Queue Coordination
 
-Ant Agent takes the orchestrator role while executing the GitHub delivery workflow. These rules support `do-task`, which owns execution of the selected spec. They apply only to that authorized scope, never to shaping, sync, reconciliation, closeout, or ordinary assistance. All queue checks and planning refer to the selected spec.
+Ant Agent takes the orchestrator role while executing the GitHub delivery workflow. These rules support `do-tasks`, which owns execution of the selected spec. They apply only to that authorized scope, never to shaping, sync, reconciliation, closeout, or ordinary assistance. All queue checks and planning refer to the selected spec.
 
 You coordinate the repository’s agentic delivery flow across:
 
@@ -16,10 +16,10 @@ You are not the implementation agent.
 Before participating in workflow execution, read and follow:
 
 - `agentic-flow-terms`;
-- `do-task` for the execution loop;
+- `do-tasks` for the execution loop;
 - `role-memory` only when durable project memory is involved.
 
-Use `do-task` only for this explicitly activated spec-based queue pass. If the authorized procedure no longer fits the work, record the discrepancy and ask for an explicit workflow change rather than switching automatically.
+Use `do-tasks` only for this explicitly activated spec-based queue pass. If the authorized procedure no longer fits the work, record the discrepancy and ask for an explicit workflow change rather than switching automatically.
 
 Use the exact terminology defined by `agentic-flow-terms`.
 

@@ -1,7 +1,6 @@
 ---
 name: github-agentic-delivery-flow
-description: "Shared GitHub development operating model: issue and milestone ownership, communication, workflow states, independent review, and merge gates. Consult for managed delivery, bugfix, or hotfix; loading guidance does not start execution."
-disable-model-invocation: true
+description: "Use when implementing work that already has an approved spec/milestone and GitHub task issues. Apply the shared GitHub ownership, handoff, workflow-state, review, and merge conventions for that managed development. Do not load for standalone bounded changes that have no spec or issue. Loading guidance does not start or select a workflow."
 ---
 
 # GitHub Agentic Delivery Flow
@@ -18,7 +17,7 @@ Procedure owners and entry points (consult only the explicitly requested procedu
 |---|---|---|
 | `/new-spec` | [Shape and plan](references/new-spec.md) | Ends with planned issues; does not start implementation. |
 | `/sync-spec` | [Sync existing specs](references/sync-spec.md) | Tech-lead syncs milestones/issues; does not start implementation. |
-| `/do-tasks` | `do-task` and [Queue coordination](references/orchestration.md) | Owns execution of all required issues in the selected spec through review and merge. |
+| `/do-tasks` | `do-tasks` and [Queue coordination](references/orchestration.md) | Owns execution of all required issues in the selected spec through review and merge. |
 | `/sprint-clean` | [Reconcile delivery](references/sprint-clean.md) | Reconciles records and docs; does not start fresh implementation. |
 | `/close-spec` | `spec-closeout` | Closes an explicitly requested completed spec. |
 
@@ -26,7 +25,7 @@ Continue the selected stage through its required handoffs and gates. Requesting 
 
 ## Standalone alternatives
 
-`fix-bug` and `hotfix` are separate playbooks. Their own skills define qualification, readiness, and execution. This skill supplies their shared GitHub ownership, handoff, review, and merge rules; reading those rules does not enter shaping or the `do-tasks` spec queue.
+`bounded-change-playbook` owns standalone bounded changes, including ordinary bug fixes, small enhancements, and urgent fixes. It may use the shared role and review conventions below when it selects the specialist route; it does not inherit the spec queue's milestone and issue requirements. Reading this skill does not enter shaping or the `do-tasks` spec queue.
 
 If investigation reveals a defect that warrants another playbook, report the reason and proposed alternative. Switching requires the user's explicit request; do not select or execute it automatically.
 
@@ -95,8 +94,8 @@ Use specialized skills beneath these roles when the task needs domain-specific h
 These conventions are references, not commands to execute every stage:
 
 - `new-spec` owns shaping and planning. Strategist clarifies business intent; tech-lead verifies feasibility, defines the milestone and issues using `how-to-create-task`, and establishes readiness. Required decisions and requirement coverage must be resolved before tasks enter `Ready`.
-- `do-tasks`, backed by `do-task`, owns the selected spec's development loop: plan the issue order, dispatch implementation, verify handoffs, obtain independent review, route merges to tech-lead, and continue until all required scoped issues are done or no safe scoped action remains. Detailed sequencing lives in that procedure.
-- `fix-bug` and `hotfix` own their standalone issue procedures and artifact requirements. They use the same role ownership, communication, review, and merge conventions without inheriting whole-spec execution.
+- `do-tasks` owns the selected spec's development loop: plan the issue order, dispatch implementation, verify handoffs, obtain independent review, route merges to tech-lead, and continue until all required scoped issues are done or no safe scoped action remains. Detailed sequencing lives in that procedure.
+- `bounded-change-playbook` owns its direct-versus-specialist route and bounded-change execution. Specialist delivery follows the shared role, review, and merge conventions as applicable, without inheriting whole-spec execution or requiring a milestone/issue.
 - `sprint-clean` owns explicitly requested reconciliation; it does not pull fresh implementation.
 - For explicitly requested release or milestone closeout, run `spec-closeout`. `do-tasks` completion does not create a release/tag or close the milestone automatically. Keep completed Project items in `Done` as audit history.
 

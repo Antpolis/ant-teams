@@ -36,12 +36,9 @@ assert_eq "dry-run: HOME tree identical" "$AFTER" "$BEFORE"
 
 # Dry-run reports every planned entry per-NAME (OBS-1.2 lists actions per-FILE),
 # so the exact entry count is read from the summary line. The summary counts
-# every source skill directory — including untracked empty placeholder dirs
-# that yield no installable files — plus every command file. Compute the
-# expectation with the same rule so the assertion stays machine-independent.
-REAL_SKILLS="$(sync_count_dirs "$SYNC_REAL_OPENCODE/skills")"
-REAL_CMDS="$(find "$SYNC_REAL_OPENCODE/commands" -maxdepth 1 -name '*.md' -type f 2>/dev/null | wc -l | tr -d ' ')"
-EXPECTED_TOTAL=$(( REAL_SKILLS + REAL_CMDS ))
+# every source skill directory plus command names not shadowed by a source
+# skill. Compute the expectation with the same collision rule as the installer.
+EXPECTED_TOTAL="$(sync_expected_managed_entries "$SYNC_REAL_OPENCODE" 1)"
 assert_file_contains_str "dry-run: total managed entries in summary" "$OUT" "Total managed entries: $EXPECTED_TOTAL"
 assert_gt "dry-run: per-file installs exceed entry count" \
   "$(grep -cF '[DRY-RUN] [INSTALL]' "$OUT" || true)" "$EXPECTED_TOTAL"

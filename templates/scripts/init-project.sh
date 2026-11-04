@@ -211,7 +211,7 @@ expand_path() {
 # Checks (ERR-1.1):
 #   1. target project dir exists AND is a git repo (has .git/ or .git file)
 #   2. the sibling managed skills root contains every required skill
-#      (github-issues-projects-cli, do-task)
+#      (github-issues-projects-cli, do-tasks)
 #   3. jq is on PATH — required by ensure_opencode_config (strict JSON gate)
 #      and ensure_project_runtime_env (env seed/update) (OBS-3.2)
 #   4. coreutils cp/mkdir/cat/rm/mktemp are on PATH
@@ -244,7 +244,7 @@ run_preflight() {
   # actually checked so the operator can see why an init from a wrong
   # location failed.
   local required_skill
-  for required_skill in github-issues-projects-cli do-task; do
+  for required_skill in github-issues-projects-cli do-tasks; do
     if [[ ! -d "$managed_skills_root_arg/$required_skill" ]]; then
       echo "[error] Required skill not found in the sibling skills root: $managed_skills_root_arg/$required_skill" >&2
       echo "[error] init-project must run from the team-scripts install (~/.agents/scripts/ after scripts/init-company.sh; skills at ~/.agents/skills) or a source checkout (templates/scripts/; skills at templates/opencode/skills) (OBS-3.1)." >&2
@@ -630,7 +630,7 @@ ensure_opencode_gitignore() {
 }
 
 # FR-7.1 / FR-7.2 / FR-7.3 / SEC-3.2 / ARCH-003 guarantee 4: copy the two
-# required script-bearing skills (github-issues-projects-cli, do-task) from
+# required script-bearing skills (github-issues-projects-cli, do-tasks) from
 # the sibling managed skills root into the project-local `.opencode/skills/`
 # directory. The sibling root is resolved next to the engine's install
 # location: ~/.agents/skills in the team-scripts install, or
@@ -659,7 +659,7 @@ copy_required_skills() {
   local target_skills_dir="$project_dir/.opencode/skills"
   local -a required_skills=(
     "github-issues-projects-cli"
-    "do-task"
+    "do-tasks"
   )
   local -a excluded_skills=(
     "skill-creator"

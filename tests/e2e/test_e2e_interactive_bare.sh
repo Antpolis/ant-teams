@@ -65,7 +65,7 @@ assert_not_exists ".github-project.json legacy artifact absent" "$TMP/.github-pr
 # AC-T7-002 / AC-SPEC-007: exactly 2 required skills copied, no extras.
 assert_eq "exactly 2 skills copied" "$(e2e_count_skill_dirs "$TMP")" "2"
 assert_eq "github-issues-projects-cli present" "$(e2e_has_skill_dir "$TMP" github-issues-projects-cli)" "yes"
-assert_eq "do-task present" "$(e2e_has_skill_dir "$TMP" do-task)" "yes"
+assert_eq "do-tasks present" "$(e2e_has_skill_dir "$TMP" do-tasks)" "yes"
 # The retired project-initialization skill is never copied into targets.
 assert_not_exists "project-initialization not copied" "$TMP/.opencode/skills/project-initialization"
 # Forbidden skills absent (ARCH-003 Artifact 3 guarantee 2).
@@ -75,8 +75,8 @@ assert_not_exists "webapp-testing not copied" "$TMP/.opencode/skills/webapp-test
 # Known edge case from #5 (issue #8 collaboration record): fresh init on a
 # clean repo with fixed source must produce every required script at mode 755.
 assert_exec "$TMP/.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh"
-assert_exec "$TMP/.opencode/skills/do-task/scripts/create_task_worktree.sh"
-assert_exec "$TMP/.opencode/skills/do-task/scripts/cleanup_task_worktree.sh"
+assert_exec "$TMP/.opencode/skills/do-tasks/scripts/create_task_worktree.sh"
+assert_exec "$TMP/.opencode/skills/do-tasks/scripts/cleanup_task_worktree.sh"
 
 # Interactive preview + write path must have surfaced the confirmation prompt
 # and the final structured summary (OBS-1).

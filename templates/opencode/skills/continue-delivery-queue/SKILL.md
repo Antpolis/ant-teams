@@ -13,7 +13,7 @@ The goal is simple: finishing one issue is not the same as finishing the pass.
 
 Use the agentic-flow-terms skill as the canonical glossary for workflow terms.
 Use github-agentic-delivery-flow for the overall GitHub operating model.
-Use do-task for the full queue-driving behavior before and around this decision point.
+Use do-tasks for the full queue-driving behavior before and around this decision point.
 Use state-transitions, approval-or-escalation, and founder-escalation-preflight for board movement and escalation decisions.
 Use GitHub Issues, Pull Requests, milestone comments, and Project Workflow State as the operational collaboration record. Consult curated documentation or existing role memory only when relevant durable context is needed before routing the next step.
 
@@ -29,7 +29,7 @@ The active workflow coordinator may use `ponytail-review`, `ponytail-audit`, and
 
 ## Scope and Completion
 
-Use the selected spec/milestone and any explicit narrowed issue scope supplied by `do-task`. All queue checks below refer only to that authorized scope. Another spec's ready issues, open tasks, or attention items do not extend this run. If scope is missing, recover it from the current queue plan or clarify it before dispatching work.
+Use the selected spec/milestone and any explicit narrowed issue scope supplied by `do-tasks`. All queue checks below refer only to that authorized scope. Another spec's ready issues, open tasks, or attention items do not extend this run. If scope is missing, recover it from the current queue plan or clarify it before dispatching work.
 
 Continue until every required scoped issue is done with evidence or no safe scoped action remains. When required issues and acceptance coverage are complete, return the spec completion report; do not keep searching the project for unrelated work. Release/tag creation and milestone closure are separate actions.
 

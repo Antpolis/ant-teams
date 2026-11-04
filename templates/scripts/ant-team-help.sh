@@ -45,10 +45,10 @@ describe_script() {
       printf 'List installed team helper scripts with one-line descriptions (this script).'
       ;;
     cleanup-task-worktree.sh)
-      printf 'Remove an issue worktree and its local task branch after merge or abandonment (delegates to the do-task skill helper).'
+      printf 'Remove an issue worktree and its local task branch after merge or abandonment (delegates to the do-tasks skill helper).'
       ;;
     create-task-branch.sh)
-      printf 'Create a dedicated issue worktree with its own task branch (delegates to the do-task skill helper).'
+      printf 'Create a dedicated issue worktree with its own task branch (delegates to the do-tasks skill helper).'
       ;;
     gh_project_helper.sh)
       printf 'Centralized entry for the GitHub Projects helper engine: issue, milestone, and project-board operations via gh.'

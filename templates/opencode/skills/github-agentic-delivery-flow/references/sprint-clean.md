@@ -5,7 +5,7 @@ This procedure runs only when the user explicitly requests /sprint-clean or its 
 Clean and reconcile the current sprint or delivery state for: $ARGUMENTS
 
 Before interpreting workflow metadata terms, use the agentic-flow-terms skill as the canonical glossary for development loop, review loop, loop-breaker, stopper, hard blocker, defer task, communication log, role memory, approval gate, task branch, and production base branch.
-This is a reconciliation pass, not queue execution. Do not load `do-task` or dispatch fresh implementation unless the user explicitly requests queue execution.
+This is a reconciliation pass, not queue execution. Do not load `do-tasks` or dispatch fresh implementation unless the user explicitly requests queue execution.
 Use `founder-escalation-preflight` only for an unresolved execution blocker; normal cleanup discussion with the founder is not an escalation.
 
 Assume this command is part of a recurring weekly cleanup pass unless the user says otherwise.

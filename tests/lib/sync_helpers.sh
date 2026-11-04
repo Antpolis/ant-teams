@@ -76,6 +76,40 @@ sync_count_dirs() {
   find "$d" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' '
 }
 
+# sync_expected_managed_entries OPENCODE_ROOT — unique source-skill and command
+# names, matching the sync engine's source-skill-wins collision rule.
+sync_expected_managed_entries() {
+  local root="$1" skills="$1/skills" commands="$1/commands" include_empty="${2:-0}" count=0 name command_count=0
+  local -a active_skill_names=()
+  if [[ -d "$skills" ]]; then
+    for name in "$skills"/*/; do
+      [[ -d "$name" ]] || continue
+      active_skill_names+=("$(basename "$name")")
+      if [[ "$include_empty" == "1" ]] || find "$name" -type f ! -name '.gitignore' -print -quit 2>/dev/null | grep -q .; then
+        count=$((count + 1))
+      else
+        unset 'active_skill_names[-1]'
+      fi
+    done
+  fi
+  if [[ -d "$commands" ]]; then
+    for name in "$commands"/*.md; do
+      [[ -f "$name" ]] || continue
+      command_count=$((command_count + 1))
+      name="$(basename "$name" .md)"
+      local active_name
+      for active_name in "${active_skill_names[@]}"; do
+        if [[ "$name" == "$active_name" ]]; then
+          count=$((count - 1))
+          break
+        fi
+      done
+    done
+  fi
+  count=$((count + command_count))
+  printf '%s' "$count"
+}
+
 # sync_count_files_recursively DIR — number of regular files under DIR (0 if absent).
 sync_count_files_recursively() {
   local d="$1"

@@ -26,7 +26,7 @@
 #   ENV-7   idempotent rerun leaves the env byte-identical and mtime unchanged
 #   ENV-8   --dry-run reports [would-write] and writes/deletes nothing
 #   ENV-9   gh_project_helper resolves from the env alone (no JSON parse)
-#   ENV-10  do-task worktree helpers read ANT_TEAM_WORKTREE_ROOT from the env
+#   ENV-10  do-tasks worktree helpers read ANT_TEAM_WORKTREE_ROOT from the env
 #   ENV-11  AGENTS.md Local Configuration Files lists .github-project.env
 #   ENV-12  ANT_TEAM_DOCS_PROJECT_PATH resolves as VAULT_PATH/02-Architecture-Landscape/projects/NAME
 #           (founder-set concrete value preserved verbatim; no template key emitted)
@@ -269,13 +269,13 @@ else
   check FAIL "ENV-9: project number must come from the env, got: $calls"
 fi
 
-# --- ENV-10: do-task worktree helpers source the env ----------------------------------------
+# --- ENV-10: do-tasks worktree helpers source the env ----------------------------------------
 
 init_suite "ENV-10 worktree helpers read the env"
 
 for s in \
-  'templates/opencode/skills/do-task/scripts/create_task_worktree.sh' \
-  'templates/opencode/skills/do-task/scripts/cleanup_task_worktree.sh'; do
+  'templates/opencode/skills/do-tasks/scripts/create_task_worktree.sh' \
+  'templates/opencode/skills/do-tasks/scripts/cleanup_task_worktree.sh'; do
   assert_file_contains_str "ENV-10: $s sources .github-project.env" "$INIT_REPO_ROOT/$s" '.github-project.env'
   assert_file_contains_str "ENV-10: $s reads ANT_TEAM_WORKTREE_ROOT" "$INIT_REPO_ROOT/$s" 'ANT_TEAM_WORKTREE_ROOT'
   assert_file_not_contains_str "ENV-10: $s has no .github-project.json fallback" "$INIT_REPO_ROOT/$s" '.github-project.json'

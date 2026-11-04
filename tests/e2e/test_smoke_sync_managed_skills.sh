@@ -203,9 +203,9 @@ export HOME="$HOME3"
 OUT="$WORK/f3.out"
 "$TSCRIPT" >"$OUT" 2>&1 || { echo "F3 fresh install failed"; cat "$OUT"; FAIL=$((FAIL + 1)); }
 
-src_sh="$TREPO/templates/opencode/skills/do-task/scripts/create_task_worktree.sh"
+src_sh="$TREPO/templates/opencode/skills/do-tasks/scripts/create_task_worktree.sh"
 src_md="$TREPO/templates/opencode/skills/documentation-standard/SKILL.md"
-tgt_sh="$HOME3/.agents/skills/do-task/scripts/create_task_worktree.sh"
+tgt_sh="$HOME3/.agents/skills/do-tasks/scripts/create_task_worktree.sh"
 tgt_md="$HOME3/.agents/skills/documentation-standard/SKILL.md"
 
 # Fresh install must apply source-derived mode (SEC-3.1): .sh -> 755, .md -> 644.
@@ -262,7 +262,7 @@ assert_contains "F3 force .sh content restored" "$tgt_sh" "smoke update marker"
 # ---------------------------------------------------------------------------
 # F4 — non-directory ancestor inside the managed write path (nested collision).
 #     Review loop 3 blocker: F2 only covered a top-level entry name. A regular
-#     file at an INTERMEDIATE managed path (e.g., .../do-task/scripts
+#     file at an INTERMEDIATE managed path (e.g., .../do-tasks/scripts
 #     turned into a file) made write_target_file's `mkdir -p` abort with exit 5.
 #     Any non-directory ancestor anywhere in the write path must warn+skip.
 # ---------------------------------------------------------------------------
@@ -275,9 +275,9 @@ ERR="$WORK/f4.err"
 "$SYNC" >"$OUT" 2>"$ERR" || { echo "F4 fresh install failed (exit $?)"; cat "$ERR"; FAIL=$((FAIL + 1)); }
 assert_count_line "F4 fresh install collisions" "$ERR" "[SKIP collision]" 0
 
-# Number of source files that live under do-task/scripts/. Every
+# Number of source files that live under do-tasks/scripts/. Every
 # one of them must be skipped once that intermediate dir is replaced by a file.
-blocked_subdir_rel="do-task/scripts"
+blocked_subdir_rel="do-tasks/scripts"
 expected_skips="$(find "$REPO_ROOT/templates/opencode/skills/$blocked_subdir_rel" -type f 2>/dev/null | wc -l | tr -d ' ')"
 assert_ge "F4 source has files under blocked subdir" "$expected_skips" 1
 
@@ -294,13 +294,13 @@ assert_eq "F4 nested skip-collision count (== source files under blocked dir)" \
   "$(grep -cF "[SKIP collision]" "$ERR" || true)" "$expected_skips"
 # The skip messages must reference the nested files, not the entry name alone.
 assert_ge "F4 nested skip lines name the blocked subpaths" \
-  "$(grep -cF "[SKIP collision] do-task/scripts/" "$ERR" || true)" 1
+  "$(grep -cF "[SKIP collision] do-tasks/scripts/" "$ERR" || true)" 1
 # The blocking regular file itself is unmanaged content -> must be untouched.
 assert_eq "F4 blocking file untouched" \
   "$(cat "$block_path")" "blocked-content"
 # A top-level file in the SAME entry must still reconcile (NOOP), proving the
 # entry was not wholesale-aborted by the deeper collision.
-if [[ -f "$HOME4/.agents/skills/do-task/SKILL.md" ]]; then
+if [[ -f "$HOME4/.agents/skills/do-tasks/SKILL.md" ]]; then
   printf '  [PASS] F4 sibling top-level file still present\n'; PASS=$((PASS + 1))
 else
   printf '  [FAIL] F4 sibling top-level SKILL.md missing\n' >&2; FAIL=$((FAIL + 1))
@@ -312,10 +312,10 @@ else
   printf '  [FAIL] F4 unrelated entry (documentation-standard) missing\n' >&2; FAIL=$((FAIL + 1))
 fi
 # Manifest must still be valid and record the partly-managed entry.
-if jq -e '.managed_entries["do-task"]' "$HOME4/.agents/skills/.manifest.json" >/dev/null 2>&1; then
-  printf '  [PASS] F4 manifest still records do-task\n'; PASS=$((PASS + 1))
+if jq -e '.managed_entries["do-tasks"]' "$HOME4/.agents/skills/.manifest.json" >/dev/null 2>&1; then
+  printf '  [PASS] F4 manifest still records do-tasks\n'; PASS=$((PASS + 1))
 else
-  printf '  [FAIL] F4 manifest lost do-task entry\n' >&2; FAIL=$((FAIL + 1))
+  printf '  [FAIL] F4 manifest lost do-tasks entry\n' >&2; FAIL=$((FAIL + 1))
 fi
 
 # Idempotency of the skip: re-running with the block still in place stays exit 0
@@ -367,9 +367,9 @@ escape_dir="$WORK/escape-target"
 mkdir -p "$escape_dir"
 
 # Nested symlink-to-dir at an intermediate managed path (reviewer repro):
-# replace .../do-task/scripts (a real managed subdir) with a
+# replace .../do-tasks/scripts (a real managed subdir) with a
 # symlink pointing at the external escape dir.
-blocked_subdir_rel="do-task/scripts"
+blocked_subdir_rel="do-tasks/scripts"
 expected_skips="$(find "$REPO_ROOT/templates/opencode/skills/$blocked_subdir_rel" -type f 2>/dev/null | wc -l | tr -d ' ')"
 assert_ge "F5 source has files under symlinked subdir" "$expected_skips" 1
 link_path="$HOME5/.agents/skills/$blocked_subdir_rel"
@@ -385,7 +385,7 @@ assert_eq "F5 nested-symlink exit code (expect 0)" "$rc" 0
 assert_eq "F5 nested-symlink skip count (== source files under symlinked dir)" \
   "$(grep -cF "[SKIP collision]" "$ERR" || true)" "$expected_skips"
 assert_ge "F5 skip lines name the nested subpaths" \
-  "$(grep -cF "[SKIP collision] do-task/scripts/" "$ERR" || true)" 1
+  "$(grep -cF "[SKIP collision] do-tasks/scripts/" "$ERR" || true)" 1
 # CRITICAL: nothing may have been written through the symlink into the escape dir.
 assert_eq "F5 no files escaped through symlink" \
   "$(find "$escape_dir" -type f 2>/dev/null | wc -l | tr -d ' ')" 0
@@ -393,7 +393,7 @@ assert_eq "F5 no files escaped through symlink" \
 assert_eq "F5 symlink still a symlink (not followed/replaced)" \
   "$(test -L "$link_path" && echo symlink)" "symlink"
 # A top-level file in the same entry still reconciles (entry not aborted).
-if [[ -f "$HOME5/.agents/skills/do-task/SKILL.md" ]]; then
+if [[ -f "$HOME5/.agents/skills/do-tasks/SKILL.md" ]]; then
   printf '  [PASS] F5 sibling top-level file still present\n'; PASS=$((PASS + 1))
 else
   printf '  [FAIL] F5 sibling top-level SKILL.md missing\n' >&2; FAIL=$((FAIL + 1))

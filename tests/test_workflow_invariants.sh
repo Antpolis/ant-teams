@@ -321,14 +321,14 @@ init_suite "INV-5 tech-lead merge gate"
 
 TECH_LEAD_PROMPT="$(read_file "$(role_agent_file tech-lead)")"
 BUILDER_PROMPT="$(read_file "$(role_agent_file builder)")"
-DO_TASK_CONTENT="$(read_file 'templates/opencode/skills/do-task/SKILL.md')"
+DO_TASK_CONTENT="$(read_file 'templates/opencode/skills/do-tasks/SKILL.md')"
 inv5a() {
   must_contain "$FLOW_CONTENT" 'Tech-lead is the only role that merges' "flow skill"
 }
 inv5b() {
   must_contain "$TECH_LEAD_PROMPT" 'clean up the task worktree and local branch with `$ANT_TEAM_SCRIPTS/cleanup-task-worktree.sh`' "tech-lead prompt"
   must_not_contain "$BUILDER_PROMPT" 'clean up the task worktree and local branch once they are no longer needed' "builder prompt"
-  must_contain "$DO_TASK_CONTENT" '`tech-lead` cleans up the issue worktree and local branch' "do-task skill"
+  must_contain "$DO_TASK_CONTENT" '`tech-lead` cleans up the issue worktree and local branch' "do-tasks skill"
 }
 check_body 'INV-5a: tech-lead merge gate stays exclusive' inv5a
 check_body 'INV-5b: tech-lead owns post-merge cleanup' inv5b
@@ -616,7 +616,7 @@ inv11d() {
   for f in \
     'templates/opencode/skills/how-to-create-task/SKILL.md' \
     'templates/opencode/skills/state-transitions/SKILL.md' \
-    'templates/opencode/skills/do-task/SKILL.md' \
+    'templates/opencode/skills/do-tasks/SKILL.md' \
     'templates/opencode/skills/development-hygiene/SKILL.md' \
     'templates/opencode/skills/pr-review-flow/SKILL.md' \
     'templates/opencode/skills/task-completion/SKILL.md' \
@@ -624,7 +624,7 @@ inv11d() {
     must_contain "$(read_file "$f")" 'Durable Context' "$f"
   done
   must_contain "$(read_file 'templates/opencode/skills/state-transitions/SKILL.md')" 'Do not move work to `Ready`' "state-transitions"
-  must_contain "$DO_TASK_CONTENT" 'do not invoke builder' "do-task"
+  must_contain "$DO_TASK_CONTENT" 'do not invoke builder' "do-tasks"
   must_contain "$(read_file 'templates/opencode/skills/pr-review-flow/SKILL.md')" 'do not approve the PR' "pr-review-flow"
   must_contain "$(read_file 'templates/opencode/skills/task-completion/SKILL.md')" 'do not approve completion' "task-completion"
   must_contain "$(read_file 'templates/opencode/skills/approval-or-escalation/SKILL.md')" 'updates the Obsidian SPEC only when it changes durable product intent' "approval-or-escalation"
@@ -632,7 +632,7 @@ inv11d() {
   must_contain "$BUILDER_PROMPT" 'route product intent, scope, success criteria, or acceptance ambiguity to strategist' "builder routing"
   must_contain "$(read_file "$(role_agent_file reviewer)")" 'Route product intent, scope, success-criteria, or acceptance ambiguity to strategist' "reviewer routing"
   must_contain "$LOG_CONTENT" '## Delegation — <source> → <target>' "agent-communication-log delegation template"
-  must_contain "$DO_TASK_CONTENT" 'direct runtime instruction' "do-task delegation context"
+  must_contain "$DO_TASK_CONTENT" 'direct runtime instruction' "do-tasks delegation context"
   must_contain "$(read_file 'templates/opencode/skills/pr-review-flow/SKILL.md')" '## Review Delegation — builder → reviewer' "pr-review-flow review delegation"
   must_contain "$(read_file 'templates/opencode/skills/pr-review-flow/SKILL.md')" 'pr-review <PR> --approve' "pr-review-flow native approval"
 }

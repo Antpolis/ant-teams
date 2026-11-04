@@ -10,10 +10,8 @@
 #     skills + command-derived skills.
 #   - FR-12.2 init-company.sh invokes sync-managed-skills after the canonical
 #     install; exit code reflects the worst outcome (here 0).
-#   - AC-1.1 / AC-2.1 exactly 42 managed entries (34 source + 8 command-derived;
-#     init-project became a native source skill and its command was retired by
-#     SPEC-005; 0 name collisions in the real source tree); unmanaged content
-#     untouched.
+#   - AC-1.1 / AC-2.1 every unique source-skill or command name is managed;
+#     source skills win same-name collisions; unmanaged content is untouched.
 #
 # Runs the REAL repo scripts against a temp HOME so neither the real
 # ~/.config/opencode nor ~/.agents/skills is touched.
@@ -36,9 +34,7 @@ MYHASH="$(sync_sha256 "$HOME_DIR/.agents/skills/my-custom-skill/SKILL.md")"
 
 # Count REAL managed source inventory for an exact assertion. Empty support
 # directories without a SKILL.md do not produce managed target entries.
-REAL_SKILLS="$(find "$SYNC_REAL_OPENCODE/skills" -mindepth 2 -maxdepth 2 -type f -name SKILL.md | wc -l | tr -d ' ')"
-REAL_CMDS="$(find "$SYNC_REAL_OPENCODE/commands" -maxdepth 1 -name '*.md' -type f 2>/dev/null | wc -l | tr -d ' ')"
-EXPECTED_TOTAL=$(( REAL_SKILLS + REAL_CMDS ))
+EXPECTED_TOTAL="$(sync_expected_managed_entries "$SYNC_REAL_OPENCODE")"
 
 sync_capture "$OUT" "$SYNC_REAL_COMPANY" "$HOME_DIR"
 assert_exit_zero "init-company.sh exit 0" "$SYNC_RC"
@@ -74,9 +70,10 @@ assert_file_contains_str "Copilot AGENTS.md matches repo source" \
 # managed count is verified via the manifest; the dir count is a lower bound.
 assert_ge "managed dir count >= skills + commands" \
   "$(sync_count_dirs "$HOME_DIR/.agents/skills")" "$EXPECTED_TOTAL"
-assert_eq "manifest records 42 managed entries" \
+assert_eq "manifest records every unique source entry" \
   "$(sync_manifest_count_entries "$MANIFEST")" "$EXPECTED_TOTAL"
-assert_eq "expected total is 42 (34+8)" "$EXPECTED_TOTAL" "42"
+assert_eq "expected total matches source inventory" "$EXPECTED_TOTAL" \
+  "$(sync_expected_managed_entries "$SYNC_REAL_OPENCODE")"
 assert_eq "manifest present" "$(sync_manifest_is_valid_json "$MANIFEST")" "yes"
 
 # A representative source skill and a command-derived skill are present.

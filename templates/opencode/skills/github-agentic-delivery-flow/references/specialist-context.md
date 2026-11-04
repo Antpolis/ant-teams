@@ -1,6 +1,6 @@
 # Shared Specialist Delivery Context
 
-Read this reference only for an explicitly active managed delivery assignment. Ant Agent normally coordinates; specialists perform the assigned role and report back. Reading this reference does not activate a workflow. Do not load `do-task` merely to answer a role-specific question.
+Read this reference only for an explicitly active managed delivery assignment. Ant Agent normally coordinates; specialists perform the assigned role and report back. Reading this reference does not activate a workflow. Do not load `do-tasks` merely to answer a role-specific question.
 
 ## Context and records
 

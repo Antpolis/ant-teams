@@ -1,5 +1,5 @@
 ---
-name: do-task
+name: do-tasks
 description: Drive an explicitly requested approved spec through its required GitHub issues, builder implementation, independent review, and tech-lead merge. Do not stop after one issue or pull another spec automatically.
 disable-model-invocation: true
 ---

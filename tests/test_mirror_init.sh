@@ -50,7 +50,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/init_helpers.sh"
 
-REQUIRED_SKILLS=( github-issues-projects-cli do-task )
+REQUIRED_SKILLS=( github-issues-projects-cli do-tasks )
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -144,8 +144,8 @@ mkdir -p "$mir1_home"
 } < <(build_simulated_install "$mir1_home")
 
 # Sentinel: proves the copied skills come from the INSTALL, not the checkout.
-printf 'mirror\n' > "$mir1_skills/do-task/MIRROR-SENTINEL"
-chmod 0644 "$mir1_skills/do-task/MIRROR-SENTINEL"
+printf 'mirror\n' > "$mir1_skills/do-tasks/MIRROR-SENTINEL"
+chmod 0644 "$mir1_skills/do-tasks/MIRROR-SENTINEL"
 
 # Sanity: the engine really is non-executable in the simulated install, and
 # the current support asset ships next to it.
@@ -173,7 +173,7 @@ for skill in "${REQUIRED_SKILLS[@]}"; do
   assert_exists "MIR-1: required skill copied: $skill" "$mir1_target/.opencode/skills/$skill/SKILL.md"
 done
 assert_exists "MIR-1: skills sourced from the install (sentinel at target)" \
-  "$mir1_target/.opencode/skills/do-task/MIRROR-SENTINEL"
+  "$mir1_target/.opencode/skills/do-tasks/MIRROR-SENTINEL"
 # The retired project-initialization skill is never copied into targets.
 assert_not_exists "MIR-1: project-initialization skill not copied into targets" \
   "$mir1_target/.opencode/skills/project-initialization"
@@ -191,14 +191,14 @@ mkdir -p "$mir2_home"
   read -r mir2_skills
   read -r mir2_scripts
 } < <(build_simulated_install "$mir2_home")
-rm -rf "$mir2_skills/do-task"
+rm -rf "$mir2_skills/do-tasks"
 
 mir2_target="$(mk_target_repo)"
 mapfile -t mir2_args < <(init_args_for "$mir2_target")
 run_wrapper "$mir2_home" "$mir2_scripts" "$mir2_target" "${mir2_args[@]}"
 assert_exit_nonzero "MIR-2: preflight exits non-zero on missing sibling skill" "$INIT_RC"
 assert_out_contains "$ERR" '\[error\]' "MIR-2: [error] line on stderr"
-assert_out_contains "$ERR" 'do-task' "MIR-2: stderr names the missing required skill"
+assert_out_contains "$ERR" 'do-tasks' "MIR-2: stderr names the missing required skill"
 # ERR-1.1: preflight runs BEFORE any write — the target stays untouched.
 assert_not_exists "MIR-2: no artifact written on preflight failure" "$mir2_target/.github-project.env"
 assert_not_exists "MIR-2: no skills copied on preflight failure" "$mir2_target/.opencode"

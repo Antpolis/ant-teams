@@ -11,7 +11,7 @@
 #
 #   - AC-T4-001: github-issues-projects-cli/scripts/gh_project_helper.sh
 #                exists with execute permission.
-#   - AC-T4-002: do-task/scripts/create_task_worktree.sh and
+#   - AC-T4-002: do-tasks/scripts/create_task_worktree.sh and
 #                cleanup_task_worktree.sh exist WITH execute permission.
 #   - AC-T4-003: the retired project-initialization skill is NOT copied
 #                (the engine lives at $ANT_TEAM_SCRIPTS/init-project.sh and
@@ -40,12 +40,12 @@ source "$SCRIPT_DIR/lib/init_helpers.sh"
 
 SOURCE_SKILLS_DIR="$INIT_REPO_ROOT/templates/opencode/skills"
 
-REQUIRED_SKILLS=( github-issues-projects-cli do-task )
+REQUIRED_SKILLS=( github-issues-projects-cli do-tasks )
 EXCLUDED_SKILLS=( skill-creator webapp-testing doc-coauthoring frontend-design )
 REQUIRED_SCRIPT_PATHS=(
   'github-issues-projects-cli/scripts/gh_project_helper.sh'
-  'do-task/scripts/create_task_worktree.sh'
-  'do-task/scripts/cleanup_task_worktree.sh'
+  'do-tasks/scripts/create_task_worktree.sh'
+  'do-tasks/scripts/cleanup_task_worktree.sh'
 )
 
 TMP="$(mktemp -d)"
@@ -141,7 +141,7 @@ assert_exit_zero "fresh project init exits 0" "$INIT_RC"
 init_suite "AC-T4-001/002/003 required scripts exist & executable"
 
 tgt_gih="$fresh/.opencode/skills/github-issues-projects-cli"
-tgt_dotask="$fresh/.opencode/skills/do-task"
+tgt_dotask="$fresh/.opencode/skills/do-tasks"
 
 assert_exists "AC-T4-001: gh_project_helper.sh exists" "$tgt_gih/scripts/gh_project_helper.sh"
 if has_exec "$tgt_gih/scripts/gh_project_helper.sh"; then
@@ -151,13 +151,13 @@ else
 fi
 assert_exists "AC-T4-001: github-issues-projects-cli/SKILL.md exists" "$tgt_gih/SKILL.md"
 
-assert_exists "AC-T4-002: do-task/scripts/create_task_worktree.sh exists" "$tgt_dotask/scripts/create_task_worktree.sh"
+assert_exists "AC-T4-002: do-tasks/scripts/create_task_worktree.sh exists" "$tgt_dotask/scripts/create_task_worktree.sh"
 if has_exec "$tgt_dotask/scripts/create_task_worktree.sh"; then
   check OK "AC-T4-002: create_task_worktree.sh has execute permission"
 else
   check FAIL "AC-T4-002: create_task_worktree.sh has execute permission"
 fi
-assert_exists "AC-T4-002: do-task/scripts/cleanup_task_worktree.sh exists" "$tgt_dotask/scripts/cleanup_task_worktree.sh"
+assert_exists "AC-T4-002: do-tasks/scripts/cleanup_task_worktree.sh exists" "$tgt_dotask/scripts/cleanup_task_worktree.sh"
 if has_exec "$tgt_dotask/scripts/cleanup_task_worktree.sh"; then
   check OK "AC-T4-002: cleanup_task_worktree.sh has execute permission"
 else
@@ -235,7 +235,7 @@ fi
 
 init_suite "FR-7.3 merge does not overwrite arbitrary files"
 
-sentinel_target="$fresh/.opencode/skills/do-task/scripts/create_task_worktree.sh"
+sentinel_target="$fresh/.opencode/skills/do-tasks/scripts/create_task_worktree.sh"
 sentinel='# project-local sentinel — init must not overwrite this file'
 printf '%s\n' "$sentinel" > "$sentinel_target"
 run_init "$fresh"

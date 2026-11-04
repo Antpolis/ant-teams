@@ -72,8 +72,8 @@ fi
 # AC-SPEC-007: exactly 2 required skills + required scripts present.
 assert_eq "exactly 2 skills" "$(e2e_count_skill_dirs "$TMP")" "2"
 assert_exec "$TMP/.opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh"
-assert_exec "$TMP/.opencode/skills/do-task/scripts/create_task_worktree.sh"
-assert_exec "$TMP/.opencode/skills/do-task/scripts/cleanup_task_worktree.sh"
+assert_exec "$TMP/.opencode/skills/do-tasks/scripts/create_task_worktree.sh"
+assert_exec "$TMP/.opencode/skills/do-tasks/scripts/cleanup_task_worktree.sh"
 # The retired project-initialization skill is never copied into targets.
 assert_not_exists "project-initialization not copied" "$TMP/.opencode/skills/project-initialization"
 

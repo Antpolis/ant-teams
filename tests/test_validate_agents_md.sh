@@ -76,7 +76,7 @@ Language: Node.js
 
 - \`AGENTS.md\` — canonical agent guidance for this repository
 - \`.github-project.env\` — ANT_TEAM_* runtime exports (sole project config source)
-- \`.opencode/skills/do-task/\` — task worktree management scripts
+- \`.opencode/skills/do-tasks/\` — task worktree management scripts
 $*
 EOF
 }
@@ -86,7 +86,7 @@ EOF
 materialize_good_artifacts() {
   local dir="$1"
   printf "export ANT_TEAM_GITHUB_OWNER='o'\n" > "$dir/.github-project.env"
-  mkdir -p "$dir/.opencode/skills/do-task"
+  mkdir -p "$dir/.opencode/skills/do-tasks"
 }
 
 # --- AC-T8-001: known-good AGENTS.md passes ------------------------------------

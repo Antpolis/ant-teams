@@ -94,9 +94,7 @@ assert_not_exists "sentinel script gone from live tree" "$HOME_DIR/.agents/scrip
 
 # The reset tree carries NO unmanaged siblings, so the managed dir count is
 # exact: every source skill + command-derived entry, nothing else.
-REAL_SKILLS="$(find "$SYNC_REAL_OPENCODE/skills" -mindepth 2 -maxdepth 2 -type f -name SKILL.md | wc -l | tr -d ' ')"
-REAL_CMDS="$(find "$SYNC_REAL_OPENCODE/commands" -maxdepth 1 -name '*.md' -type f 2>/dev/null | wc -l | tr -d ' ')"
-EXPECTED_TOTAL=$(( REAL_SKILLS + REAL_CMDS ))
+EXPECTED_TOTAL="$(sync_expected_managed_entries "$SYNC_REAL_OPENCODE")"
 assert_eq "live skills dir has exactly the managed inventory" \
   "$(sync_count_dirs "$HOME_DIR/.agents/skills")" "$EXPECTED_TOTAL"
 assert_eq "manifest rebuilt with full inventory" \
