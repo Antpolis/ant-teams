@@ -24,6 +24,8 @@ GitHub remains the operational closeout record. The canonical Obsidian SPEC, ARC
 
 Do not create a release, tag, close a milestone, or clean a task workspace until all required milestone issues are in `Done` and each has a merged PR or an explicit, approved non-code completion record.
 
+For work executed through `do-tasks`, verify the recorded full CI result passed on the final integrated production-base commit, including any post-fix commit. Missing, stale, pending, or failing evidence means closeout is not ready; report it and do not create the release or close the milestone.
+
 For every issue not in `Done`:
 
 - keep the milestone open; or

@@ -279,6 +279,16 @@ Documentation and testing tasks are required by default. If either is excluded, 
 
 Split tasks by ownership boundary rather than chronology. If two tasks would touch the same files concurrently, call out the conflict, resolve it by resequencing, or split differently. Tasks should be as parallelisable as the dependencies allow.
 
+### Minimize hard dependencies
+
+Shape and sequence issues to minimize hard dependencies without weakening correctness, security, integration, or acceptance. Prefer independently testable slices and stable agreed interfaces; consider splitting preparatory work from integration when that makes useful work independently executable. Do not invent dependencies merely because one task is earlier in a preferred sequence, shares a milestone, or uses CI. Preserve genuine data, API, migration, and merge-order prerequisites.
+
+Make each issue the smallest coherent slice that can be implemented, independently reviewed, and tested; split a prerequisite only when the split unlocks useful work. Avoid tiny fragments that increase coordination or cannot stand on their own. For parallel candidates, record shared contracts, overlapping files or mutable resources, base assumptions, any genuine merge order, and the owner and method for verifying integration after merges. Separate worktrees isolate files, not contracts or external resources.
+
+For each dependency recorded in the issue and milestone, explain the concrete prerequisite, why work cannot safely proceed without it, and its evidence or release condition. Distinguish hard prerequisites from preferred order, coordination or shared-file conflicts, and external uncertainties. Record parallel-safe work and a practical mitigation or workaround for external dependencies; do not promise outcomes controlled by third parties. Revisit unnecessary edges during planning and when circumstances change.
+
+Plan focused task-level verification alongside implementation. Do not make pending or successful CI a prerequisite for shaping, starting, reviewing, or progressing another issue. Plan full CI verification of the final integrated production-base commit after implementation PRs merge, with failures resolved before pass completion or spec closeout; in a single-issue loop require it before issue closure or `Done`. If a GitHub rule actually prevents a merge pending CI or code scanning, report the rule and continue independent work; never bypass or modify protection without authorization. Follow `do-tasks` for execution details.
+
 Use the GitHub workflow skills to decide project states, blockers, approvals, and escalation behaviour.
 
 ## Required Handoff Outcome

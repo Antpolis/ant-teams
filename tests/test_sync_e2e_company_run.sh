@@ -41,6 +41,7 @@ assert_exit_zero "init-company.sh exit 0" "$SYNC_RC"
 
 # FR-1: canonical install target populated.
 assert_exists "canonical opencode.json installed" "$HOME_DIR/.config/opencode/opencode.json"
+assert_eq "nested subagent depth installed" "$(jq -r '.experimental.subagent_depth' "$HOME_DIR/.config/opencode/opencode.json")" "2"
 assert_not_exists "canonical skills dir is not installed" "$HOME_DIR/.config/opencode/skills"
 assert_exists "canonical commands dir installed" "$HOME_DIR/.config/opencode/commands"
 assert_exists "team scripts installed" "$HOME_DIR/.agents/scripts/validate-agents-md.sh"

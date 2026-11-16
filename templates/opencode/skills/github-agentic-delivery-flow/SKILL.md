@@ -164,7 +164,7 @@ When `tech-lead` asks `strategist` to clarify a spec or issue during execution:
 - record the clarification request, resolution, and next action in the relevant GitHub issue or PR
 - update an Obsidian document only if the result changes durable product intent, architecture, governance, a runbook, or reusable cross-task knowledge
 - keep execution within the selected spec; record external dependencies as blockers rather than treating them as permission to switch specs
-- skip to another issue only when waiting on a real blocker or human input
+- continue independently executable scoped issues in parallel when safe, including while another issue is in progress, review, or awaiting merge; preserve actual dependencies and role gates
 
 Comments alone are not sufficient when the next action is "implement". That next action must point to an actual task issue, not just a discussion thread.
 

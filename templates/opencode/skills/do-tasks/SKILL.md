@@ -32,7 +32,19 @@ Resolve the selected canonical SPEC and milestone from the user's argument or an
 
 Record the selected spec/milestone and scoped issue set in the queue plan and pass that scope to every delegate and continuation check. Every queue query, reconciliation, priority rule, readiness check, triage, and next-action decision below is limited to that scope. Outside issues may be read as dependency evidence; they are not execution candidates without an explicit scope change.
 
+Before the first delegation of the pass, create a task list using the runtime task-list tool if available, otherwise maintain it in the local session-context note. Start with queue planning and reconciliation; populate scoped issues as they are discovered, before dispatching builders. Track each issue's scope, dependencies, assigned builder session, worktree, branch, PR, current stage, next responsible role, pending review/merge/CI or blockers, and completion/verification evidence. Update it at meaningful handoffs and reconcile against GitHub before dispatch and completion. This is a coordination aid only: GitHub remains authoritative for ownership, state, handoffs, approvals, and merges.
+
 Continue through implementation, independent review, and tech-lead merge for every required scoped issue. One merged issue is a checkpoint, not completion. A blocked issue does not stop independent executable work in the same scope; record it and continue safely. If no scoped action remains, report the actual blocking decision or dependency.
+
+## CI Timing For This Pass
+
+CI is not a per-issue review or workflow merge gate: do not wait for pending CI to review, approve, merge, or start another independently executable issue. Keep the normal reviewer approval, tech-lead alignment, and focused local verification gates; investigate concrete correctness or security failures rather than ignoring them. Record pending or failing CI and continue safe independent work.
+
+After all scoped implementation PRs have merged, verify the full CI suite against the final integrated production-base commit, record the commit, run link and result in the GitHub collaboration record, and resolve failures before reporting the pass complete or closing the spec. Re-run on the new final integrated commit after any fix. For a single-issue loop, perform this final CI check after its PR merges and before closing or marking the issue `Done`; a merged PR awaiting final CI is not yet `Done`. For a multi-issue loop, intermediate issues may be `Done` after their normal merge gates, while final integrated CI remains outstanding for the pass. Do not wait for spec closeout to discover or run this check.
+
+For a single-issue loop, link the PR to the issue without GitHub closing keywords such as `Fixes #123` in the PR body or commits, so merge does not auto-close it before final CI. Before merging, check the PR and commits for closing references and other known auto-close automation; correct any under the responsible role. If external automation nevertheless closes it early, record the discrepancy, reopen the issue, and keep it out of `Done` until final CI passes. Do not pretend the check succeeded if CI is unavailable or fails.
+
+If an actual GitHub branch protection or ruleset requires CI or code-scanning results before merge, report the exact rule, affected PR and check to the user, record it in GitHub, and continue independently executable work. Do not bypass or modify protections, claim the PR merged, or mark an unmerged issue `Done`. If no safe work remains, report the external merge restriction and its consequences; do not silently treat it as a workflow CI gate.
 
 The run is complete when every required scoped issue is `Done` with the required merge or approved non-code completion evidence and no unresolved scope or acceptance gap remains. Deferred or removed work counts only when its explicit approved disposition is recorded in GitHub. An empty `Ready` queue alone does not prove completion.
 
@@ -44,7 +56,7 @@ An issue is done **only** when all of the following are true:
 
 1. Builder has implemented the approved scope on the task branch and left a durable handover note.
 2. Reviewer has reviewed, found no blockers, posted an explicit approval comment on the PR, and moved the issue to `Ready to Merge`.
-3. Tech-lead has performed the final spec-alignment check, confirmed KISS, separation of concerns, and folder/package/namespace placement against architecture docs, merged the PR, posted a merge confirmation comment, and moved the issue to `Done`.
+3. Tech-lead has performed the final spec-alignment check, confirmed KISS, separation of concerns, and folder/package/namespace placement against architecture docs, merged the PR, posted a merge confirmation comment, and moved the issue to `Done` (after final integrated CI for a single-issue loop).
 
 None of the following is sufficient on its own to treat an issue as done and move to the next:
 
@@ -53,7 +65,7 @@ None of the following is sufficient on its own to treat an issue as done and mov
 - PR is open
 - reviewer approves and moves to `Ready to Merge`
 
-The orchestrator must verify all three conditions are met before treating an issue as settled and advancing the queue.
+The orchestrator must verify all three conditions before treating an issue as settled. Pending CI or a GitHub-enforced merge restriction must not stop independent scoped work from advancing.
 
 ## Core Rule
 
@@ -62,6 +74,8 @@ The `tech-lead` establishes the ordered issue list, dependencies, execution prio
 `tech-lead` owns preparing the issue worktree and task branch before builder delegation, using the centralized helper for new work and reusing existing issue workspaces for continuation. `orchestrator` verifies that setup and records the location in the concise delegation. `builder` owns implementation, moving the issue into the correct implementation state, opening or updating the PR, and leaving a durable implementation handover note before `reviewer` takes over; builder must not create a competing workspace or branch during normal flow.
 
 **Serialize builder ownership per issue.** Dispatch only one builder for an issue/worktree/branch at a time; do not launch a duplicate builder or reviewer while implementation, verification, or a task-owned background process is still active. A progress-only response is not completion. Require the same builder session to finish or explicitly reconcile its process, worktree, branch, PR head, and GitHub handoff before any continuation or role change. Parallel builders are permitted only for independent issues with separate tech-lead-provisioned worktrees/branches and no shared mutable resources.
+
+For independent ready issues, Ant may dispatch multiple builders concurrently after tech-lead provisions each workspace and the task list records ownership. Respect capacity and real dependencies; assign one builder per issue. Track each session separately, and do not start its reviewer until that builder has finished and its PR and handoff are verified. Continue other safe work while a builder, review, merge, or CI check is in flight. Reconcile results and GitHub records as each finishes; tech-lead retains exclusive merge ownership and verifies integration against the current base. Worktree separation does not eliminate contract, merge, or shared-resource conflicts. Second-level delegation is not required: Ant may launch builders directly.
 
 Do not require strategist confirmation for every issue.
 Bring in `strategist` only when product intent, scope meaning, or execution meaning is unclear.
@@ -74,9 +88,9 @@ Bring in `tech-lead` when technical interpretation, sequencing, guardrails, or l
    dependencies, current spec focus, active-work reconciliation, sequencing
    rationale, and execution guardrails. Wait for its completed final response
    and verify its required GitHub record before proceeding.
+   Minimize and justify hard dependencies using `how-to-create-task`; identify independently executable work and do not add CI as an inter-issue prerequisite.
 2. Inspect any issues in `Ready to Merge` and route them to `tech-lead` for
-   the final spec-alignment check and merge decision. Do not pull fresh
-   `Ready` work while a `Ready to Merge` issue is waiting.
+   the final spec-alignment check and merge decision. If merge cannot proceed because of an external CI-related rule, record and report it, then continue independent `Ready` work.
 3. Inspect any issues already in `In Progress`.
 4. Inspect any issues already in `In Review` before pulling fresh work so
    reviewer-gated work does not stall behind new execution.
@@ -103,7 +117,7 @@ Bring in `tech-lead` when technical interpretation, sequencing, guardrails, or l
 12. If an issue is blocked, record its unblocking condition and continue another independently executable scoped issue. Work on an external dependency requires an explicit scope extension.
 13. Process required scoped issues through implementation, review, and merge.
 14. At each local stopping point, run `continue-delivery-queue` with the selected scope before ending the pass.
-15. If no executable scoped issue remains, reconcile all required issues and acceptance coverage. Ask tech-lead to resolve incomplete scoped readiness or technical instructions, and strategist to clarify product acceptance when needed. If all required work is complete, report completion. Otherwise report the exact remaining blocker; do not triage unrelated repository work or start another spec.
+15. If no executable scoped issue remains, reconcile all required issues and acceptance coverage and verify final integrated CI as described above. Ask tech-lead to resolve incomplete scoped readiness or technical instructions, and strategist to clarify product acceptance when needed. If all required work is complete, report completion. Otherwise report the exact remaining blocker; do not triage unrelated repository work or start another spec.
 
 ## Empty Scoped Queue
 
@@ -155,7 +169,7 @@ The repository ships optional Ponytail skills: `ponytail`, `ponytail-review`, `p
 
 - every issue in `Ready to Merge` must be routed to `tech-lead` by `orchestrator` before it is considered done
 - `tech-lead` reads the linked central Obsidian project documentation, GitHub issue, and PR diff to verify that implementation matches approved scope and satisfies architecture guardrails (KISS, separation of concerns, folder/package/namespace)
-- if the check passes: `tech-lead` merges the PR, moves the issue to `Done`, and posts a merge confirmation comment on the PR. The reviewer approval comment plus the passed tech-lead check authorize this workflow merge; do not wait for a GitHub-native `APPROVED` review state unless repository rules explicitly require one.
+- if the check passes: `tech-lead` merges the PR, posts a merge confirmation comment on the PR, and moves the issue to `Done` (for a single-issue loop, only after final integrated CI passes). The reviewer approval comment plus the passed tech-lead check authorize this workflow merge; do not wait for CI or a GitHub-native `APPROVED` review state unless repository rules explicitly require one.
 - If `pr-merge` is rejected by GitHub, inspect the actual error and PR checks/rules. Do not claim that the approval comment is a native approval or repeatedly retry. If a repository rule specifically requires a native approval from a distinct account, this workflow cannot satisfy that rule with the same account: record the exact blocker in the PR and issue, move the issue to `Blocked`, and notify the user to provide an authorized reviewer or change the repository rule. Otherwise resolve the reported failing check or permission issue and continue.
 - if the check fails: `tech-lead` posts the code-specific findings and rework reasoning in PR comments, with a concise issue-comment summary; builder picks the findings up on the same branch and the review loop continues through `In Progress` and `In Review`; `tech-lead` moves the issue to `Need attentions` only when a founder decision is required before the findings can be addressed
 - a tech-lead final check failure that results in builder rework counts as a continuation of the same review loop — the 8-loop cap applies across all review passes for the issue including those triggered by tech-lead findings; if the cap is hit, treat it as a loop-breaker and escalate to founder

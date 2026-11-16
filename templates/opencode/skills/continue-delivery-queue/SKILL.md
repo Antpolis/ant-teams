@@ -52,7 +52,7 @@ Continue with the next issue in the tech-lead-established ordered queue plan by 
 Apply this order every time an issue leaves the active loop:
 
 1. Confirm the just-finished issue is actually settled for this pass.
-2. Check whether any issue is in `Ready to Merge`. If yes, route it to `tech-lead` for the final spec-alignment check and merge decision before doing anything else.
+2. Check whether any issue is in `Ready to Merge`. Promptly route it to `tech-lead` for the final spec-alignment check and merge decision; continue independent work while that action is in flight or externally restricted.
 3. Check whether any other issue is already pending and executable (`Ready`, `In Progress`, `In Review`).
 4. If yes, continue directly to that pending issue.
 5. If no pending executable issue exists, check whether any issue is in `Need attentions`.
@@ -74,7 +74,7 @@ Executable means:
 - the next responsible role is clear
 - the required internal delegation can happen now
 
-`Ready to Merge` issues are always the highest-priority executable work. Route them to `tech-lead` immediately — do not start fresh `Ready` work while a `Ready to Merge` issue is waiting.
+Route `Ready to Merge` issues promptly to `tech-lead`, but do not hold independent `Ready` work while a merge or its external restriction is pending. Do not duplicate an in-flight role invocation. Track it in the task list and reconcile its result before the next dependent action.
 
 Do not pause the pass just because the previous issue required effort, produced a PR, or triggered review.
 
@@ -131,7 +131,7 @@ Treat an escalation as non-blocking when:
 
 Before ending the call or returning control to the user, the active workflow coordinator must explicitly confirm:
 
-1. no issue is in `Ready to Merge` awaiting tech-lead final check
+1. no actionable issue is in `Ready to Merge` awaiting tech-lead final check; any external restriction is recorded and reported
 2. no executable pending issue remains (`Ready`, `In Progress`, `In Review`)
 3. no `Need attentions` issue can still be routed to strategist or tech-lead internally
 4. any founder escalation already opened has been tested for whether it blocks the remaining queue

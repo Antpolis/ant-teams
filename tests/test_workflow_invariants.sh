@@ -491,6 +491,72 @@ inv10b() {
 check_body 'INV-10a: AGENTS.md is the primary runtime guidance for .github-project.env' inv10a
 check_body 'INV-10b: runtime-facing commands and skills never instruct runtime JSON parsing' inv10b
 
+inv_founder_escalation() {
+  local content phrase
+  content="$(read_file 'templates/opencode/skills/founder-escalation-preflight/SKILL.md')"
+  for phrase in 'Blocker and impact:' 'Work completed and attempts:' 'Why this is escalated:' \
+    'Options:' 'Resolvability and specialist input:' 'Recommendation:' 'Exact founder decision or action:' 'After your decision:' 'Unblock plan:' \
+    'who controls each option' 'distinguish verified facts from assumptions' \
+    'an outcome it cannot guarantee' 'alternatives under the team' \
+    'If no founder decision is needed' 'clear exit condition' 'if the preferred path fails' \
+    'Obtain both `tech-lead` and `strategist` input' 'investigate a feasible workaround' \
+    'unless access and authority are verified'; do
+    must_contain "$content" "$phrase" 'founder escalation guidance' || return 1
+  done
+}
+check_body 'founder escalation gives researched, actionable guidance' inv_founder_escalation
+
+inv_final_ci() {
+  local content phrase
+  content="$(read_file 'templates/opencode/skills/do-tasks/SKILL.md')"
+  for phrase in 'CI is not a per-issue review or workflow merge gate' \
+    'final integrated production-base commit' 'before closing or marking the issue `Done`' \
+    'continue independently executable work' 'Do not bypass or modify protections' \
+    'Re-run on the new final integrated commit'; do
+    must_contain "$content" "$phrase" 'do-tasks CI timing' || return 1
+  done
+}
+check_body 'do-tasks defers CI to final integrated verification' inv_final_ci
+
+inv_task_dependencies() {
+  local content phrase f
+  content="$(read_file 'templates/opencode/skills/how-to-create-task/SKILL.md')"
+  for phrase in 'minimize hard dependencies' 'why work cannot safely proceed' \
+    'Distinguish hard prerequisites from preferred order' 'Do not make pending or successful CI' \
+    'final integrated production-base commit' 'single-issue loop'; do
+    must_contain "$content" "$phrase" 'task planning guidance' || return 1
+  done
+  for f in new-spec sync-spec tech-lead-delivery; do
+    content="$(read_file "templates/opencode/skills/github-agentic-delivery-flow/references/$f.md")"
+    must_contain "$content" 'how-to-create-task' "$f task planning" || return 1
+    must_contain "$content" 'CI' "$f task planning" || return 1
+  done
+}
+check_body 'task shaping and planning minimize dependencies and defer CI' inv_task_dependencies
+
+inv_parallel_delivery() {
+  local tasks queue flow lead planning closeout phrase
+  tasks="$(read_file 'templates/opencode/skills/do-tasks/SKILL.md')"
+  queue="$(read_file 'templates/opencode/skills/continue-delivery-queue/SKILL.md')"
+  flow="$(read_file 'templates/opencode/skills/github-agentic-delivery-flow/SKILL.md')"
+  lead="$(read_file 'templates/opencode/skills/github-agentic-delivery-flow/references/tech-lead-delivery.md')"
+  planning="$(read_file 'templates/opencode/skills/how-to-create-task/SKILL.md')"
+  closeout="$(read_file 'templates/opencode/skills/spec-closeout/SKILL.md')"
+  for phrase in 'Before the first delegation of the pass, create a task list' 'assigned builder session' \
+    'dispatch multiple builders concurrently' 'do not start its reviewer until' \
+    'without GitHub closing keywords' 'reopen the issue'; do
+    must_contain "$tasks" "$phrase" 'parallel execution' || return 1
+  done
+  must_contain "$queue" 'do not hold independent `Ready` work' 'queue continuation' || return 1
+  must_not_contain "$queue" 'do not start fresh `Ready` work while a `Ready to Merge` issue is waiting' 'queue continuation' || return 1
+  must_contain "$flow" 'continue independently executable scoped issues in parallel' 'shared flow' || return 1
+  must_contain "$lead" 'wait for final integrated CI before closing' 'tech-lead single issue' || return 1
+  must_contain "$planning" 'smallest coherent slice' 'task splitting' || return 1
+  must_contain "$planning" 'owner and method for verifying integration' 'integration planning' || return 1
+  must_contain "$closeout" 'full CI result passed on the final integrated production-base commit' 'spec closeout' || return 1
+}
+check_body 'parallel delivery tracks work and preserves final CI gates' inv_parallel_delivery
+
 # --- INV-11: no routine Obsidian regression; spec/closeout/memory contracts ---------------------------------
 
 init_suite "INV-11 record-boundary and planning contracts"

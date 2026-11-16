@@ -13,6 +13,8 @@ Flow:
 4. Ant delegates tech-lead to create or update the GitHub milestone for the spec only when no planning-blocking decision remains open.
 5. Tech-lead creates all required GitHub task issues under that milestone.
 6. Ensure each task has the correct title, bounded scope, non-goals, dependencies, acceptance criteria, verification, current responsible role, and `Durable Context` with exact URLs to the canonical SPEC and applicable ARCH, ADR, GOV, and runbook notes.
+
+   Apply `how-to-create-task` when splitting or sequencing: minimize and justify hard dependencies, identify parallel-safe work and external workarounds, and plan final integrated CI rather than CI prerequisites between issues.
 7. Assume issue-to-project linking is automatic in this repository workflow. Do not manually link an issue unless auto-linking failed or the user explicitly asks for manual linking.
 8. Update task status on the GitHub Project item itself, using the canonical `Workflow State` field. Do not treat issue body text as the source of task status.
 9. If the spec already exists in GitHub, reconcile instead of duplicating.

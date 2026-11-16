@@ -2,6 +2,9 @@
   "$schema": "https://opencode.ai/config.json",
   "plugin": [],
   "default_agent": "ant",
+  "experimental": {
+    "subagent_depth": 2
+  },
   "provider": {
     "bw-llm": {
       "options": {
