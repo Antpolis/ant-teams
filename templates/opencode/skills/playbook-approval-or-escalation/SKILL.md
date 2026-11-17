@@ -1,15 +1,17 @@
 ---
-name: approval-or-escalation
-description: Use when the GitHub delivery flow is already in place and the agent needs the specific approval, rework, blocker, defer, or escalation rules across strategist, tech-lead, builder, and reviewer. Prefer `github-agentic-delivery-flow` for the overall workflow model; use this skill for decision and escalation mechanics.
+name: playbook-approval-or-escalation
+description: Follow when an explicitly active GitHub delivery workflow requires an approval, rework, blocker, defer, or escalation decision across delivery roles.
 ---
 
-# Approval And Escalation
+# Approval And Escalation Playbook
 
 These rules apply within an explicitly activated managed delivery workflow. The coordinator is normally Ant Agent (`ant`); each specialist keeps its assigned responsibilities. Loading this skill does not activate a workflow or transfer coordination ownership.
 
 Use this skill whenever the agent needs to decide whether work can move forward, must return for rework, should be blocked, or needs escalation.
 
 This skill defines the approval model for the multi-agent delivery loop. It helps prevent premature completion, unclear review ownership, and endless rework without decision.
+
+Apply `principle-review-by-impact` when evaluating findings, `principle-break-unproductive-loops` when progress stalls, and `principle-defer-only-when-safe` when considering a deferral. Apply `principle-concise-actionable-communication` to blocker and escalation messages. These principles guide judgment; the gates and records below remain in force.
 
 ## Approval Gates
 
@@ -108,7 +110,7 @@ Use when:
 - access, permission, or destructive action requires explicit human approval
 - a blocker cannot be resolved safely by agents alone
 
-Before escalating to founder from delivery execution, use `founder-escalation-preflight`.
+Before escalating to founder from delivery execution, use `principle-founder-escalation-preflight`.
 That preflight must re-check repo docs, GitHub issue or spec history, relevant role memory, and remaining safe internal next steps.
 If the active workflow coordinator owns the current queue pass, the active workflow coordinator must run this preflight and confirm there is no safe remaining role invocation before founder escalation.
 If the strategist is deciding that founder input is needed, the strategist must run this preflight and confirm the remaining blocker is a true product, scope, prioritization, or business decision.
@@ -144,12 +146,12 @@ Before moving an issue to `Need attentions`:
 - confirm tech-lead review was attempted and could not resolve the question
 - confirm the remaining question is a real founder decision: product direction, prioritization, approval, credentials, or a tradeoff agents cannot safely make
 - record the full reasoning and what was already attempted in a founder-addressed GitHub issue comment; link relevant PR discussion when applicable
-- run `founder-escalation-preflight` to confirm internal paths are exhausted
+- run `principle-founder-escalation-preflight` to confirm internal paths are exhausted
 - leave the comment with the exact decision needed and the smallest unblocking answer
 
 After the founder decision is recorded:
 
-- move the issue back to the state it came from — typically `Ready`, `In Review`, or `Backlog`
+- move the issue to the appropriate Progressing status (`Ready` or `In Progress`) subject to its entry conditions; review-stage work must satisfy review entry conditions again before returning to review
 - move the issue to `Blocked` instead when the founder decision depends on an external condition outside anyone's control
 
 Internal strategist or tech-lead questions must not use `Need attentions`. Resolve them in GitHub issue comments while the issue stays in its current state, and return it to `Ready` once the next executable step is clear.
@@ -158,4 +160,4 @@ Internal strategist or tech-lead questions must not use `Need attentions`. Resol
 
 - Use this skill when deciding whether work is approved, rework, blocked, deferred, or escalated.
 - Use this skill when defining approval gates in prompts, issue templates, or workflow docs.
-- Use this skill with `state-transitions` so approval decisions map cleanly to board movement.
+- Use this skill with `github-agentic-delivery-flow/references/state-transitions.md` so approval decisions map cleanly to board movement.

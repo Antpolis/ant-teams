@@ -21,11 +21,11 @@ Procedure owners and entry points (consult only the explicitly requested procedu
 | `/sprint-clean` | [Reconcile delivery](references/sprint-clean.md) | Reconciles records and docs; does not start fresh implementation. |
 | `/close-spec` | `spec-closeout` | Closes an explicitly requested completed spec. |
 
-Continue the selected stage through its required handoffs and gates. Requesting one stage does not select another. Use `agentic-flow-terms`, `github-conventions`, `state-transitions`, and `approval-or-escalation` for detailed rules when needed. Do not load queue coordination for shaping, sync, reconciliation, or closeout.
+Continue the selected stage through its required handoffs and gates. Requesting one stage does not select another. Use `agentic-flow-terms`, `github-conventions`, [state transitions](references/state-transitions.md), and `playbook-approval-or-escalation` for detailed rules when needed. Do not load queue coordination for shaping, sync, reconciliation, or closeout.
 
 ## Standalone alternatives
 
-`bounded-change-playbook` owns standalone bounded changes, including ordinary bug fixes, small enhancements, and urgent fixes. It may use the shared role and review conventions below when it selects the specialist route; it does not inherit the spec queue's milestone and issue requirements. Reading this skill does not enter shaping or the `do-tasks` spec queue.
+`playbook-bounded-change` owns standalone bounded changes, including ordinary bug fixes, small enhancements, and urgent fixes. It may use the shared role and review conventions below when it selects the specialist route; it does not inherit the spec queue's milestone and issue requirements. Reading this skill does not enter shaping or the `do-tasks` spec queue.
 
 If investigation reveals a defect that warrants another playbook, report the reason and proposed alternative. Switching requires the user's explicit request; do not select or execute it automatically.
 
@@ -95,7 +95,7 @@ These conventions are references, not commands to execute every stage:
 
 - `new-spec` owns shaping and planning. Strategist clarifies business intent; tech-lead verifies feasibility, defines the milestone and issues using `how-to-create-task`, and establishes readiness. Required decisions and requirement coverage must be resolved before tasks enter `Ready`.
 - `do-tasks` owns the selected spec's development loop: plan the issue order, dispatch implementation, verify handoffs, obtain independent review, route merges to tech-lead, and continue until all required scoped issues are done or no safe scoped action remains. Detailed sequencing lives in that procedure.
-- `bounded-change-playbook` owns its direct-versus-specialist route and bounded-change execution. Specialist delivery follows the shared role, review, and merge conventions as applicable, without inheriting whole-spec execution or requiring a milestone/issue.
+- `playbook-bounded-change` owns its direct-versus-specialist route and bounded-change execution. Specialist delivery follows the shared role, review, and merge conventions as applicable, without inheriting whole-spec execution or requiring a milestone/issue.
 - `sprint-clean` owns explicitly requested reconciliation; it does not pull fresh implementation.
 - For explicitly requested release or milestone closeout, run `spec-closeout`. `do-tasks` completion does not create a release/tag or close the milestone automatically. Keep completed Project items in `Done` as audit history.
 
@@ -107,7 +107,7 @@ Use a small, explicit workflow state machine. The canonical happy path is:
 
 `Open` -> `Backlog` -> `Ready` -> `In Progress` -> `In Review` -> `Ready to Merge` -> `Done`
 
-Two exception states exist outside the happy path: `Need attentions` (founder-only) and `Blocked` (exception). State changes should be meaningful, not decorative.
+Categories are `Backlog` → `Progressing` → `Reviews` → `Done`, with only `Reviews` → `Progressing` allowed backward. `Open` and `Backlog` map to Backlog; `Ready` (to do), `In Progress`, `Need attentions`, and `Blocked` to Progressing; `In Review` and `Ready to Merge` to Reviews; `Done` to Done. Apply `principle-make-state-changes-evidence-based` and [state transitions](references/state-transitions.md); category mapping does not waive status gates.
 
 Use them like this:
 
@@ -118,14 +118,14 @@ Use them like this:
 - `In Progress`: builder is actively executing
 - `In Review`: waiting for reviewer review or re-review
 - `Ready to Merge`: reviewer has approved with no blockers and posted an explicit approval comment on the PR; waiting for tech-lead final check and merge
-- `Blocked`: exception state entered when tech-lead and strategist cannot resolve a dependency, decision, credential, permission, or external condition; any state may enter it, typically `In Progress` or `In Review`
+- `Blocked`: Progressing status entered when tech-lead and strategist cannot resolve a dependency, decision, credential, permission, or external condition; review-stage work returns to Progressing. Do not move Done work backward.
 - `Done`: PR merged and validated by tech-lead
 
 Additional rule:
 
 - A spec-level milestone should not be treated as execution-ready until it has concrete child issues, and at least one non-blocked child issue is in `Ready` when execution can begin.
 - During `do-tasks`, execution stays within the selected spec or an explicitly narrowed scope. A dependency or blocker does not authorize work on another spec; request an explicit scope change when needed.
-- During sprint planning, inspect issues in `Need attentions` before pulling fresh `Ready` work. Confirm strategist and tech-lead review were both attempted, surface the founder decision if one is genuinely pending, then move resolved issues back to their prior state.
+- During sprint planning, inspect issues in `Need attentions` before pulling fresh `Ready` work. Confirm strategist and tech-lead review were both attempted, surface the founder decision if one is genuinely pending, then move resolved issues to the appropriate Progressing status subject to its entry conditions.
 
 ## Required Issue Quality Bar
 
@@ -157,7 +157,7 @@ When an agent moves an issue to `Need attentions`:
 
 - strategist and tech-lead review must both have been attempted first
 - leave a concise founder-addressed GitHub comment naming the exact decision needed, the reason it is blocked, and the intended next state
-- state the smallest decision or clarification needed to move the issue back toward its prior state
+- state the smallest decision or clarification needed to resume in the appropriate Progressing status
 
 When `tech-lead` asks `strategist` to clarify a spec or issue during execution:
 
@@ -201,7 +201,7 @@ Escalate when:
 
 When escalating, say what is blocked, why it is blocked, who must decide, and what the smallest unblocking decision is.
 
-Before escalating to the founder from delivery execution, run `founder-escalation-preflight`.
+Before escalating to the founder from delivery execution, run `principle-founder-escalation-preflight`.
 Founder escalation should happen only after checking repo docs, GitHub collaboration history, relevant role memory, and remaining safe internal delegation paths.
 When the orchestrator owns the queue pass, the orchestrator is responsible for running that preflight and confirming there is no safe remaining role invocation before founder escalation on execution blockers.
 When the blocker is a true product, scope, prioritization, or business-direction question, `strategist` may run that preflight and decide that founder input is needed.

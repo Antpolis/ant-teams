@@ -1,5 +1,5 @@
 ---
-name: bounded-change-playbook
+name: playbook-bounded-change
 description: Use when the user asks you to implement a small, bounded code change, such as a bug fix, minor enhancement, or urgent fix. The user-selected agent triages the request and chooses direct implementation or a tech-lead/builder/reviewer loop based on blast radius, risk, and uncertainty. Do not use for read-only debugging, broad product work, or approved spec queues.
 argument-hint: <change request>
 ---

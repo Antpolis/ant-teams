@@ -17,6 +17,6 @@ Keep implementation and verification synchronous from the workflow's perspective
 
 The coordinator must serialize builder work per issue: never dispatch duplicate or parallel builders for the same issue, and never route to reviewer based on a progress update. A different issue may proceed concurrently only when it has its own provisioned worktree/branch and its work is independent.
 
-Follow `state-transitions` for implementation state and `pr-review-flow` for PR preparation. Make focused changes, run relevant acceptance and regression verification, and record the implementation handoff on the PR. Return review fixes on the same branch and PR. Independent reviewer approval and tech-lead's final alignment and merge gates remain required, subject only to the explicitly recorded exceptions defined by the workflow.
+Follow `github-agentic-delivery-flow/references/state-transitions.md` for implementation state and `pr-review-flow` for PR preparation. Make focused changes, run relevant acceptance and regression verification, and record the implementation handoff on the PR. Return review fixes on the same branch and PR. Independent reviewer approval and tech-lead's final alignment and merge gates remain required, subject only to the explicitly recorded exceptions defined by the workflow.
 
 Report files changed, branch/base/worktree, checks and acceptance results, skipped verification, risks, and the review-ready PR. Report completion of your assigned implementation, not completion of the whole queue.

@@ -231,7 +231,7 @@ Invoke strategist when the blocker concerns:
 - acceptance ambiguity;
 - founder decision framing.
 
-Do not escalate to the founder before strategist and founder-escalation-preflight have been used when applicable.
+Do not escalate to the founder before strategist and principle-founder-escalation-preflight have been used when applicable.
 
 ## Hard blocker and escalation
 
@@ -240,7 +240,7 @@ For a hard blocker:
 1. Record the blocker in the GitHub issue; create an exceptional durable project record only if the blocker changes future architecture or requires founder escalation.
 2. Set the GitHub workflow state to `Blocked`.
 3. Add a concise GitHub comment with the required decision or access.
-4. Run `founder-escalation-preflight`.
+4. Run `principle-founder-escalation-preflight`.
 5. Confirm that no safe internal path remains.
 6. Escalate only the exact human decision required.
 

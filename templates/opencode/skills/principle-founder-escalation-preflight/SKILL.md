@@ -1,5 +1,5 @@
 ---
-name: founder-escalation-preflight
+name: principle-founder-escalation-preflight
 description: Use when the active workflow coordinator, strategist, or another execution-role agent is about to interrupt the founder with a blocker, escalation, or approval request during delivery work. Run this skill before founder escalation to re-check repository docs, GitHub issue or spec conversation history, relevant role memory, prior handoffs, and safe internal next steps so agents do not escalate early when the answer is already in the repo or can still be resolved internally. Do not use this for normal founder collaboration during spec shaping, planning, or sprint discussion.
 ---
 
@@ -15,7 +15,7 @@ Do not use this skill to police normal founder collaboration during shaping or p
 
 Use the agentic-flow-terms skill as the canonical glossary for workflow terms.
 Use github-agentic-delivery-flow for the overall operating model.
-Use approval-or-escalation for the approval gate and escalation rules.
+Use playbook-approval-or-escalation for the approval gate and escalation rules.
 Use GitHub Issues, Pull Requests, milestone comments, and Project Workflow State as the operational collaboration record.
 Use role-memory only when an existing reusable lesson is relevant before deciding the founder is needed.
 
@@ -56,6 +56,7 @@ Before escalating, do all of the following:
 10. Identify a recommended feasible path and the smallest founder decision, permission, or action it requires. If no option can be verified, say what is unknown and recommend a realistic next investigation or decision rather than inventing a solution.
 11. Prepare an unblock plan before escalating: identify the next actionable steps, their owners and dependencies, the expected evidence or condition that clears the blocker, and when to check progress. Include what happens if the preferred path fails or an external party does not respond. If the final resolution is unknown, plan the investigation and its next decision point; do not promise an unverified outcome.
 12. Obtain both `tech-lead` and `strategist` input before founder escalation. Give each the blocker, evidence, attempts, constraints, and proposed options. Tech-lead assesses technical resolvability, ownership, feasibility, and workarounds; strategist assesses product impact, scope trade-offs, and whether a founder decision is truly needed. Record their suggestions and reasoning in the GitHub operational record and use them to refine the unblock plan. If either review is unavailable, report the missing review and why; do not claim it occurred or silently bypass an existing gate.
+13. Confirm the founder has the authority, access, and practical ability to perform the requested action; do not ask the founder to guarantee a third party's behavior. For a genuinely founder-owned visual preference, supply accessible visual examples and a recommendation before asking. If visual evidence is unavailable, say so and propose an achievable next step; do not escalate a CSS radius as a bare numerical choice.
 
 Do not escalate until this pass is complete.
 
@@ -123,7 +124,7 @@ When preflight says escalation is still needed, report with this structure:
 - Memory checked: <builder, reviewer, architect, or none>
 - Remaining safe internal step: <step or none>
 
-Use plain language and put the actionable summary first. Link supporting evidence in the relevant GitHub operational record and in the founder-facing escalation; explicitly mark unavailable evidence. If escalation is not needed, say what internal step should happen next and who should do it.
+Apply `principle-concise-actionable-communication`: use plain language and put the actionable summary first without omitting required evidence or the unblock plan. Link supporting evidence in the relevant GitHub operational record and in the founder-facing escalation; explicitly mark unavailable evidence. If escalation is not needed, say what internal step should happen next and who should do it.
 
 ## Quality Bar
 

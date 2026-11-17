@@ -14,7 +14,7 @@ The goal is simple: finishing one issue is not the same as finishing the pass.
 Use the agentic-flow-terms skill as the canonical glossary for workflow terms.
 Use github-agentic-delivery-flow for the overall GitHub operating model.
 Use do-tasks for the full queue-driving behavior before and around this decision point.
-Use state-transitions, approval-or-escalation, and founder-escalation-preflight for board movement and escalation decisions.
+Use `github-agentic-delivery-flow/references/state-transitions.md`, `playbook-approval-or-escalation`, and `principle-founder-escalation-preflight` for board movement and escalation decisions.
 Use GitHub Issues, Pull Requests, milestone comments, and Project Workflow State as the operational collaboration record. Consult curated documentation or existing role memory only when relevant durable context is needed before routing the next step.
 
 ## Optional Ponytail Checkpoint
@@ -59,8 +59,8 @@ Apply this order every time an issue leaves the active loop:
 6. If a `Need attentions` issue exists, inspect the founder-addressed GitHub comment and related GitHub collaboration record:
    - `Need attentions` is founder-only: strategist and tech-lead review must already have been attempted and recorded before the issue entered this state.
    - Confirm the founder decision is genuinely pending; if strategist or tech-lead resolution was actually still possible, route it back to that role instead.
-   - Founder-facing: run `founder-escalation-preflight` then escalate if confirmed.
-7. After the founder responds, decide whether the issue can return to its prior state (`Ready`, `In Review`, or `Backlog`), must move to `Blocked`, or still needs the founder decision tracked.
+   - Founder-facing: run `principle-founder-escalation-preflight` then escalate if confirmed.
+7. After the founder responds, decide whether the issue can move to the appropriate Progressing status (`Ready` or `In Progress`), must move to `Blocked`, or still needs the founder decision tracked. Review-stage work must satisfy review-entry conditions again before returning to review.
 8. Only after `Ready to Merge`, pending issues, and `Need attentions` issues are all exhausted should the active workflow coordinator consider ending the pass.
 
 ## Pending-Issue Rule
@@ -89,7 +89,7 @@ When no pending executable issue remains, inspect issues that need attention bef
 - send any unresolved product meaning, scope cuts, success criteria, prioritization, or business tradeoff questions to `strategist` first
 - send any unresolved technical direction, sequencing, feasibility, architecture, or guardrail questions to `tech-lead` first
 
-If strategist or tech-lead can still resolve the issue safely, record the operational guidance in GitHub and return the issue to its prior state.
+If strategist or tech-lead can still resolve the issue safely, record the operational guidance in GitHub and move the issue to the appropriate Progressing status subject to its entry conditions.
 If they determine the issue is truly external or approval-bound, move it to `Blocked` or prepare the founder escalation.
 
 Do not escalate to the founder merely because `Need attentions` exists, and do not leave an issue in `Need attentions` that either role could still resolve.
@@ -109,7 +109,7 @@ Ask:
 Then apply this rule:
 
 - if the founder escalation does not block another pending issue, continue with the pending issue and keep the escalation tracked separately
-- if the founder escalation does block the next pending issue or the active spec path, run founder-escalation-preflight and then escalate
+- if the founder escalation does block the next pending issue or the active spec path, run principle-founder-escalation-preflight and then escalate
 
 The active workflow coordinator should prefer continued internal execution whenever a safe pending issue still exists.
 
@@ -135,7 +135,7 @@ Before ending the call or returning control to the user, the active workflow coo
 2. no executable pending issue remains (`Ready`, `In Progress`, `In Review`)
 3. no `Need attentions` issue can still be routed to strategist or tech-lead internally
 4. any founder escalation already opened has been tested for whether it blocks the remaining queue
-5. any blocking founder escalation has passed founder-escalation-preflight
+5. any blocking founder escalation has passed principle-founder-escalation-preflight
 6. no safe internal delegation path remains
 
 If any item fails, continue the pass.

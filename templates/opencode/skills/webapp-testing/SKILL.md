@@ -6,6 +6,8 @@ license: Complete terms in LICENSE.txt
 
 # Web Application Testing
 
+Apply `principle-prove-the-outcome` to choose checks that exercise the claimed behavior and report evidence and limitations. This skill supplies browser-testing techniques; a screenshot or rendered page alone does not verify an interaction or integration.
+
 To test local web applications, write native Python Playwright scripts.
 
 **Helper Scripts Available**:

@@ -16,7 +16,7 @@
 #   - AC-T4-003: the retired project-initialization skill is NOT copied
 #                (the engine lives at $ANT_TEAM_SCRIPTS/init-project.sh and
 #                is not re-installed into targets).
-#   - AC-T4-004: skill-creator/, webapp-testing/, doc-coauthoring/,
+#   - AC-T4-004: skill-creator/, webapp-testing/, principle-write-for-the-audience/,
 #                frontend-design/ are NOT copied.
 #   - AC-T4-005: a project-customized SKILL.md is preserved verbatim
 #                (merge, not overwrite).
@@ -41,7 +41,7 @@ source "$SCRIPT_DIR/lib/init_helpers.sh"
 SOURCE_SKILLS_DIR="$INIT_REPO_ROOT/templates/opencode/skills"
 
 REQUIRED_SKILLS=( github-issues-projects-cli do-tasks )
-EXCLUDED_SKILLS=( skill-creator webapp-testing doc-coauthoring frontend-design )
+EXCLUDED_SKILLS=( skill-creator webapp-testing principle-write-for-the-audience frontend-design )
 REQUIRED_SCRIPT_PATHS=(
   'github-issues-projects-cli/scripts/gh_project_helper.sh'
   'do-tasks/scripts/create_task_worktree.sh'

@@ -1,15 +1,12 @@
----
-name: state-transitions
-description: Use when the GitHub delivery flow is already in place and the agent needs the specific rules for moving work between project states such as open, backlog, ready, in progress, in review, ready to merge, need attentions, blocked, and done. Prefer `github-agentic-delivery-flow` for the overall workflow model; use this skill for state-machine details.
----
-
-# State Transitions
+# GitHub State Transitions
 
 These rules apply within an explicitly activated managed delivery workflow. The coordinator is normally Ant Agent (`ant`); each specialist keeps its assigned responsibilities. Loading this skill does not activate a workflow or transfer coordination ownership.
 
-Use this skill whenever the agent needs to decide how work should move through the delivery workflow.
+Use this reference whenever the agent needs to decide how work should move through the GitHub delivery workflow.
 
 This skill defines the default project-board state machine and the conditions for each transition. It helps keep status changes meaningful and prevents work from drifting through the board without meeting entry or exit conditions.
+
+Apply `principle-make-state-changes-evidence-based` when evaluating a transition. Categories are `Backlog` → `Progressing` → `Reviews` → `Done`; `Reviews` → `Progressing` is the only backward category transition. Map `Open` and `Backlog` to Backlog; `Ready` (the existing board's to-do status), `In Progress`, `Need attentions`, and `Blocked` to Progressing; `In Review` and `Ready to Merge` to Reviews; and `Done` to Done. Review work requiring rework, attention, or blocker resolution returns to Progressing. Each status retains its specific gates below; category membership does not authorize skipping them. Do not rename or mutate remote board options merely to change their category mapping.
 
 ## Canonical State Model
 
@@ -17,10 +14,10 @@ The canonical happy-path state model is:
 
 `Open` -> `Backlog` -> `Ready` -> `In Progress` -> `In Review` -> `Ready to Merge` -> `Done`
 
-Two exception states exist outside the happy path:
+Two exceptional statuses belong to Progressing:
 
 - `Need attentions` — founder-only decision state, entered only after strategist and tech-lead review have both been attempted and neither can resolve the question internally
-- `Blocked` — exception state entered when tech-lead and strategist cannot resolve a dependency, decision, credential, permission, or external condition; any state may enter `Blocked`, typically `In Progress` or `In Review`
+- `Blocked` — entered when tech-lead and strategist cannot resolve a dependency, decision, credential, permission, or external condition; a review item returns to Progressing when it enters this status.
 
 ## States
 
@@ -109,7 +106,7 @@ Typical owner:
 
 Reviewer should record durable findings and return the issue to builder on the same branch when rework is needed.
 
-### `Any State` -> `Need attentions` (founder-only)
+### Eligible unfinished state -> `Need attentions` (founder-only)
 
 `Need attentions` is a founder-only decision state. An issue may enter it only when all of the following are true:
 
@@ -124,13 +121,13 @@ Typical owner:
 
 Internal strategist or tech-lead questions must not use `Need attentions`. Resolve them in GitHub issue comments and keep the issue in its current state (or return it to `Ready`) while internal resolution happens.
 
-### `Need attentions` -> Prior State
+### `Need attentions` -> Appropriate Progressing Status
 
 Allowed when:
 
 - the founder has recorded the decision
 - the next executable path is clear again
-- the issue returns to the state it came from — typically `Ready`, `In Review`, or `Backlog`
+- select `Ready` or `In Progress` according to the next action and their entry conditions. Review-stage work first resumes in Progressing; return to `In Review` only when its review-entry conditions are satisfied.
 
 Typical owner:
 
@@ -161,9 +158,9 @@ Typical owner:
 
 Reviewer must post the approval comment on the PR before making this transition. The comment must state that no blockers remain and the PR is ready to merge.
 
-### `Any State` -> `Blocked` (exception)
+### Eligible unfinished state -> `Blocked` (exception)
 
-`Blocked` is an exception state, not a workflow stage. Any state may enter it — typically `In Progress` or `In Review` — when:
+`Blocked` is a Progressing status. Eligible unfinished work may enter it without violating the category flow; review work returns to Progressing. Do not move `Done` work backward. Enter it when:
 
 - tech-lead and strategist have both attempted resolution and cannot clear the problem internally
 - a dependency, decision, credential, permission, or external condition prevents safe progress
@@ -173,13 +170,13 @@ Typical owner:
 
 - any role after tech-lead/strategist resolution was attempted; usually tech-lead
 
-### `Blocked` -> Prior State
+### `Blocked` -> Appropriate Progressing Status
 
 Allowed when:
 
 - the blocking condition is resolved
 - the next responsible role is explicit
-- the issue returns to the state it was in before blocking — typically `In Progress` or `In Review`
+- select `Ready` or `In Progress` according to the next action and their entry conditions. Return to `In Review` only after its review-entry conditions are satisfied.
 
 Typical owner:
 
@@ -224,6 +221,6 @@ Do not let the flow end at a comment-only handoff.
 
 ## Usage Guidance
 
-- Use this skill when deciding the next board state for a task.
-- Use this skill when designing GitHub Project columns or automation rules.
-- Use this skill with approval and escalation rules so state transitions reflect real delivery decisions.
+- Use this reference when deciding the next board state for a task.
+- Use this reference when designing GitHub Project columns or automation rules.
+- Use this reference with approval and escalation rules so state transitions reflect real delivery decisions.

@@ -12,15 +12,17 @@ This procedure owns whole-spec execution requested through `/do-tasks`. The shar
 
 Use the agentic-flow-terms skill as the canonical glossary for custom workflow metadata terms referenced by this skill.
 Use github-agentic-delivery-flow for the top-level GitHub operating model.
-Use github-conventions, state-transitions, approval-or-escalation, and agent-communication-log for GitHub workflow mechanics.
+Use `github-conventions`, `github-agentic-delivery-flow/references/state-transitions.md`, `playbook-approval-or-escalation`, and `agent-communication-log` for GitHub workflow mechanics.
 Use continue-delivery-queue whenever one issue reaches done, blocked, or another local stopping point and the orchestrator needs to decide whether the queue pass continues.
 Use pr-review-flow when builder work is ready for reviewer review so the PR becomes the canonical review surface.
 Use role-memory for durable cross-loop continuity.
-Use founder-escalation-preflight before asking the founder for a decision.
+Use principle-founder-escalation-preflight before asking the founder for a decision.
+
+Apply `principle-make-state-changes-evidence-based`: `Open` and `Backlog` are Backlog; `Ready` (to do), `In Progress`, `Need attentions`, and `Blocked` are Progressing; `In Review` and `Ready to Merge` are Reviews; `Done` is Done. Category flow is forward except Reviews may return to Progressing. Review work that needs rework, attention, or blocker resolution returns to the appropriate Progressing status; satisfy the review-entry conditions again before returning to Reviews. The state-transition reference owns the detailed status gates and role ownership.
 
 Bundled helpers for issue-isolated development live in:
 
-- `$ANT_TEAM_SCRIPTS/gh_project_helper.sh create-task-branch`
+- `$ANT_TEAM_SCRIPTS/create-task-branch.sh`
 - `$ANT_TEAM_SCRIPTS/cleanup-task-worktree.sh`
 
 Use these helpers instead of inventing ad hoc `git worktree` commands. `tech-lead` owns creating or reusing the issue worktree and task branch before delegating new implementation to `builder`; `tech-lead` also owns post-merge cleanup. `ANT_TEAM_SCRIPTS` is installed and configured by `init-company.sh`.
@@ -105,12 +107,12 @@ Bring in `tech-lead` when technical interpretation, sequencing, guardrails, or l
    - if the issue is in `Ready to Merge`: route to `tech-lead` for final check and merge (see Tech-Lead Merge Gate)
    - if the issue is `In Progress`: review with `builder` whether implementation is done or still in flight; if done, verify builder left the required handover note and PR linkage, then delegate `reviewer`
    - if the issue is `In Review`: delegate `reviewer` before pulling fresh queue work
-   - if the issue is in `Need attentions`: it is a founder decision state; verify from the founder-addressed GitHub comment that strategist and tech-lead review were both attempted, run `founder-escalation-preflight`, and surface the founder decision
-   - if review shows strategist or tech-lead resolution was actually still possible, route it back to that role, record the resolution in an issue comment, and return the issue to its prior state (`Ready`, `In Review`, or `Backlog`)
-   - once the founder decides, record the decision in a GitHub issue comment and return the issue to its prior state, or move to `Blocked` if the remaining problem is an external dependency or approval
+   - if the issue is in `Need attentions`: it is a founder decision state; verify from the founder-addressed GitHub comment that strategist and tech-lead review were both attempted, run `principle-founder-escalation-preflight`, and surface the founder decision
+   - if review shows strategist or tech-lead resolution was actually still possible, route it back to that role, record the resolution in an issue comment, and move the issue to the appropriate Progressing status subject to its entry conditions
+   - once the founder decides, record the decision in a GitHub issue comment and move to the appropriate Progressing status, or `Blocked` if the remaining problem is an external dependency or approval; satisfy review-entry conditions again before returning to review
    - if `builder` has questions about product intent or scope, invoke `strategist` as needed and record the discussion in GitHub comments
    - if `builder` has questions about technical direction or guardrails, invoke `tech-lead` and continue the pass after the answer
-   - if the issue is blocked for any reason, move it to `Blocked`, add a GitHub comment explaining the blocker, and notify the user
+   - if progress is impeded, first route safe internal resolution to the responsible role. Move to `Blocked` only after tech-lead and strategist resolution has been attempted and a dependency, decision, credential, permission, or external condition still prevents safe progress; record the blocker and unblocking action in a GitHub issue comment and notify the user. Follow `github-agentic-delivery-flow/references/state-transitions.md`.
 9. After reconciling active scoped issues, read the remaining selected-spec issues with their status, dependencies, prior comments, and linked docs.
 10. Verify each issue belongs to the selected milestone and authorized scope; record discrepancies and ask tech-lead to resolve missing coverage or readiness gaps.
 11. Use the tech-lead ordering to continue within the selected spec; do not dispatch another spec automatically.
@@ -123,7 +125,7 @@ Bring in `tech-lead` when technical interpretation, sequencing, guardrails, or l
 
 An empty executable queue is a reconciliation point. Check scoped `Ready to Merge`, `In Progress`, `In Review`, `Need attentions`, `Ready`, and `Blocked` issues against their required evidence and dependency records. Resolve safe internal gaps within the selected spec before escalating. Check planned acceptance coverage for missing work through tech-lead.
 
-If every required scoped issue is done with evidence, report completion. If required work remains and no safe scoped action is possible, apply `founder-escalation-preflight` for a genuine founder decision or report the external dependency. Do not search for another spec or unrelated tasks merely to keep the pass running.
+If every required scoped issue is done with evidence, report completion. If required work remains and no safe scoped action is possible, apply `principle-founder-escalation-preflight` for a genuine founder decision or report the external dependency. Do not search for another spec or unrelated tasks merely to keep the pass running.
 
 ## Per-Issue Rules
 
@@ -139,7 +141,7 @@ For each issue:
 - if the issue has a blocker or needs human intervention, record the blocker and required unblocking action in a GitHub issue comment and skip to the next executable issue
 - if the issue needs strategist or tech-lead resolution before safe execution can continue, request and record that resolution in an issue comment and keep the issue in its current state; `Need attentions` is reserved for founder decisions after both reviews were attempted
 - once the technical requirement is clear, invoke `builder` and record that delegation in GitHub
-- before delegating new implementation, require `tech-lead` to create or reuse the issue worktree and task branch with `$ANT_TEAM_SCRIPTS/gh_project_helper.sh create-task-branch`, then record the branch and worktree path in the GitHub issue; for continuation, tech-lead verifies and reuses the existing issue worktree and branch
+- before delegating new implementation, require `tech-lead` to create or reuse the issue worktree and task branch with `$ANT_TEAM_SCRIPTS/create-task-branch.sh`, then record the branch and worktree path in the GitHub issue; for continuation, tech-lead verifies and reuses the existing issue worktree and branch
 - `orchestrator` verifies the setup and includes the worktree path and branch in the builder runtime delegation
 - `builder` owns implementation-state transitions, PR creation or update, and the builder handover note; builder verifies the supplied worktree and branch and stops to route any mismatch or unusable workspace to tech-lead rather than silently creating replacements
 - do not let orchestrator or builder create the issue worktree or task branch in normal flow; tech-lead alone owns setup, while tech-lead also owns cleanup after merge
@@ -172,7 +174,7 @@ The repository ships optional Ponytail skills: `ponytail`, `ponytail-review`, `p
 - if the check passes: `tech-lead` merges the PR, posts a merge confirmation comment on the PR, and moves the issue to `Done` (for a single-issue loop, only after final integrated CI passes). The reviewer approval comment plus the passed tech-lead check authorize this workflow merge; do not wait for CI or a GitHub-native `APPROVED` review state unless repository rules explicitly require one.
 - If `pr-merge` is rejected by GitHub, inspect the actual error and PR checks/rules. Do not claim that the approval comment is a native approval or repeatedly retry. If a repository rule specifically requires a native approval from a distinct account, this workflow cannot satisfy that rule with the same account: record the exact blocker in the PR and issue, move the issue to `Blocked`, and notify the user to provide an authorized reviewer or change the repository rule. Otherwise resolve the reported failing check or permission issue and continue.
 - if the check fails: `tech-lead` posts the code-specific findings and rework reasoning in PR comments, with a concise issue-comment summary; builder picks the findings up on the same branch and the review loop continues through `In Progress` and `In Review`; `tech-lead` moves the issue to `Need attentions` only when a founder decision is required before the findings can be addressed
-- a tech-lead final check failure that results in builder rework counts as a continuation of the same review loop — the 8-loop cap applies across all review passes for the issue including those triggered by tech-lead findings; if the cap is hit, treat it as a loop-breaker and escalate to founder
+- a tech-lead final check failure that results in builder rework counts as a continuation of the same review loop — the 8-loop cap applies across all review passes for the issue including those triggered by tech-lead findings. At the cap, apply `principle-break-unproductive-loops` and use `playbook-approval-or-escalation` for the loop-breaker decision. Escalate to the founder only if a genuine founder-owned decision remains after the required preflight.
 - `tech-lead` is the only role that merges; no other role may merge without an explicit recovery exception recorded in GitHub
 - an issue is `Done` only after `tech-lead` has merged the PR following a passed final check
 
@@ -201,25 +203,11 @@ failed invocation does not satisfy this gate; reconcile its outcome before
 proceeding. “Invoke now” and “continue in the same execution pass” mean after
 these checks, never while the prerequisite role is still running.
 
-## Ownership Rules
+## Role And Continuity Rules
 
-- `orchestrator` owns queue selection, cross-role coordination, and verification that required GitHub artifacts exist.
-- `strategist` owns product framing, scope clarity, success criteria, and product-level resolution of ambiguous work.
-- `tech-lead` owns technical interpretation, architecture guardrails, sequencing, loop-breaker technical decisions, verifying `Need attentions` founder-decision readiness (routing back to `strategist` when internal resolution is still possible), creating or reusing the issue worktree and task branch before builder delegation, recording their path/name in GitHub, the final spec-alignment check, the merge decision, the transition from `Ready to Merge` to `Done`, and post-merge cleanup.
-- `builder` owns implementation, implementation-state transitions into active work and review, PR creation or update, and the builder handover comment in the issue or PR.
-- `reviewer` owns review findings, review approvals, return-to-builder decisions, reviewer verification notes, and the transition from `In Review` to `Ready to Merge` on approval or back to `In Progress` on findings. Reviewer does not merge and does not move issues to `Done`.
-- A role should not perform another role's normal workflow mutation just because it has tool access. If recovery is necessary, record why the usual owner could not perform the action.
+Follow `github-agentic-delivery-flow` and its specialist references for role ownership, review, workspace continuity, recovery, and cleanup. Do not perform another role's normal mutation merely because tools permit it; record a necessary recovery exception. Keep the queue-specific gates, synchronous handoffs, and orchestrator verification in this procedure.
 
-## Development Loop Ownership Rules
-
-- `builder` must not treat "code pushed" as equivalent to "ready for review"; review starts only after the PR and handover artifacts exist.
-- before delegating implementation, `tech-lead` creates a dedicated issue worktree and task branch for new work; for continuation, tech-lead verifies and reuses the existing worktree, branch, and PR
-- `builder` implements in the workspace and branch supplied by tech-lead and updates the existing PR when one exists; builder must not create a fresh worktree, branch, or replacement PR during normal continuation
-- if the existing worktree, branch, or PR is unusable, builder stops and reports the issue to tech-lead; tech-lead records the recovery reason and old/new artifact links in GitHub before provisioning replacements
-- after merge or explicit task closure, `tech-lead` cleans up the issue worktree and local branch with `$ANT_TEAM_SCRIPTS/cleanup-task-worktree.sh` once they are no longer needed for review, rollback, or follow-up fixes
-- `reviewer` must not silently fix builder work as a substitute for findings unless the workflow explicitly assigns reviewer implementation for a special recovery case.
-- `orchestrator` should not close the loop based on verbal assurances; it should verify the branch, PR, state, and comments.
-- `strategist` and `tech-lead` should resolve ambiguity with durable guidance, then return execution to `builder` or `reviewer` rather than carrying the implementation loop themselves.
+After merge or explicit task closure, `tech-lead` cleans up the issue worktree and local branch using `$ANT_TEAM_SCRIPTS/cleanup-task-worktree.sh` once they are no longer needed for review, rollback, or follow-up fixes.
 
 ## Required Delegation Content
 

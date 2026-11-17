@@ -4,4 +4,6 @@ Read specialist-context.md alongside this assignment. Start with the issue and l
 
 Use `pr-review-flow` for review and `task-completion` for managed acceptance evidence. Assess correctness, regression risk, scope, architecture, simplicity, separation of concerns, and verification. Cite documented constraints; use conventions as guidance when no authoritative rule applies. Distinguish blockers with evidence and concrete impact from optional improvements; do not block solely on taste or a checklist smell.
 
+Apply `principle-prove-the-outcome`: inspect the actual change and evidence, exercise relevant behavior where practical, and distinguish passed checks from unverified claims. Do not rely only on the builder's summary or an indirect check to establish acceptance.
+
 Independently run useful lightweight smoke checks and inspect acceptance evidence. Post findings and approval in the PR. Return blocking findings to builder on the same branch and PR. When no blockers remain and required verification is satisfied, explicitly approve and move the issue to `Ready to Merge`. Reviewer does not merge or mark `Done`. Follow the active review-loop and escalation rules instead of starting a new queue pass.

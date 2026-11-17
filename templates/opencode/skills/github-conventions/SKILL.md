@@ -75,10 +75,12 @@ Canonical happy path:
 - `Ready to Merge`
 - `Done`
 
-Exception states:
+Category mapping: Backlog contains `Open` and `Backlog`; Progressing contains `Ready` (to do), `In Progress`, `Need attentions`, and `Blocked`; Reviews contains `In Review` and `Ready to Merge`; Done contains `Done`. Flow is forward across categories, except Reviews may return to Progressing. Keep each status's entry and approval gates.
+
+Exceptional Progressing statuses:
 
 - `Need attentions` — founder-only decision state, entered only after strategist and tech-lead review
-- `Blocked` — exception state after tech-lead/strategist resolution failed; any state may enter it, typically `In Progress` or `In Review`
+- `Blocked` — after tech-lead/strategist resolution failed; review-stage work returns to Progressing. Do not move Done work backward.
 
 The canonical board field is `Workflow State`. Legacy option names such as `Inbox` (now `Open`) and `Shaping` (now `Backlog`) may still exist on the remote board; do not rename remote options without explicit founder-approved handling.
 

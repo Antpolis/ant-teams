@@ -6,7 +6,7 @@ Clean and reconcile the current sprint or delivery state for: $ARGUMENTS
 
 Before interpreting workflow metadata terms, use the agentic-flow-terms skill as the canonical glossary for development loop, review loop, loop-breaker, stopper, hard blocker, defer task, communication log, role memory, approval gate, task branch, and production base branch.
 This is a reconciliation pass, not queue execution. Do not load `do-tasks` or dispatch fresh implementation unless the user explicitly requests queue execution.
-Use `founder-escalation-preflight` only for an unresolved execution blocker; normal cleanup discussion with the founder is not an escalation.
+Use `principle-founder-escalation-preflight` only for an unresolved execution blocker; normal cleanup discussion with the founder is not an escalation.
 
 Assume this command is part of a recurring weekly cleanup pass unless the user says otherwise.
 
@@ -30,7 +30,7 @@ Flow:
    - tasks completed in the lookback window
    - current open issues
    - current project-board states
-8. Use the github-agentic-delivery-flow, state-transitions, and github-conventions skills to confirm what work is still in shaping, what is blocked, what is ready, and what has drifted.
+8. Use `github-agentic-delivery-flow`, its `references/state-transitions.md`, and `github-conventions` to confirm what work is still in shaping, what is blocked, what is ready, and what has drifted.
 9. Use the github-issues-projects-cli skill and the repo GitHub wrapper to review issues, milestone linkage, project-board status, dependencies, completion state, and missing metadata; invoke the wrapper directly because it loads `.github-project.env` itself. Source the env once only if a direct command must expand an `ANT_TEAM_*` value.
 10. Reconcile the system of record:
    - confirm completed tasks are actually reflected in the spec and task set

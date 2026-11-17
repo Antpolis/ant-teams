@@ -154,13 +154,13 @@ yaml_dropdown_options() {
 init_suite "INV-1 canonical state model"
 
 inv1a() {
-  local s; s="$(read_file 'templates/opencode/skills/state-transitions/SKILL.md')"
+  local s; s="$(read_file 'templates/opencode/skills/github-agentic-delivery-flow/references/state-transitions.md')"
   must_contain "$s" '`Open` -> `Backlog` -> `Ready` -> `In Progress` -> `In Review` -> `Ready to Merge` -> `Done`' "state-transitions"
   must_contain "$s" '`Open` -> `Backlog`' "state-transitions"
   must_contain "$s" '`Backlog` -> `Ready`' "state-transitions"
 }
 inv1b() {
-  local s; s="$(read_file 'templates/opencode/skills/state-transitions/SKILL.md')"
+  local s; s="$(read_file 'templates/opencode/skills/github-agentic-delivery-flow/references/state-transitions.md')"
   must_not_contain "$s" '### `Inbox`' "state-transitions"
   must_not_contain "$s" '### `Shaping`' "state-transitions"
   local without_note
@@ -171,20 +171,22 @@ inv1b() {
 inv1c() {
   local f s st
   for f in \
-    'templates/opencode/skills/state-transitions/SKILL.md' \
-    'templates/opencode/skills/approval-or-escalation/SKILL.md' \
+    'templates/opencode/skills/github-agentic-delivery-flow/references/state-transitions.md' \
+    'templates/opencode/skills/playbook-approval-or-escalation/SKILL.md' \
     'templates/opencode/skills/github-agentic-delivery-flow/SKILL.md' \
     'templates/opencode/skills/github-conventions/SKILL.md'; do
     s="$(read_file "$f")"
     must_contain "$s" 'founder-only' "$f"
   done
-  st="$(read_file 'templates/opencode/skills/state-transitions/SKILL.md')"
+  st="$(read_file 'templates/opencode/skills/github-agentic-delivery-flow/references/state-transitions.md')"
   must_contain "$st" 'after strategist and tech-lead review' "state-transitions"
 }
 inv1d() {
-  local st; st="$(read_file 'templates/opencode/skills/state-transitions/SKILL.md')"
-  must_contain "$st" 'Any State` -> `Blocked` (exception)' "state-transitions"
-  must_contain "$st" 'typically `In Progress` or `In Review`' "state-transitions"
+  local st; st="$(read_file 'templates/opencode/skills/github-agentic-delivery-flow/references/state-transitions.md')"
+  must_contain "$st" 'Eligible unfinished state -> `Blocked` (exception)' "state-transitions"
+  must_contain "$st" '`Blocked` is a Progressing status' "state-transitions"
+  must_contain "$st" 'Do not move `Done` work backward' "state-transitions"
+  must_contain "$st" '`Reviews` → `Progressing` is the only backward category transition' "state-transitions"
 }
 inv1e() {
   local flow conv
@@ -202,7 +204,7 @@ inv1e() {
 check_body 'INV-1a: state-transitions defines the canonical happy path in order' inv1a
 check_body 'INV-1b: state-transitions has no legacy Inbox/Shaping transitions' inv1b
 check_body 'INV-1c: Need attentions is founder-only after strategist and tech-lead review' inv1c
-check_body 'INV-1d: Blocked is an exception state, any state may enter, typically In Progress/In Review' inv1d
+check_body 'INV-1d: Blocked belongs to Progressing and respects category flow' inv1d
 check_body 'INV-1e: flow and conventions skills list the canonical states, not legacy ones' inv1e
 
 # --- INV-2: canonical state constants; env carries IDs -------------------------------
@@ -212,7 +214,7 @@ init_suite "INV-2 canonical state constants"
 inv2a() { [[ ! -e "$INIT_REPO_ROOT/.github-project.json" ]]; }
 inv2b() {
   local st h state
-  st="$(read_file 'templates/opencode/skills/state-transitions/SKILL.md')"
+  st="$(read_file 'templates/opencode/skills/github-agentic-delivery-flow/references/state-transitions.md')"
   for state in "${CANONICAL_STATES[@]}" "${EXCEPTION_STATES[@]}"; do
     must_contain "$st" "$state" "state-transitions canonical state name"
   done
@@ -468,9 +470,8 @@ inv10b() {
     'templates/opencode/skills/documentation-standard/SKILL.md'
     'templates/opencode/skills/agent-communication-log/SKILL.md'
     'templates/opencode/skills/role-memory/SKILL.md'
-    'templates/opencode/skills/founder-escalation-preflight/SKILL.md'
+    'templates/opencode/skills/principle-founder-escalation-preflight/SKILL.md'
     'templates/opencode/skills/pr-review-flow/SKILL.md'
-    'templates/opencode/skills/development-hygiene/SKILL.md'
     'AGENTS.md'
   )
   for f in "${runtime_files[@]}"; do
@@ -493,7 +494,7 @@ check_body 'INV-10b: runtime-facing commands and skills never instruct runtime J
 
 inv_founder_escalation() {
   local content phrase
-  content="$(read_file 'templates/opencode/skills/founder-escalation-preflight/SKILL.md')"
+  content="$(read_file 'templates/opencode/skills/principle-founder-escalation-preflight/SKILL.md')"
   for phrase in 'Blocker and impact:' 'Work completed and attempts:' 'Why this is escalated:' \
     'Options:' 'Resolvability and specialist input:' 'Recommendation:' 'Exact founder decision or action:' 'After your decision:' 'Unblock plan:' \
     'who controls each option' 'distinguish verified facts from assumptions' \
@@ -612,7 +613,7 @@ inv11bc() {
   local helper docs shaping command content label
   helper="$(read_file 'templates/opencode/skills/github-issues-projects-cli/scripts/gh_project_helper.sh')"
   docs="$(read_file 'templates/opencode/skills/documentation-standard/SKILL.md')"
-  shaping="$(read_file 'templates/opencode/skills/product-shaping/SKILL.md')"
+  shaping="$(read_file 'templates/opencode/skills/playbook-product-shaping/SKILL.md')"
   command="$(read_file 'templates/opencode/skills/github-agentic-delivery-flow/references/new-spec.md')"
   must_contain "$helper" 'spec-next' "GitHub helper"
   must_contain "$helper" 'spec_id: SPEC-\([0-9][0-9][0-9]*\)' "GitHub helper numeric SPEC matcher"
@@ -670,7 +671,7 @@ inv11bg() {
 }
 inv11c() {
   local shaping tasks
-  shaping="$(read_file 'templates/opencode/skills/product-shaping/SKILL.md')"
+  shaping="$(read_file 'templates/opencode/skills/playbook-product-shaping/SKILL.md')"
   tasks="$(read_file 'templates/opencode/skills/how-to-create-task/SKILL.md')"
   must_contain "$shaping" 'ready for planning' "product-shaping"
   must_contain "$shaping" 'open decision blocks planning' "product-shaping"
@@ -681,20 +682,20 @@ inv11d() {
   local f
   for f in \
     'templates/opencode/skills/how-to-create-task/SKILL.md' \
-    'templates/opencode/skills/state-transitions/SKILL.md' \
+    'templates/opencode/skills/github-agentic-delivery-flow/references/state-transitions.md' \
     'templates/opencode/skills/do-tasks/SKILL.md' \
-    'templates/opencode/skills/development-hygiene/SKILL.md' \
+    'templates/opencode/skills/github-agentic-delivery-flow/references/builder-delivery.md' \
     'templates/opencode/skills/pr-review-flow/SKILL.md' \
     'templates/opencode/skills/task-completion/SKILL.md' \
     'templates/opencode/skills/github-agentic-delivery-flow/references/orchestration.md'; do
     must_contain "$(read_file "$f")" 'Durable Context' "$f"
   done
-  must_contain "$(read_file 'templates/opencode/skills/state-transitions/SKILL.md')" 'Do not move work to `Ready`' "state-transitions"
+  must_contain "$(read_file 'templates/opencode/skills/github-agentic-delivery-flow/references/state-transitions.md')" 'Do not move work to `Ready`' "state-transitions"
   must_contain "$DO_TASK_CONTENT" 'do not invoke builder' "do-tasks"
   must_contain "$(read_file 'templates/opencode/skills/pr-review-flow/SKILL.md')" 'do not approve the PR' "pr-review-flow"
   must_contain "$(read_file 'templates/opencode/skills/task-completion/SKILL.md')" 'do not approve completion' "task-completion"
-  must_contain "$(read_file 'templates/opencode/skills/approval-or-escalation/SKILL.md')" 'updates the Obsidian SPEC only when it changes durable product intent' "approval-or-escalation"
-  must_contain "$(read_file 'templates/opencode/skills/approval-or-escalation/SKILL.md')" 'updates ARCH, ADR, GOV, or runbook documentation only when the outcome is durable' "approval-or-escalation"
+  must_contain "$(read_file 'templates/opencode/skills/playbook-approval-or-escalation/SKILL.md')" 'updates the Obsidian SPEC only when it changes durable product intent' "playbook-approval-or-escalation"
+  must_contain "$(read_file 'templates/opencode/skills/playbook-approval-or-escalation/SKILL.md')" 'updates ARCH, ADR, GOV, or runbook documentation only when the outcome is durable' "playbook-approval-or-escalation"
   must_contain "$BUILDER_PROMPT" 'route product intent, scope, success criteria, or acceptance ambiguity to strategist' "builder routing"
   must_contain "$(read_file "$(role_agent_file reviewer)")" 'Route product intent, scope, success-criteria, or acceptance ambiguity to strategist' "reviewer routing"
   must_contain "$LOG_CONTENT" '## Delegation — <source> → <target>' "agent-communication-log delegation template"

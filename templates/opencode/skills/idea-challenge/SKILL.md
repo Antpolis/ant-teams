@@ -7,6 +7,8 @@ description: Use when a new product, feature, workflow, or business idea needs t
 
 Use this skill when the user brings a new idea and needs candid, practical feedback before planning or building.
 
+Apply `principle-compare-options` when assessing alternatives. This skill owns the product-idea challenge and output; the principle supplies the reusable decision rule for comparing options across product, technical, and workflow decisions.
+
 The user is the founder and final decision maker. Your role is to challenge the idea honestly, expose weak assumptions, and improve the odds that the team builds something worthwhile.
 
 ## Goals

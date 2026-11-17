@@ -9,6 +9,8 @@ These rules apply within an explicitly activated managed delivery workflow. The 
 
 Use this skill when tech-lead is turning an approved, implementation-ready spec into a GitHub milestone and execution issues.
 
+Apply `principle-shape-verifiable-tasks` for tool-independent task boundaries, dependencies, and verification. This skill maps the resulting decisions into GitHub records and preserves the managed workflow's ownership and readiness gates.
+
 Use the agentic-flow-terms skill as the canonical glossary for custom workflow metadata terms referenced by tasks.
 Use the GitHub workflow skills for milestone, issue, state, approval, and escalation conventions.
 
@@ -288,6 +290,12 @@ Make each issue the smallest coherent slice that can be implemented, independent
 For each dependency recorded in the issue and milestone, explain the concrete prerequisite, why work cannot safely proceed without it, and its evidence or release condition. Distinguish hard prerequisites from preferred order, coordination or shared-file conflicts, and external uncertainties. Record parallel-safe work and a practical mitigation or workaround for external dependencies; do not promise outcomes controlled by third parties. Revisit unnecessary edges during planning and when circumstances change.
 
 Plan focused task-level verification alongside implementation. Do not make pending or successful CI a prerequisite for shaping, starting, reviewing, or progressing another issue. Plan full CI verification of the final integrated production-base commit after implementation PRs merge, with failures resolved before pass completion or spec closeout; in a single-issue loop require it before issue closure or `Done`. If a GitHub rule actually prevents a merge pending CI or code scanning, report the rule and continue independent work; never bypass or modify protection without authorization. Follow `do-tasks` for execution details.
+
+### Sequence verifiable units
+
+For each task, identify the smallest coherent unit with an observable acceptance condition, its starting assumption or baseline, and a focused check that can demonstrate the intended result. For a bug, plan a reproducible failing case before the fix when practical; for behavior-preserving work, plan a passing baseline. Record the command, observable result, or evidence needed so another person can reproduce or inspect it. If the baseline or check cannot be obtained, record the limitation and strongest practical alternative rather than claiming it passed.
+
+Sequence dependent units so each required prerequisite is verified before work that relies on that result advances. Plan commits or PRs so the reviewer can follow the rationale and evidence in order, without requiring a failing commit to be merged. A failed focused check returns the affected unit for correction; it must not prevent independent issues from proceeding safely. This is task-level evidence, not a requirement to wait for CI between issues. After integration, verify the combined outcome separately; individually passing units do not by themselves prove the whole spec.
 
 Use the GitHub workflow skills to decide project states, blockers, approvals, and escalation behaviour.
 

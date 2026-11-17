@@ -7,6 +7,8 @@ description: Use after a meaningful delivery event to capture a new, durable, re
 
 Use this skill only after a meaningful delivery event reveals a new durable, reusable lesson for a future builder, reviewer, or architect decision. Do not run it automatically after every task, review loop, verification, blocker, escalation, or defer-task step.
 
+When a recurring failure can be detected reliably, apply `principle-encode-lessons-in-checks` and consider a focused regression test or validation in addition to any qualifying role memory. A check does not replace GitHub's operational record or make memory a completion gate; a one-off or subjective lesson does not automatically justify automation or a memory entry.
+
 Use the agentic-flow-terms skill as the canonical glossary for custom workflow metadata terms referenced by role memory.
 
 ## Purpose

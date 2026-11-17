@@ -664,7 +664,7 @@ copy_required_skills() {
   local -a excluded_skills=(
     "skill-creator"
     "webapp-testing"
-    "doc-coauthoring"
+    "principle-write-for-the-audience"
     "frontend-design"
   )
 
